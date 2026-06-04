@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-<meta charset="UTF-8">
+<!-- saved from url=(0048)file:///Users/zhenghuazhi/Downloads/index_1.html -->
+<html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="輕境">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%231A1510'/><path d='M65 20 A28 28 0 1 0 70 60' stroke='%23F0D89A' stroke-width='5' stroke-linecap='round' fill='none'/><path d='M20 42 Q32 34 50 42 Q68 50 80 42' stroke='%23F0D89A' stroke-width='4' stroke-linecap='round' fill='none'/><path d='M20 54 Q32 46 50 54 Q68 62 80 54' stroke='%23F0D89A' stroke-width='4' stroke-linecap='round' fill='none'/></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,&lt;svg xmlns=&#39;http://www.w3.org/2000/svg&#39; viewBox=&#39;0 0 100 100&#39;&gt;&lt;rect width=&#39;100&#39; height=&#39;100&#39; rx=&#39;22&#39; fill=&#39;%231A1510&#39;/&gt;&lt;path d=&#39;M65 20 A28 28 0 1 0 70 60&#39; stroke=&#39;%23F0D89A&#39; stroke-width=&#39;5&#39; stroke-linecap=&#39;round&#39; fill=&#39;none&#39;/&gt;&lt;path d=&#39;M20 42 Q32 34 50 42 Q68 50 80 42&#39; stroke=&#39;%23F0D89A&#39; stroke-width=&#39;4&#39; stroke-linecap=&#39;round&#39; fill=&#39;none&#39;/&gt;&lt;path d=&#39;M20 54 Q32 46 50 54 Q68 62 80 54&#39; stroke=&#39;%23F0D89A&#39; stroke-width=&#39;4&#39; stroke-linecap=&#39;round&#39; fill=&#39;none&#39;/&gt;&lt;/svg&gt;">
 <meta name="theme-color" content="#1A1510">
 <title>輕境運動工作室</title>
 <style>
@@ -493,18 +493,18 @@ const db={
 <div class="hdr">
   <div class="hdr-logo">
     <svg width="36" height="36" viewBox="0 0 38 38" fill="none">
-      <path d="M30 8 A15 15 0 1 0 32 28" stroke="#FFFDF8" stroke-width="2.8" stroke-linecap="round" fill="none"/>
-      <path d="M8 17 Q13 13 19 17 Q25 21 32 17" stroke="#FFFDF8" stroke-width="2.2" stroke-linecap="round" fill="none"/>
-      <path d="M8 22 Q13 18 19 22 Q25 26 32 22" stroke="#FFFDF8" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+      <path d="M30 8 A15 15 0 1 0 32 28" stroke="#FFFDF8" stroke-width="2.8" stroke-linecap="round" fill="none"></path>
+      <path d="M8 17 Q13 13 19 17 Q25 21 32 17" stroke="#FFFDF8" stroke-width="2.2" stroke-linecap="round" fill="none"></path>
+      <path d="M8 22 Q13 18 19 22 Q25 26 32 22" stroke="#FFFDF8" stroke-width="2.2" stroke-linecap="round" fill="none"></path>
     </svg>
     <div class="hdr-div"></div>
     <div><div class="hdr-brand">輕境</div><div class="hdr-sub">MOTIVATION STUDIO</div></div>
   </div>
   <div style="display:flex;align-items:center;gap:10px">
   <div style="display:flex;align-items:center;gap:5px">
-    <div id="syncDot" style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.15);transition:.3s" title="雲端同步狀態"></div>
+    <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk"></div><div class="hdr-date" id="dat"></div></div>
+  <div><div class="hdr-time" id="clk">15:45</div><div class="hdr-date" id="dat">6月4日（四）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -513,17 +513,53 @@ const db={
 <div class="scroll-wrap" id="mainScroll">
   <div class="screen active" id="sc-teachers"><div class="sc-pad">
     <div class="day-hero">
-      <div class="day-date" id="heroDate"></div>
-      <div class="day-week" id="heroWeek"></div>
-      <div class="day-hint" id="heroHint"></div>
+      <div class="day-date" id="heroDate">2026年6月4日</div>
+      <div class="day-week" id="heroWeek">星期四</div>
+      <div class="day-hint" id="heroHint">今日共 3 位老師・4 正式</div>
     </div>
-    <div id="teacherArea"></div>
+    <div id="teacherArea"><div style="display:flex;flex-direction:column;gap:10px"><div style="background:var(--white);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px;cursor:pointer;box-shadow:0 2px 8px rgba(44,36,22,.1);position:relative;overflow:hidden;transition:.15s;-webkit-tap-highlight-color:transparent" onclick="selectTeacher(&#39;Alina&#39;)" onmousedown="this.style.transform=&#39;scale(.98)&#39;" onmouseup="this.style.transform=&#39;&#39;" ontouchend="this.style.transform=&#39;&#39;">
+      <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--gold2)"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:22px;letter-spacing:3px;color:var(--ink)">Alina</div>
+          <div style="font-size:12px;color:var(--ink3);margin-top:4px">12:00 – 14:00・2 堂</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end"><span style="background:var(--bg2);color:var(--ink3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px">待簽到 2 堂</span></div>
+          <div style="font-size:13px;color:var(--ink3)">點選進入 ›</div>
+        </div>
+      </div>
+    </div><div style="background:var(--white);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px;cursor:pointer;box-shadow:0 2px 8px rgba(44,36,22,.1);position:relative;overflow:hidden;transition:.15s;-webkit-tap-highlight-color:transparent" onclick="selectTeacher(&#39;Jungle&#39;)" onmousedown="this.style.transform=&#39;scale(.98)&#39;" onmouseup="this.style.transform=&#39;&#39;" ontouchend="this.style.transform=&#39;&#39;">
+      <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--gold2)"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:22px;letter-spacing:3px;color:var(--ink)">Jungle</div>
+          <div style="font-size:12px;color:var(--ink3);margin-top:4px">10:00・1 堂</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end"><span style="background:var(--bg2);color:var(--ink3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px">待簽到 1 堂</span></div>
+          <div style="font-size:13px;color:var(--ink3)">點選進入 ›</div>
+        </div>
+      </div>
+    </div><div style="background:var(--white);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px;cursor:pointer;box-shadow:0 2px 8px rgba(44,36,22,.1);position:relative;overflow:hidden;transition:.15s;-webkit-tap-highlight-color:transparent" onclick="selectTeacher(&#39;Clara&#39;)" onmousedown="this.style.transform=&#39;scale(.98)&#39;" onmouseup="this.style.transform=&#39;&#39;" ontouchend="this.style.transform=&#39;&#39;">
+      <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--gold2)"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:22px;letter-spacing:3px;color:var(--ink)">Clara</div>
+          <div style="font-size:12px;color:var(--ink3);margin-top:4px">16:00・1 堂</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end"><span style="background:var(--bg2);color:var(--ink3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px">待簽到 1 堂</span></div>
+          <div style="font-size:13px;color:var(--ink3)">點選進入 ›</div>
+        </div>
+      </div>
+    </div></div></div>
   </div></div>
 
   <!-- 學生清單 -->
   <div class="screen" id="sc-students"><div class="sc-pad">
     <div class="back-bar">
-      <button class="back-btn" onclick="goScreen('sc-teachers')">← 返回</button>
+      <button class="back-btn" onclick="goScreen(&#39;sc-teachers&#39;)">← 返回</button>
       <div class="back-title" id="stuListTitle"></div>
     </div>
     <div class="search-wrap">
@@ -568,7 +604,7 @@ const db={
       <div class="success-lbl" id="successLbl">堂課程可用</div>
       <div id="nextBookingArea" style="margin-top:20px;max-width:320px;width:100%"></div>
       <div id="lineMessageArea" style="margin-top:20px;width:100%;max-width:380px"></div>
-      <button class="btn btn-ink" style="margin-top:14px;max-width:260px" onclick="goScreen('sc-teachers')">完成，返回首頁</button>
+      <button class="btn btn-ink" style="margin-top:14px;max-width:260px" onclick="goScreen(&#39;sc-teachers&#39;)">完成，返回首頁</button>
     </div>
   </div></div>
 </div>
@@ -586,19 +622,19 @@ const db={
     </label>
   </div>
   <div class="admin-tabs">
-    <div class="a-tab active" onclick="aTab('sch')">今日開課</div>
-    <div class="a-tab" onclick="aTab('daily')">確認消課</div>
-    <div class="a-tab" onclick="aTab('cal')">預排行事曆</div>
-    <div class="a-tab" onclick="aTab('wage')">月薪資</div>
-    <div class="a-tab" onclick="aTab('mgr')">學員管理</div>
-    <div class="a-tab" onclick="aTab('tch')">師資管理</div>
+    <div class="a-tab active" onclick="aTab(&#39;sch&#39;)">今日開課</div>
+    <div class="a-tab" onclick="aTab(&#39;daily&#39;)">確認消課</div>
+    <div class="a-tab" onclick="aTab(&#39;cal&#39;)">預排行事曆</div>
+    <div class="a-tab" onclick="aTab(&#39;wage&#39;)">月薪資</div>
+    <div class="a-tab" onclick="aTab(&#39;mgr&#39;)">學員管理</div>
+    <div class="a-tab" onclick="aTab(&#39;tch&#39;)">師資管理</div>
     <div class="a-tab" onclick="leaveAdmin()" style="color:#8A5A50">← 離開</div>
   </div>
   <div class="admin-scroll">
     <div class="a-page active" id="ap-sch"><div id="schEditor"></div></div>
     <div class="a-page" id="ap-daily">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 0 11px">
-        <div><div style="font-family:'Noto Serif TC',serif;font-size:17px;letter-spacing:2px" id="aDayTtl"></div><div style="font-size:12px;color:var(--ink3);margin-top:3px">確認後計入師資費</div></div>
+        <div><div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:17px;letter-spacing:2px" id="aDayTtl"></div><div style="font-size:12px;color:var(--ink3);margin-top:3px">確認後計入師資費</div></div>
         <div class="date-nav"><button class="dnav-btn" onclick="shiftDay(-1)">‹</button><div class="dnav-lbl" id="aDayShort"></div><button class="dnav-btn" onclick="shiftDay(1)">›</button></div>
       </div>
       <div id="dailyContent"></div>
@@ -629,10 +665,10 @@ const db={
     <div class="pin-sub">請輸入 4 位數密碼</div>
     <div class="pin-dots"><div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div><div class="pin-dot" id="pd2"></div><div class="pin-dot" id="pd3"></div></div>
     <div class="numpad">
-      <div class="num-btn" onclick="pIn('1')">1</div><div class="num-btn" onclick="pIn('2')">2</div><div class="num-btn" onclick="pIn('3')">3</div>
-      <div class="num-btn" onclick="pIn('4')">4</div><div class="num-btn" onclick="pIn('5')">5</div><div class="num-btn" onclick="pIn('6')">6</div>
-      <div class="num-btn" onclick="pIn('7')">7</div><div class="num-btn" onclick="pIn('8')">8</div><div class="num-btn" onclick="pIn('9')">9</div>
-      <div class="num-btn num-del" onclick="pDel()">⌫</div><div class="num-btn" onclick="pIn('0')">0</div><div class="num-btn num-ok" onclick="pConfirm()">確認</div>
+      <div class="num-btn" onclick="pIn(&#39;1&#39;)">1</div><div class="num-btn" onclick="pIn(&#39;2&#39;)">2</div><div class="num-btn" onclick="pIn(&#39;3&#39;)">3</div>
+      <div class="num-btn" onclick="pIn(&#39;4&#39;)">4</div><div class="num-btn" onclick="pIn(&#39;5&#39;)">5</div><div class="num-btn" onclick="pIn(&#39;6&#39;)">6</div>
+      <div class="num-btn" onclick="pIn(&#39;7&#39;)">7</div><div class="num-btn" onclick="pIn(&#39;8&#39;)">8</div><div class="num-btn" onclick="pIn(&#39;9&#39;)">9</div>
+      <div class="num-btn num-del" onclick="pDel()">⌫</div><div class="num-btn" onclick="pIn(&#39;0&#39;)">0</div><div class="num-btn num-ok" onclick="pConfirm()">確認</div>
     </div>
     <div class="pin-err" id="pinErr"></div>
     <button class="pin-cancel" onclick="closePinOv()">取消</button>
@@ -647,14 +683,12 @@ const db={
     <!-- 搜尋舊學員 / 舊體驗紀錄 -->
     <div style="position:relative;margin-bottom:8px">
       <span style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--ink3);font-size:15px;pointer-events:none">🔍</span>
-      <input type="text" id="trialSearchInp" placeholder="搜尋姓名或電話（舊學員或曾體驗過）"
-        style="width:100%;padding:10px 14px 10px 40px;border:1.5px solid var(--border);border-radius:10px;font-family:'Noto Sans TC',sans-serif;font-size:14px;color:var(--ink);outline:none;margin-bottom:0"
-        oninput="onTrialSearch(this.value)">
+      <input type="text" id="trialSearchInp" placeholder="搜尋姓名或電話（舊學員或曾體驗過）" style="width:100%;padding:10px 14px 10px 40px;border:1.5px solid var(--border);border-radius:10px;font-family:&#39;Noto Sans TC&#39;,sans-serif;font-size:14px;color:var(--ink);outline:none;margin-bottom:0" oninput="onTrialSearch(this.value)">
     </div>
     <div id="trialSearchResults" style="display:none;border:1px solid var(--border);border-radius:10px;background:var(--white);margin-bottom:10px;max-height:160px;overflow-y:auto"></div>
     <div id="trialSelectedInfo" style="display:none;background:var(--teal2);border:1.5px solid var(--teal3);border-radius:10px;padding:10px 14px;margin-bottom:10px">
       <div style="display:flex;align-items:center;justify-content:space-between">
-        <div id="trialSelectedName" style="font-family:'Noto Serif TC',serif;font-size:16px;color:var(--teal)"></div>
+        <div id="trialSelectedName" style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:16px;color:var(--teal)"></div>
         <span onclick="clearTrialSelected()" style="font-size:12px;color:var(--ink3);cursor:pointer;padding:3px 8px;background:var(--white);border-radius:6px;border:1px solid var(--border)">清除</span>
       </div>
       <div id="trialSelectedSub" style="font-size:12px;color:#0F6E56;margin-top:3px"></div>
@@ -665,9 +699,9 @@ const db={
     <input type="text" id="trialName" placeholder="例：陳小明">
     <label>課程類型</label>
     <div class="trial-plan-tags" id="trialPlanTags">
-      <div class="tpt" onclick="pickTrialPlan(this,'器械皮拉提斯')">器械皮拉提斯</div>
-      <div class="tpt" onclick="pickTrialPlan(this,'重訓課程')">重訓課程</div>
-      <div class="tpt" onclick="pickTrialPlan(this,'瑜珈課程')">瑜珈課程</div>
+      <div class="tpt" onclick="pickTrialPlan(this,&#39;器械皮拉提斯&#39;)">器械皮拉提斯</div>
+      <div class="tpt" onclick="pickTrialPlan(this,&#39;重訓課程&#39;)">重訓課程</div>
+      <div class="tpt" onclick="pickTrialPlan(this,&#39;瑜珈課程&#39;)">瑜珈課程</div>
     </div>
     <label>人數比例</label>
     <div class="trial-plan-tags" id="trialRatioTags"></div>
@@ -722,18 +756,18 @@ const db={
     <input type="number" id="nFee" placeholder="800">
     <label>有效期限</label><input type="text" id="nExpiry" placeholder="2026/12/31">
     <div style="height:1px;background:var(--bg2);margin:14px 0"></div>
-    <div style="font-family:'Noto Serif TC',serif;font-size:13px;letter-spacing:1.5px;color:var(--ink2);margin-bottom:12px">付款資訊</div>
+    <div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:13px;letter-spacing:1.5px;color:var(--ink2);margin-bottom:12px">付款資訊</div>
     <label>繳款方式</label>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px" id="payMethods">
-      <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white);transition:.15s" onclick="selectPM(this,'transfer_fubon')" data-pm="transfer_fubon"><div style="font-size:18px;margin-bottom:4px">🏦</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">匯款聯邦</div><div style="font-size:11px;color:var(--ink3)">聯邦銀行</div></div>
-      <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white);transition:.15s" onclick="selectPM(this,'transfer_cathay')" data-pm="transfer_cathay"><div style="font-size:18px;margin-bottom:4px">🏦</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">匯款國泰</div><div style="font-size:11px;color:var(--ink3)">國泰世華</div></div>
-      <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white);transition:.15s" onclick="selectPM(this,'card')" data-pm="card"><div style="font-size:18px;margin-bottom:4px">💳</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">刷卡</div><div style="font-size:11px;color:var(--red);font-weight:500">+3% 手續費</div></div>
-      <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white);transition:.15s" onclick="selectPM(this,'cash')" data-pm="cash"><div style="font-size:18px;margin-bottom:4px">💵</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">付現金</div><div style="font-size:11px;color:var(--green);font-weight:500">現折 $1,000</div></div>
+      <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white);transition:.15s" onclick="selectPM(this,&#39;transfer_fubon&#39;)" data-pm="transfer_fubon"><div style="font-size:18px;margin-bottom:4px">🏦</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">匯款聯邦</div><div style="font-size:11px;color:var(--ink3)">聯邦銀行</div></div>
+      <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white);transition:.15s" onclick="selectPM(this,&#39;transfer_cathay&#39;)" data-pm="transfer_cathay"><div style="font-size:18px;margin-bottom:4px">🏦</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">匯款國泰</div><div style="font-size:11px;color:var(--ink3)">國泰世華</div></div>
+      <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white);transition:.15s" onclick="selectPM(this,&#39;card&#39;)" data-pm="card"><div style="font-size:18px;margin-bottom:4px">💳</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">刷卡</div><div style="font-size:11px;color:var(--red);font-weight:500">+3% 手續費</div></div>
+      <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white);transition:.15s" onclick="selectPM(this,&#39;cash&#39;)" data-pm="cash"><div style="font-size:18px;margin-bottom:4px">💵</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">付現金</div><div style="font-size:11px;color:var(--green);font-weight:500">現折 $1,000</div></div>
     </div>
     <div id="paymentSummary" style="display:none;background:var(--gold4);border:1px solid var(--gold2);border-radius:10px;padding:12px 16px;margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--ink2);padding:3px 0"><span>課程定價</span><span id="psPlanPrice">—</span></div>
       <div id="psFeeRow" style="display:none;flex;justify-content:space-between;font-size:13px;color:var(--ink2);padding:3px 0"><span id="psFeeLabel">—</span><span id="psFeeAmount">—</span></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;margin-top:8px;border-top:1px solid var(--gold2)"><span style="font-size:14px;font-weight:500;color:var(--gold)">實際入帳</span><span style="font-family:'Noto Serif TC',serif;font-size:20px;color:var(--gold)" id="psTotal">—</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;margin-top:8px;border-top:1px solid var(--gold2)"><span style="font-size:14px;font-weight:500;color:var(--gold)">實際入帳</span><span style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:20px;color:var(--gold)" id="psTotal">—</span></div>
     </div>
     <label>入帳日期</label><input type="text" id="nPayDate" placeholder="2026/06/02">
     <label>備註（選填）</label><input type="text" id="nNote" placeholder="例：分期、折扣備注…">
@@ -753,7 +787,7 @@ const db={
 </div>
 
 <!-- 編輯學員 Modal -->
-<div class="add-ov" id="editStuOv" onclick="if(event.target===this)closeOvById('editStuOv')">
+<div class="add-ov" id="editStuOv" onclick="if(event.target===this)closeOvById(&#39;editStuOv&#39;)">
   <div class="add-modal">
     <div class="modal-ttl" id="editStuTitle">編輯學員資料</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px">
@@ -774,19 +808,19 @@ const db={
     </div>
 
     <div style="height:1px;background:var(--bg2);margin:14px 0"></div>
-    <div style="font-family:'Noto Serif TC',serif;font-size:13px;letter-spacing:1.5px;color:var(--ink2);margin-bottom:12px">付款資訊</div>
+    <div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:13px;letter-spacing:1.5px;color:var(--ink2);margin-bottom:12px">付款資訊</div>
 
     <label>繳款方式</label>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px" id="ePayMethods">
-      <div class="pay-method" onclick="eSelectPM(this,'transfer_fubon')" data-pm="transfer_fubon"><div style="font-size:16px;margin-bottom:3px">🏦</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">匯款聯邦</div></div>
-      <div class="pay-method" onclick="eSelectPM(this,'transfer_cathay')" data-pm="transfer_cathay"><div style="font-size:16px;margin-bottom:3px">🏦</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">匯款國泰</div></div>
-      <div class="pay-method" onclick="eSelectPM(this,'card')" data-pm="card"><div style="font-size:16px;margin-bottom:3px">💳</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">刷卡</div><div style="font-size:11px;color:var(--red);font-weight:500">+3%</div></div>
-      <div class="pay-method" onclick="eSelectPM(this,'cash')" data-pm="cash"><div style="font-size:16px;margin-bottom:3px">💵</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">付現金</div><div style="font-size:11px;color:var(--green);font-weight:500">折 $1,000</div></div>
+      <div class="pay-method" onclick="eSelectPM(this,&#39;transfer_fubon&#39;)" data-pm="transfer_fubon"><div style="font-size:16px;margin-bottom:3px">🏦</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">匯款聯邦</div></div>
+      <div class="pay-method" onclick="eSelectPM(this,&#39;transfer_cathay&#39;)" data-pm="transfer_cathay"><div style="font-size:16px;margin-bottom:3px">🏦</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">匯款國泰</div></div>
+      <div class="pay-method" onclick="eSelectPM(this,&#39;card&#39;)" data-pm="card"><div style="font-size:16px;margin-bottom:3px">💳</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">刷卡</div><div style="font-size:11px;color:var(--red);font-weight:500">+3%</div></div>
+      <div class="pay-method" onclick="eSelectPM(this,&#39;cash&#39;)" data-pm="cash"><div style="font-size:16px;margin-bottom:3px">💵</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">付現金</div><div style="font-size:11px;color:var(--green);font-weight:500">折 $1,000</div></div>
     </div>
     <div id="ePaySummary" style="display:none;background:var(--gold4);border:1px solid var(--gold2);border-radius:10px;padding:11px 15px;margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--ink2);padding:2px 0"><span>課程定價</span><span id="epsPlanPrice">—</span></div>
       <div id="epsFeeRow" style="display:none;justify-content:space-between;font-size:13px;color:var(--ink2);padding:2px 0"><span id="epsFeeLabel">—</span><span id="epsFeeAmount">—</span></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;margin-top:6px;border-top:1px solid var(--gold2)"><span style="font-size:14px;font-weight:500;color:var(--gold)">實際入帳</span><span style="font-family:'Noto Serif TC',serif;font-size:18px;color:var(--gold)" id="epsTotal">—</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;margin-top:6px;border-top:1px solid var(--gold2)"><span style="font-size:14px;font-weight:500;color:var(--gold)">實際入帳</span><span style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:18px;color:var(--gold)" id="epsTotal">—</span></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px">
       <div><label>入帳日期</label><input type="text" id="ePayDate" placeholder="2026/06/02" style="margin-bottom:0"></div>
@@ -795,20 +829,20 @@ const db={
     <label>備註</label><input type="text" id="eNote" placeholder="例：分期、折扣…">
 
     <button class="btn-full bf-ink" onclick="saveEditStu()">儲存變更</button>
-    <button class="btn-full bf-soft" style="margin-top:9px" onclick="closeOvById('editStuOv')">取消</button>
+    <button class="btn-full bf-soft" style="margin-top:9px" onclick="closeOvById(&#39;editStuOv&#39;)">取消</button>
   </div>
 </div>
 
 <!-- 師資管理 Modal -->
-<div class="add-ov" id="tchOv" onclick="if(event.target===this)this.classList.remove('open')">
+<div class="add-ov" id="tchOv" onclick="if(event.target===this)this.classList.remove(&#39;open&#39;)">
   <div class="add-modal">
     <div class="modal-ttl" id="tchModalTitle">新增師資</div>
     <label>老師姓名</label>
     <input type="text" id="tchName" placeholder="例：Wendy">
-    <div style="font-family:'Noto Serif TC',serif;font-size:13px;letter-spacing:1px;color:var(--ink2);margin-bottom:12px">各課程師資費設定</div>
+    <div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:13px;letter-spacing:1px;color:var(--ink2);margin-bottom:12px">各課程師資費設定</div>
     <div id="feeEditorContent"></div>
     <button class="btn-full bf-ink" onclick="saveTchFees()" style="margin-top:6px">儲存師資費率</button>
-    <button class="btn-full bf-soft" style="margin-top:9px" onclick="document.getElementById('tchOv').classList.remove('open')">取消</button>
+    <button class="btn-full bf-soft" style="margin-top:9px" onclick="document.getElementById(&#39;tchOv&#39;).classList.remove(&#39;open&#39;)">取消</button>
   </div>
 </div>
 
@@ -983,30 +1017,6 @@ function loadCustomTeachersFromFirebase(){
   }).catch(e=>console.warn('CT load error:',e));
 }
 
-// 預設示範資料
-if(!S.length){
-  S=[
-    {id:'s1',name:'黃子芳',phone:'0933-178-022',course:'器械皮拉提斯 1on1',teacher:'Alina',total:10,used:1,price:22000,fee:800,expiry:'2026/12/31',note:'',recurring:[{day:3,time:'10:00'}],nextBooking:null},
-    {id:'s2',name:'林美君',phone:'0912-345-678',course:'重訓課程 1on2',teacher:'Jungle',total:8,used:3,price:16800,fee:700,expiry:'2026/09/30',note:'腰部舊傷',recurring:[{day:3,time:'10:00'},{day:6,time:'14:00'}],nextBooking:null},
-    {id:'s3',name:'陳雅婷',phone:'0976-543-210',course:'器械皮拉提斯 1on2',teacher:'Alina',total:5,used:2,price:16500,fee:900,expiry:'2026/08/31',note:'',recurring:[{day:3,time:'11:00'}],nextBooking:null},
-    {id:'s4',name:'蘇小雅',phone:'0933-222-333',course:'器械皮拉提斯 1on3',teacher:'Clara',total:8,used:1,price:8800,fee:1100,expiry:'2026/11/30',note:'',recurring:[{day:5,time:'16:00'}],nextBooking:null}
-  ];
-  R=[
-    {id:'r0',sid:'s1',date:'2026/06/02',time:'12:00',session:1,sig:null,isSub:false,subTeacher:'',isUpgraded:false,upgradedTo:'',actualFee:null,manualFee:null,manualNote:'',confirmed:true},
-    {id:'r1',sid:'s2',date:'2026/06/02',time:'10:00',session:1,sig:null,isSub:false,subTeacher:'',isUpgraded:false,upgradedTo:'',actualFee:null,manualFee:null,manualNote:''},
-    {id:'r2',sid:'s3',date:'2026/06/02',time:'14:00',session:1,sig:null,isSub:false,subTeacher:'',isUpgraded:false,upgradedTo:'',actualFee:null,manualFee:null,manualNote:''},
-    {id:'r3',sid:'s4',date:'2026/06/02',time:'16:00',session:1,sig:null,isSub:false,subTeacher:'',isUpgraded:false,upgradedTo:'',actualFee:null,manualFee:null,manualNote:''}
-  ];
-  // 示範體驗課
-  T=[{id:'t0',name:'王小明',course:'器械皮拉提斯',ratio:'1on1',teacher:'Alina',date:'2026/06/02',time:'11:00',fee:1200,teacherFee:800,sig:null,manualFee:null,manualNote:''}];
-  const td=todayStr();
-  SCH[td]={
-    'Alina':[{sid:'s1',time:'12:00'},{sid:'s3',time:'14:00'}],
-    'Jungle':[{sid:'s2',time:'10:00'}],
-    'Clara':[{sid:'s4',time:'16:00'}]
-  };
-  save();
-}
 
 const WD=['日','一','二','三','四','五','六'];
 function tick(){
@@ -2759,5 +2769,5 @@ function showToast(msg,t='g'){
   el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3000);
 }
 </script>
-</body>
-</html>
+
+</body></html>
