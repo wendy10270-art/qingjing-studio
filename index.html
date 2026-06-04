@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0048)file:///Users/zhenghuazhi/Downloads/index_5.html -->
+<!-- saved from url=(0048)file:///Users/zhenghuazhi/Downloads/index_7.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -504,7 +504,7 @@ const db={
   <div style="display:flex;align-items:center;gap:5px">
     <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk">16:44</div><div class="hdr-date" id="dat">6月4日（四）</div></div>
+  <div><div class="hdr-time" id="clk">17:10</div><div class="hdr-date" id="dat">6月4日（四）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -754,7 +754,6 @@ const db={
     <select id="nTeacher" onchange="autoFee()"><option value="">── 選擇老師 ──</option></select>
     <label>師資課費（每堂，自動帶入）</label>
     <input type="number" id="nFee" placeholder="800">
-    <label>有效期限</label><input type="text" id="nExpiry" placeholder="2026/12/31">
     <div style="height:1px;background:var(--bg2);margin:14px 0"></div>
     <div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:13px;letter-spacing:1.5px;color:var(--ink2);margin-bottom:12px">付款資訊</div>
     <label>繳款方式</label>
@@ -804,7 +803,7 @@ const db={
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px">
       <div><label>課程定價</label><input type="number" id="ePrice" oninput="eUpdatePaySummary()" style="margin-bottom:0"></div>
-      <div><label>有效期限</label><input type="text" id="eExpiry" placeholder="2026/12/31" style="margin-bottom:0"></div>
+      
     </div>
 
     <div style="height:1px;background:var(--bg2);margin:14px 0"></div>
@@ -844,6 +843,38 @@ const db={
     <div id="feeEditorContent"></div>
     <button class="btn-full bf-ink" onclick="saveTchFees()" style="margin-top:6px">儲存師資費率</button>
     <button class="btn-full bf-soft" style="margin-top:9px" onclick="document.getElementById(&#39;tchOv&#39;).classList.remove(&#39;open&#39;)">取消</button>
+  </div>
+</div>
+
+
+<!-- 續課 Modal -->
+<div class="add-ov" id="renewOv" onclick="if(event.target===this)closeOvById(&#39;renewOv&#39;)">
+  <div class="add-modal">
+    <div class="modal-ttl" id="renewStuTitle">續課</div>
+    <div id="renewStuInfo" style="background:var(--teal2);border:1.5px solid var(--teal3);border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:var(--teal)"></div>
+    <label style="margin-bottom:9px">選擇新課程方案</label>
+    <div id="renewPlanPicker"></div>
+    <div class="sel-disp" id="renewSelDisp"></div>
+    <label>師資課費（每堂，自動帶入）</label>
+    <input type="number" id="renewFee" placeholder="800">
+    <div style="height:1px;background:var(--bg2);margin:14px 0"></div>
+    <div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:13px;letter-spacing:1.5px;color:var(--ink2);margin-bottom:12px">付款資訊</div>
+    <label>繳款方式</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px" id="renewPayMethods">
+      <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white)" onclick="renewSelectPM(this,&#39;transfer_fubon&#39;)"><div style="font-size:18px;margin-bottom:4px">🏦</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">匯款聯邦</div></div>
+      <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white)" onclick="renewSelectPM(this,&#39;transfer_cathay&#39;)"><div style="font-size:18px;margin-bottom:4px">🏦</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">匯款國泰</div></div>
+      <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white)" onclick="renewSelectPM(this,&#39;card&#39;)"><div style="font-size:18px;margin-bottom:4px">💳</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">刷卡</div><div style="font-size:11px;color:var(--red);font-weight:500">+3%</div></div>
+      <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white)" onclick="renewSelectPM(this,&#39;cash&#39;)"><div style="font-size:18px;margin-bottom:4px">💵</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">付現金</div><div style="font-size:11px;color:var(--green);font-weight:500">現折 $1,000</div></div>
+    </div>
+    <div id="renewPaySummary" style="display:none;background:var(--gold4);border:1px solid var(--gold2);border-radius:10px;padding:12px 16px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--ink2);padding:3px 0"><span>課程定價</span><span id="renewPsPlanPrice">—</span></div>
+      <div id="renewPsFeeRow" style="display:none;justify-content:space-between;font-size:13px;color:var(--ink2);padding:3px 0"><span id="renewPsFeeLabel">—</span><span id="renewPsFeeAmount">—</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;margin-top:8px;border-top:1px solid var(--gold2)"><span style="font-size:14px;font-weight:500;color:var(--gold)">實際入帳</span><span style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:20px;color:var(--gold)" id="renewPsTotal">—</span></div>
+    </div>
+    <label>入帳日期</label><input type="date" id="renewPayDate" style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--white);font-family:&#39;Noto Sans TC&#39;,sans-serif;font-size:15px;color:var(--ink);margin-bottom:12px;outline:none">
+    <label>備註（選填）</label><input type="text" id="renewNote" placeholder="例：第二期、折扣…">
+    <button class="btn-full bf-ink" style="background:var(--teal)" onclick="confirmRenew()">確認續課</button>
+    <button class="btn-full bf-soft" style="margin-top:9px" onclick="closeOvById(&#39;renewOv&#39;)">取消</button>
   </div>
 </div>
 
@@ -1202,7 +1233,7 @@ function renderCard(sid){
   document.getElementById('cardTop').innerHTML=`<div class="stu-top">
     <div class="${ci.stripe} stripe"></div>
     <div class="stu-top-row">
-      <div><div class="stu-name-big">${s.name}</div><div class="stu-meta">${s.phone}<br>指導老師：${s.teacher||'—'}　${s.expiry||''}到期</div></div>
+      <div><div class="stu-name-big">${s.name}</div><div class="stu-meta">${s.phone}<br>指導老師：${s.teacher||'—'}　</div></div>
       <div class="remain-badge ${ci.rem}"><div class="remain-n">${remain}</div><div class="remain-lbl">堂　可　用</div></div>
     </div>
     <div class="course-type-row"><div class="course-type-name">${parts[0]||''}</div><div class="course-ratio">${parts[1]||''}</div><div style="flex:1"></div><div style="font-size:12px;color:var(--ink3)">${s.used}／${s.total} 堂（${pct}%）</div></div>
@@ -2283,9 +2314,9 @@ function renderMgrList(){
         '<div>'+
           '<div style="display:flex;align-items:center;gap:8px">'+
             '<div class="smc-name">'+s.name+pill+'</div>'+
-            ('<button onclick="openEditStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--ink2)">編輯</button>')+('<button onclick="deleteStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:6px;font-size:11px;cursor:pointer;color:var(--red);margin-left:5px">刪除</button>')+
+            ('<button onclick="openEditStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--ink2)">編輯</button>')+('<button onclick="openRenewStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--teal2);border:1px solid var(--teal3);border-radius:6px;font-size:11px;cursor:pointer;color:var(--teal);margin-left:5px">續課</button>')+('<button onclick="deleteStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:6px;font-size:11px;cursor:pointer;color:var(--red);margin-left:5px">刪除</button>')+
           '</div>'+
-          '<div class="smc-sub">'+s.course+'・'+s.teacher+'老師<br>'+s.expiry+'到期・師資費 $'+getDefaultFee(s.teacher,s.course)+'/堂</div>'+
+          '<div class="smc-sub">'+s.course+'・'+s.teacher+'老師<br>師資費 $'+getDefaultFee(s.teacher,s.course)+'/堂</div>'+
         '</div>'+
         '<div><div class="smc-rem" style="color:'+remColor+'">'+rem+'</div><div class="smc-lbl">堂可用</div></div>'+
       '</div>'+
@@ -2299,6 +2330,7 @@ function renderMgrList(){
         '<span class="smc-pay-method '+pmCls+'">'+pmLabel+'</span>'+
         (s.note?'<div style="font-size:11px;color:var(--ink3);margin-top:4px">'+s.note+'</div>':'')+
       '</div>'+
+      (s.prevCourses&&s.prevCourses.length?'<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--bg2)"><div style="font-size:11px;color:var(--ink3);margin-bottom:5px">歷史購課記錄</div>'+s.prevCourses.map(p=>'<div style="font-size:11px;color:var(--ink3);padding:2px 0">第'+((p.period||1))+'期・'+p.course+'・'+p.total+'堂・$'+(p.actualPayment||p.price||0).toLocaleString()+'</div>').join('')+'</div>':'')+
       '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bg2);display:flex;align-items:center;justify-content:space-between">'+
         '<div style="font-size:12px;color:var(--ink3)">'+
           (s.recurring&&s.recurring.length?'固定排課：'+s.recurring.map(r=>'每週'+WD_NAMES[r.day]+' '+r.time).join('・'):'尚未設定固定排課')+
@@ -2365,7 +2397,6 @@ function addStu(){
   const phone=document.getElementById('nPhone').value.trim();
   const teacher=document.getElementById('nTeacher').value;
   const fee=parseInt(document.getElementById('nFee').value)||800;
-  const expiry=document.getElementById('nExpiry').value.trim();
   const payDate=document.getElementById('nPayDate')?.value.trim()||'';
   const note=document.getElementById('nNote')?.value.trim()||'';
   if(!name){showToast('請填寫姓名','r');return}
@@ -2374,9 +2405,9 @@ function addStu(){
   if(!selPayMethod){showToast('請選擇繳款方式','r');return}
   const pay=calcPayment(selPrice,selPayMethod);
   const bonus=Math.round(selPrice*0.03);
-  S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:0,price:selPrice,fee,expiry,payMethod:selPayMethod,payDate,actualPayment:pay.amount,note,bonus,bonusNote:''});
+  S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:0,price:selPrice,fee,payMethod:selPayMethod,payDate,actualPayment:pay.amount,note,bonus,bonusNote:''});
   save();renderTeachers();renderMgrList();closeAddOv();
-  ['nName','nPhone','nExpiry','nPayDate','nNote'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+  ['nName','nPhone','nPayDate','nNote'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
   showToast('✓ '+name+' 已新增・入帳 $'+pay.amount.toLocaleString());
 }
 
@@ -2488,7 +2519,6 @@ function openEditStu(sid){
   document.getElementById('eTotal').value=s.total||0;
   document.getElementById('eUsed').value=s.used||0;
   document.getElementById('ePrice').value=s.price||0;
-  document.getElementById('eExpiry').value=s.expiry||'';
   document.getElementById('ePayDate').value=s.payDate||'';
   document.getElementById('eActualPayment').value=s.actualPayment||'';
   document.getElementById('eNote').value=s.note||'';
@@ -2546,7 +2576,6 @@ function saveEditStu(){
   s.total=parseInt(document.getElementById('eTotal').value)||s.total;
   s.used=parseInt(document.getElementById('eUsed').value)||0;
   s.price=parseInt(document.getElementById('ePrice').value)||s.price;
-  s.expiry=document.getElementById('eExpiry').value.trim();
   s.payMethod=ePayMethod;
   s.payDate=document.getElementById('ePayDate').value.trim();
   s.actualPayment=parseInt(document.getElementById('eActualPayment').value)||0;
@@ -2721,6 +2750,110 @@ function saveTchFees(){
   saveCustomTeachers();
   document.getElementById('tchOv').classList.remove('open');
   renderTchMgr();showToast('✓ '+name+' 師資費率已儲存');
+}
+
+
+// ── 續課功能 ──
+let renewStuId='', renewSelPlan='', renewSelN=0, renewSelPrice=0, renewPayMethod='';
+
+function openRenewStu(sid){
+  const s=S.find(x=>x.id===sid);if(!s)return;
+  renewStuId=sid; renewSelPlan=''; renewSelN=0; renewSelPrice=0; renewPayMethod='';
+  document.getElementById('renewStuTitle').textContent=s.name+' 續課';
+  document.getElementById('renewStuInfo').innerHTML='目前課程：'+s.course+'・已上 '+s.used+' 堂／共 '+s.total+' 堂<br>指導老師：'+s.teacher;
+  document.getElementById('renewNote').value='';
+  document.getElementById('renewPayDate').value=todayStr().replace(/\//g,'-');
+  document.getElementById('renewSelDisp').classList.remove('show');
+  document.getElementById('renewPaySummary').style.display='none';
+  document.querySelectorAll('#renewPayMethods>div').forEach(p=>{p.style.borderColor='var(--border)';p.style.background='var(--white)'});
+  // 建立課程選擇器
+  const picker=document.getElementById('renewPlanPicker');
+  picker.innerHTML=Object.entries(PLANS).map(([name,plan])=>`
+    <div class="plan-group"><div class="pg-ttl" style="color:${plan.type==='p'?'var(--gold)':plan.type==='s'?'var(--blue)':'var(--green)'}">${name}</div>
+    <div class="plan-tags">${plan.ratios.map(r=>`<div class="pt" onclick="renewPickR(event,this,'${name}','${r}','${plan.type}')">${r}</div>`).join('')}</div>
+    <div class="session-row" id="rsp-${name}"></div></div>`).join('');
+  // 預設選同樣課程
+  const parts=s.course.split(' ');
+  document.getElementById('renewFee').value=getDefaultFee(s.teacher, s.course);
+  document.getElementById('renewOv').classList.add('open');
+}
+
+function renewPickR(e,el,name,ratio,type){
+  document.querySelectorAll('#renewPlanPicker .pt').forEach(t=>t.className='pt');
+  el.classList.add('sel-'+type);
+  renewSelPlan=name+' '+ratio; renewSelN=0; renewSelPrice=0;
+  document.querySelectorAll('#renewPlanPicker .session-row').forEach(s=>{s.classList.remove('show');s.innerHTML=''});
+  const sp=document.getElementById('rsp-'+name);sp.classList.add('show');
+  sp.innerHTML=PLANS[name].sessions[ratio].map(s=>`<div class="sc" onclick="renewPickS(this,${s.n},${s.price})"><div class="sc-n">${s.n}</div><div class="sc-lbl">${s.lbl}</div><div class="sc-price">$${s.price.toLocaleString()}</div></div>`).join('');
+  const s=S.find(x=>x.id===renewStuId);
+  if(s)document.getElementById('renewFee').value=getDefaultFee(s.teacher,renewSelPlan);
+  renewUpdDisp(); renewUpdPaySummary();
+}
+
+function renewPickS(el,n,price){
+  document.querySelectorAll('#renewPlanPicker .sc').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel'); renewSelN=n; renewSelPrice=price;
+  renewUpdDisp(); renewUpdPaySummary();
+}
+
+function renewUpdDisp(){
+  const el=document.getElementById('renewSelDisp');
+  if(renewSelPlan&&renewSelN){el.classList.add('show');el.textContent='已選：'+renewSelPlan+'・'+renewSelN+'堂・$'+renewSelPrice.toLocaleString()}
+  else el.classList.remove('show');
+}
+
+function renewSelectPM(el,method){
+  document.querySelectorAll('#renewPayMethods>div').forEach(p=>{p.style.borderColor='var(--border)';p.style.background='var(--white)'});
+  el.style.borderColor='var(--gold)';el.style.background='var(--gold4)';
+  renewPayMethod=method; renewUpdPaySummary();
+}
+
+function renewUpdPaySummary(){
+  const summary=document.getElementById('renewPaySummary');
+  if(!renewSelPrice||!renewPayMethod){summary.style.display='none';return}
+  const pay=calcPayment(renewSelPrice,renewPayMethod);
+  summary.style.display='block';
+  document.getElementById('renewPsPlanPrice').textContent='$'+renewSelPrice.toLocaleString();
+  const feeRow=document.getElementById('renewPsFeeRow');
+  if(pay.feeLabel){feeRow.style.display='flex';document.getElementById('renewPsFeeLabel').textContent=pay.feeLabel;document.getElementById('renewPsFeeAmount').textContent=(pay.feeAmount>0?'+':'')+' $'+Math.abs(pay.feeAmount).toLocaleString();}
+  else{feeRow.style.display='none';}
+  document.getElementById('renewPsTotal').textContent='$'+pay.amount.toLocaleString();
+}
+
+function confirmRenew(){
+  const s=S.find(x=>x.id===renewStuId);if(!s)return;
+  if(!renewSelPlan||!renewSelN){showToast('請選擇課程方案','r');return}
+  if(!renewPayMethod){showToast('請選擇繳款方式','r');return}
+  const fee=parseInt(document.getElementById('renewFee').value)||getDefaultFee(s.teacher,renewSelPlan);
+  const payDateRaw=document.getElementById('renewPayDate').value.trim();
+  const payDate=payDateRaw?payDateRaw.replace(/-/g,'/'):'';
+  const note=document.getElementById('renewNote').value.trim();
+  const pay=calcPayment(renewSelPrice,renewPayMethod);
+  const bonus=Math.round(renewSelPrice*0.03);
+  // 保留舊資料，建立新一期
+  s.prevCourses=s.prevCourses||[];
+  s.prevCourses.push({
+    course:s.course, total:s.total, used:s.used, price:s.price,
+    fee:s.fee, payMethod:s.payMethod, payDate:s.payDate,
+    actualPayment:s.actualPayment, bonus:s.bonus, note:s.note,
+    period: s.prevCourses ? s.prevCourses.length+1 : 1
+  });
+  // 更新為新一期
+  s.course=renewSelPlan;
+  s.total=renewSelN;
+  s.used=0;
+  s.price=renewSelPrice;
+  s.fee=fee;
+  s.payMethod=renewPayMethod;
+  s.payDate=payDate;
+  s.actualPayment=pay.amount;
+  s.bonus=bonus;
+  s.bonusNote='';
+  s.note=note;
+  // 清除舊的簽到格子（新一期從頭開始）
+  save();renderMgrList();renderTeachers();
+  closeOvById('renewOv');
+  showToast('✓ '+s.name+' 續課成功！新一期 '+renewSelN+' 堂');
 }
 
 // ── 備份系統 ──
