@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0048)file:///Users/zhenghuazhi/Downloads/index_7.html -->
+<!-- saved from url=(0048)file:///Users/zhenghuazhi/Downloads/index_8.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -504,7 +504,7 @@ const db={
   <div style="display:flex;align-items:center;gap:5px">
     <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk">17:10</div><div class="hdr-date" id="dat">6月4日（四）</div></div>
+  <div><div class="hdr-time" id="clk">17:54</div><div class="hdr-date" id="dat">6月4日（四）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -640,6 +640,7 @@ const db={
       <div id="dailyContent"></div>
     </div>
     <div class="a-page" id="ap-cal"><div id="calContent"></div></div>
+    <div class="a-page" id="ap-ledger"><div id="ledgerContent"></div></div>
     <div class="a-page" id="ap-wage">
       <div class="stat-row" id="statRow"></div>
       <div class="month-bar">
@@ -976,6 +977,7 @@ let L=JSON.parse(localStorage.getItem('qjf_l')||'[]');
 function save(){
   // 本地備份
   localStorage.setItem('qjf_s',JSON.stringify(S));
+  localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
   localStorage.setItem('qjf_r',JSON.stringify(R));
   localStorage.setItem('qjf_sch',JSON.stringify(SCH));
   localStorage.setItem('qjf_t',JSON.stringify(T));
@@ -1038,6 +1040,10 @@ function loadFromFirebase(callback){
   });
 }
 
+function loadLedgerFromFB(){
+  db.ref('qingjing_ledger').once('value').then(snap=>{const d=snap.val();if(d&&Array.isArray(d)&&d.length>0){LEDGER=d;localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));}}).catch(e=>{});
+}
+
 function loadCustomTeachersFromFirebase(){
   db.ref('qingjing_ct').once('value').then(snap=>{
     const data=snap.val();
@@ -1065,6 +1071,7 @@ window.addEventListener('load', ()=>{
   showSyncStatus('syncing');
   loadFromFirebase(()=>{
     loadCustomTeachersFromFirebase();
+    loadLedgerFromFB();
     renderTeachers();
     showSyncStatus('synced');
   });
@@ -1659,11 +1666,12 @@ function pConfirm(){
 }
 
 function aTab(t){
-  const ns=['sch','daily','cal','wage','mgr','tch'];
+  const ns=['sch','daily','cal','ledger','wage','mgr','tch'];
   document.querySelectorAll('.a-tab').forEach((el,i)=>el.classList.toggle('active',ns[i]===t));
   ns.forEach(n=>document.getElementById('ap-'+n).classList.toggle('active',n===t));
   if(t==='daily')renderDaily();
   if(t==='cal')renderCalendar();
+  if(t==='ledger')renderLedger();
   if(t==='wage'){buildMonthSelect();renderWage()}
   if(t==='mgr')renderMgrList();
   if(t==='tch')renderTchMgr();
@@ -2406,6 +2414,8 @@ function addStu(){
   const pay=calcPayment(selPrice,selPayMethod);
   const bonus=Math.round(selPrice*0.03);
   S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:0,price:selPrice,fee,payMethod:selPayMethod,payDate,actualPayment:pay.amount,note,bonus,bonusNote:''});
+  // 建立流水帳記錄
+  addLedgerEntry({type:'purchase',sid:S[S.length-1].id,name,teacher,course:selPlan,total:selN,price:selPrice,actualPayment:pay.amount,payMethod:selPayMethod,payDate,bonus:Math.round(selPrice*0.03),bonusPaid:false});
   save();renderTeachers();renderMgrList();closeAddOv();
   ['nName','nPhone','nPayDate','nNote'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
   showToast('✓ '+name+' 已新增・入帳 $'+pay.amount.toLocaleString());
@@ -2615,6 +2625,7 @@ function renderLineMessage(s, remain, isUpgraded, upgradedTo, isSub, subTeacher)
   parts.push('我們下週見唷～～');
   const msg=parts.join('\n');
   el.innerHTML='<div class="line-msg-box"><div class="line-msg-label">LINE 課後訊息（點按鈕複製）</div><div class="line-msg-content" id="lineMsgText">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')+'</div><button class="line-msg-copy" onclick="copyLineMsgById()">複製訊息　貼給學員</button></div>';
+  renderNextApptArea(s.id);
 }
 
 
@@ -2851,9 +2862,189 @@ function confirmRenew(){
   s.bonusNote='';
   s.note=note;
   // 清除舊的簽到格子（新一期從頭開始）
+  // 建立流水帳記錄
+  addLedgerEntry({type:'renew',sid:s.id,name:s.name,teacher:s.teacher,course:renewSelPlan,total:renewSelN,price:renewSelPrice,actualPayment:pay.amount,payMethod:renewPayMethod,payDate,bonus:Math.round(renewSelPrice*0.03),bonusPaid:false});
   save();renderMgrList();renderTeachers();
   closeOvById('renewOv');
   showToast('✓ '+s.name+' 續課成功！新一期 '+renewSelN+' 堂');
+}
+
+
+// ── 約下次上課（成功畫面）──
+function renderNextApptArea(sid){
+  const el=document.getElementById('nextApptArea');
+  if(!el)return;
+  const s=S.find(x=>x.id===sid);
+  if(!s)return;
+  const today=new Date();
+  // 建議時間（根據固定排課）
+  let suggestions=[];
+  if(s.recurring&&s.recurring.length){
+    s.recurring.forEach(r=>{
+      const d=new Date(today);
+      d.setDate(d.getDate()+1);
+      while(d.getDay()!==r.day)d.setDate(d.getDate()+1);
+      suggestions.push({date:fmt(d),time:r.time,label:fmt(d).slice(5)+' '+r.time});
+    });
+  }
+  el.innerHTML=`<div style="background:var(--white);border:1.5px solid var(--gold2);border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(44,36,22,.1)">
+    <div style="font-family:'Noto Serif TC',serif;font-size:15px;letter-spacing:2px;color:var(--gold);margin-bottom:12px">📅 約下次上課</div>
+    ${suggestions.map(sg=>`<button onclick="confirmNextAppt('${sid}','${sg.date}','${sg.time}')" style="display:block;width:100%;padding:10px 14px;margin-bottom:8px;background:var(--gold4);color:var(--gold);border:1.5px solid var(--gold2);border-radius:10px;font-size:14px;cursor:pointer;font-family:'Noto Sans TC',sans-serif;text-align:left">✓ ${sg.label}</button>`).join('')}
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <input type="date" id="apptDate" style="flex:1;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;font-family:'Noto Sans TC',sans-serif;outline:none;background:var(--white)" value="${fmt(new Date(today.getFullYear(),today.getMonth(),today.getDate()+7)).replace(/\//g,'-')}">
+      <input type="time" id="apptTime" style="width:110px;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;font-family:'Noto Sans TC',sans-serif;outline:none;background:var(--white)" value="${s.recurring&&s.recurring.length?s.recurring[0].time:'10:00'}">
+      <button onclick="confirmNextApptCustom('${sid}')" style="padding:9px 14px;background:var(--gold);color:#fff;border:none;border-radius:9px;font-size:13px;cursor:pointer;font-family:'Noto Sans TC',sans-serif;font-weight:500">確定</button>
+    </div>
+    <div id="apptConfirmed" style="display:none;margin-top:10px;background:var(--green2);border:1px solid #90D4B0;border-radius:9px;padding:10px 14px;font-size:13px;color:var(--green)"></div>
+  </div>`;
+}
+
+function confirmNextAppt(sid,date,time){
+  setNextBooking(sid,date,time);
+  updateLineMsgWithAppt(date,time);
+  const el=document.getElementById('apptConfirmed');
+  if(el){el.style.display='block';el.textContent='✓ 已預排：'+date+' '+time+'　LINE 訊息已更新！'}
+}
+
+function confirmNextApptCustom(sid){
+  const dateRaw=document.getElementById('apptDate')?.value;
+  const time=document.getElementById('apptTime')?.value;
+  if(!dateRaw||!time){showToast('請填寫日期和時間','r');return}
+  const date=dateRaw.replace(/-/g,'/');
+  confirmNextAppt(sid,date,time);
+}
+
+function updateLineMsgWithAppt(date,time){
+  // 把下次時間更新進 LINE 訊息
+  const el=document.getElementById('lineMsgText');
+  if(!el)return;
+  const current=el.innerHTML.replace(/<br>/g,'\n').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+  // 移除舊的下次時間（如果有）
+  const cleaned=current.replace(/\n📅 下次上課時間\n.*?(\n|$)/g,'\n');
+  const apptLine='\n📅 下次上課時間\n'+date+' '+time;
+  // 插入在「我們下週見」之前
+  const newMsg=cleaned.replace('我們下週見唷～～', apptLine+'\n\n我們下週見唷～～');
+  el.innerHTML=newMsg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+
+
+// ── 流水帳 ──
+let LEDGER=JSON.parse(localStorage.getItem('qjf_ledger')||'[]');
+
+function addLedgerEntry(entry){
+  entry.id='led'+Date.now();
+  entry.createdAt=todayStr();
+  LEDGER.push(entry);
+  localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
+  // 同步到 Firebase
+  db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync error:',e));
+}
+
+function saveLedger(){
+  localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
+  db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync error:',e));
+}
+
+function loadLedgerFromFirebase(callback){
+  db.ref('qingjing_ledger').once('value').then(snap=>{
+    const data=snap.val();
+    if(data&&Array.isArray(data)&&data.length>0){
+      LEDGER=data;
+      localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
+    }
+    if(callback)callback();
+  }).catch(e=>{if(callback)callback();});
+}
+
+const PAY_NAME={'transfer_fubon':'匯款聯邦','transfer_cathay':'匯款國泰','card':'刷卡','cash':'付現金'};
+
+function renderLedger(){
+  const el=document.getElementById('ledgerContent');if(!el)return;
+  // 月份選擇
+  const months=[...new Set(LEDGER.map(l=>monthKey(l.createdAt)))].sort().reverse();
+  const now=new Date();const curMk=`${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}`;
+  if(!months.includes(curMk))months.unshift(curMk);
+
+  const selMonth=el.dataset.month||curMk;
+  const monthEntries=LEDGER.filter(l=>monthKey(l.createdAt)===selMonth);
+  const totalRevenue=monthEntries.reduce((a,l)=>a+(l.actualPayment||0),0);
+  const totalBonus=monthEntries.reduce((a,l)=>a+(l.bonus||0),0);
+  const paidBonus=monthEntries.filter(l=>l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
+  const unpaidBonus=totalBonus-paidBonus;
+  const[y,mo]=selMonth.split('/');
+
+  el.innerHTML=`
+  <div style="padding:14px 0 10px;display:flex;align-items:center;justify-content:space-between">
+    <div style="font-family:'Noto Serif TC',serif;font-size:17px;letter-spacing:2px">${y}年${parseInt(mo)}月 流水帳</div>
+    <select onchange="document.getElementById('ledgerContent').dataset.month=this.value;renderLedger()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--white);font-size:13px;outline:none">
+      ${months.map(m=>{const[my,mm]=m.split('/');return`<option value="${m}" ${m===selMonth?'selected':''}>${my}年${parseInt(mm)}月</option>`}).join('')}
+    </select>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+    <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:var(--shadow)">
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">當月營業額</div>
+      <div style="font-family:'Noto Serif TC',serif;font-size:22px;color:var(--green)">$${totalRevenue.toLocaleString()}</div>
+    </div>
+    <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:var(--shadow)">
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">續課獎金總計</div>
+      <div style="font-family:'Noto Serif TC',serif;font-size:22px;color:var(--teal)">$${totalBonus.toLocaleString()}</div>
+    </div>
+    <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:var(--shadow)">
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">待撥獎金</div>
+      <div style="font-family:'Noto Serif TC',serif;font-size:22px;color:${unpaidBonus>0?'var(--orange)':'var(--ink3)'}">$${unpaidBonus.toLocaleString()}</div>
+    </div>
+  </div>
+
+  ${monthEntries.length?monthEntries.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(l=>`
+  <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow)">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-family:'Noto Serif TC',serif;font-size:16px;letter-spacing:1px">${l.name}</span>
+          <span style="font-size:11px;background:${l.type==='renew'?'var(--blue2)':'var(--green2)'};color:${l.type==='renew'?'var(--blue)':'var(--green)'};border:1px solid ${l.type==='renew'?'var(--blue3)':'#90D4B0'};border-radius:4px;padding:1px 7px">${l.type==='renew'?'續課':'新購'}</span>
+        </div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:3px">${l.course}・${l.total}堂・${l.teacher}老師</div>
+        <div style="font-size:11px;color:var(--ink3);margin-top:2px">${l.createdAt}・${PAY_NAME[l.payMethod]||l.payMethod||'—'}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:'Noto Serif TC',serif;font-size:18px;color:var(--green)">$${(l.actualPayment||0).toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--ink3)">定價 $${(l.price||0).toLocaleString()}</div>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--bg2);padding-top:8px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <span style="font-size:12px;color:var(--teal)">續課獎金 $${(l.bonus||0).toLocaleString()}</span>
+        ${l.bonusNote?`<span style="font-size:11px;color:var(--ink3);margin-left:8px">${l.bonusNote}</span>`:''}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button onclick="editLedgerBonus('${l.id}')" style="padding:4px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--ink2)">調整</button>
+        ${l.bonusPaid?
+          `<span style="font-size:11px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:3px 10px;cursor:pointer" onclick="toggleBonusPaid('${l.id}')">已撥款 ✓</span>`:
+          `<button onclick="toggleBonusPaid('${l.id}')" style="padding:5px 12px;background:var(--teal);color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif;font-weight:500">確認撥款</button>`
+        }
+      </div>
+    </div>
+  </div>`).join(''):`<div style="text-align:center;color:var(--ink3);padding:30px 0;font-size:14px">本月尚無購課記錄</div>`}
+  `;
+}
+
+function toggleBonusPaid(id){
+  const l=LEDGER.find(x=>x.id===id);if(!l)return;
+  l.bonusPaid=!l.bonusPaid;
+  saveLedger();renderLedger();
+  showToast(l.bonusPaid?'✓ 已標記撥款':'已取消撥款標記');
+}
+
+function editLedgerBonus(id){
+  const l=LEDGER.find(x=>x.id===id);if(!l)return;
+  const newBonus=prompt('調整獎金金額（目前 $'+l.bonus+'）：',l.bonus);
+  if(newBonus===null)return;
+  const note=prompt('調整備註（選填）：',l.bonusNote||'');
+  l.bonus=parseInt(newBonus)||0;
+  l.bonusNote=note||'';
+  saveLedger();renderLedger();
+  showToast('✓ 獎金已調整為 $'+l.bonus);
 }
 
 // ── 備份系統 ──
@@ -2878,7 +3069,7 @@ function renderBackupBar(){
 
 function doBackup(){
   const data={
-    version:'v3',
+    version:'v4',
     exportTime:new Date().toISOString(),
     exportTimeLocal:fmt(new Date())+' '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}),
     students:S,
@@ -2886,7 +3077,8 @@ function doBackup(){
     schedules:SCH,
     trials:T,
     leaves:L,
-    customTeachers:CUSTOM_TEACHERS
+    customTeachers:CUSTOM_TEACHERS,
+    ledger:LEDGER
   };
   const json=JSON.stringify(data,null,2);
   const blob=new Blob([json],{type:'application/json'});
@@ -2915,6 +3107,7 @@ function importBackup(file){
       T=data.trials||[];
       L=data.leaves||[];
       CUSTOM_TEACHERS=data.customTeachers||[];
+      LEDGER=data.ledger||[];
       save();saveCustomTeachers();
       renderTeachers();renderBackupBar();renderMgrList();
       showToast('✓ 備份資料已成功匯入（'+S.length+'位學員、'+R.length+'筆簽到）');
