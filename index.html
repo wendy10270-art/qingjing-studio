@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0048)file:///Users/zhenghuazhi/Downloads/index_2.html -->
+<!-- saved from url=(0048)file:///Users/zhenghuazhi/Downloads/index_3.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -504,7 +504,7 @@ const db={
   <div style="display:flex;align-items:center;gap:5px">
     <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk">16:18</div><div class="hdr-date" id="dat">6月4日（四）</div></div>
+  <div><div class="hdr-time" id="clk">16:28</div><div class="hdr-date" id="dat">6月4日（四）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -754,7 +754,7 @@ const db={
     <select id="nTeacher" onchange="autoFee()"><option value="">── 選擇老師 ──</option></select>
     <label>師資課費（每堂，自動帶入）</label>
     <input type="number" id="nFee" placeholder="800">
-    <label>有效期限</label><input type="text" id="nExpiry" placeholder="2026/12/31">
+    <label>有效期限</label><input type="date" id="nExpiry" style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--white);font-family:&#39;Noto Sans TC&#39;,sans-serif;font-size:15px;color:var(--ink);margin-bottom:12px;outline:none">
     <div style="height:1px;background:var(--bg2);margin:14px 0"></div>
     <div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:13px;letter-spacing:1.5px;color:var(--ink2);margin-bottom:12px">付款資訊</div>
     <label>繳款方式</label>
@@ -769,7 +769,7 @@ const db={
       <div id="psFeeRow" style="display:none;flex;justify-content:space-between;font-size:13px;color:var(--ink2);padding:3px 0"><span id="psFeeLabel">—</span><span id="psFeeAmount">—</span></div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;margin-top:8px;border-top:1px solid var(--gold2)"><span style="font-size:14px;font-weight:500;color:var(--gold)">實際入帳</span><span style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:20px;color:var(--gold)" id="psTotal">—</span></div>
     </div>
-    <label>入帳日期</label><input type="text" id="nPayDate" placeholder="2026/06/02">
+    <label>入帳日期</label><input type="date" id="nPayDate" style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--white);font-family:&#39;Noto Sans TC&#39;,sans-serif;font-size:15px;color:var(--ink);margin-bottom:12px;outline:none">
     <label>備註（選填）</label><input type="text" id="nNote" placeholder="例：分期、折扣備注…">
     <button class="btn-full bf-ink" onclick="addStu()">儲存學員</button>
     <button class="btn-full bf-soft" style="margin-top:9px" onclick="closeAddOv()">取消</button>
@@ -804,7 +804,7 @@ const db={
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px">
       <div><label>課程定價</label><input type="number" id="ePrice" oninput="eUpdatePaySummary()" style="margin-bottom:0"></div>
-      <div><label>有效期限</label><input type="text" id="eExpiry" placeholder="2026/12/31" style="margin-bottom:0"></div>
+      <div><label>有效期限</label><input type="date" id="eExpiry" style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--white);font-family:&#39;Noto Sans TC&#39;,sans-serif;font-size:15px;color:var(--ink);margin-bottom:0;outline:none"></div>
     </div>
 
     <div style="height:1px;background:var(--bg2);margin:14px 0"></div>
@@ -823,7 +823,7 @@ const db={
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;margin-top:6px;border-top:1px solid var(--gold2)"><span style="font-size:14px;font-weight:500;color:var(--gold)">實際入帳</span><span style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:18px;color:var(--gold)" id="epsTotal">—</span></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px">
-      <div><label>入帳日期</label><input type="text" id="ePayDate" placeholder="2026/06/02" style="margin-bottom:0"></div>
+      <div><label>入帳日期</label><input type="date" id="ePayDate" style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--white);font-family:&#39;Noto Sans TC&#39;,sans-serif;font-size:15px;color:var(--ink);margin-bottom:0;outline:none"></div>
       <div><label>實際入帳金額（自動計算，可手動覆蓋）</label><input type="number" id="eActualPayment" placeholder="選擇付款方式後自動帶入" style="margin-bottom:0"></div>
     </div>
     <label>備註</label><input type="text" id="eNote" placeholder="例：分期、折扣…">
@@ -1897,7 +1897,7 @@ function renderSlotEd(t,i,sl,myS){
   return`<div class="slot-ed">
     <div class="slot-ed-hd"><div class="slot-ed-ttl">時段 ${i+1}</div>
       <div style="display:flex;align-items:center;gap:9px">
-        <input class="slot-time-inp" type="text" placeholder="HH:MM" value="${sl.time||''}" oninput="updSlotTime('${t}',${i},this.value)">
+        <input class="slot-time-inp" type="time" value="${sl.time||''}" onchange="updSlotTime('${t}',${i},this.value)">
         <span class="del-slot" onclick="delSlot('${t}',${i})">刪除</span>
       </div>
     </div>
@@ -2309,7 +2309,7 @@ function buildPlanPicker(){
   selPayMethod='';
   document.querySelectorAll('#payMethods>div').forEach(p=>{p.style.borderColor='var(--border)';p.style.background='var(--white)'});
   const ps=document.getElementById('paymentSummary');if(ps)ps.style.display='none';
-  const pd=document.getElementById('nPayDate');if(pd)pd.value=todayStr();
+  const pd=document.getElementById('nPayDate');if(pd)pd.value=todayStr().replace(/\//g,'-');
   document.getElementById('planPicker').innerHTML=Object.entries(PLANS).map(([name,plan])=>`
     <div class="plan-group"><div class="pg-ttl" style="color:${plan.type==='p'?'var(--gold)':plan.type==='s'?'var(--blue)':'var(--green)'}">${name}</div>
     <div class="plan-tags">${plan.ratios.map(r=>`<div class="pt" onclick="pickR(event,this,'${name}','${r}','${plan.type}')">${r}</div>`).join('')}</div>
@@ -2358,8 +2358,10 @@ function addStu(){
   const phone=document.getElementById('nPhone').value.trim();
   const teacher=document.getElementById('nTeacher').value;
   const fee=parseInt(document.getElementById('nFee').value)||800;
-  const expiry=document.getElementById('nExpiry').value.trim();
-  const payDate=document.getElementById('nPayDate')?.value.trim()||'';
+  const expiryRaw=document.getElementById('nExpiry').value.trim();
+  const expiry=expiryRaw?expiryRaw.replace(/-/g,'/'):'';  
+  const payDateRaw=document.getElementById('nPayDate')?.value.trim()||'';
+  const payDate=payDateRaw?payDateRaw.replace(/-/g,'/'):'';  
   const note=document.getElementById('nNote')?.value.trim()||'';
   if(!name){showToast('請填寫姓名','r');return}
   if(!selPlan||!selN){showToast('請選擇課程方案','r');return}
@@ -2396,8 +2398,8 @@ function renderNextBookingArea(sid, remain){
     <div style="font-family:'Noto Serif TC',serif;font-size:13px;letter-spacing:1px;color:var(--ink2);margin-bottom:10px">預排下次上課時間</div>
     ${suggHTML}
     <div style="display:flex;gap:7px;margin-top:4px">
-      <input type="text" id="customBookDate" placeholder="${fmt(new Date(today.getFullYear(),today.getMonth(),today.getDate()+7))}" style="flex:1;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans TC',sans-serif;outline:none">
-      <input type="text" id="customBookTime" placeholder="10:00" style="width:80px;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans TC',sans-serif;outline:none">
+      <input type="date" id="customBookDate" placeholder="${fmt(new Date(today.getFullYear(),today.getMonth(),today.getDate()+7))}" style="flex:1;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans TC',sans-serif;outline:none">
+      <input type="time" id="customBookTime" style="width:80px;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans TC',sans-serif;outline:none">
       <button onclick="confirmCustomBook('${sid}')" style="padding:8px 14px;background:var(--ink);color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">確定</button>
     </div>
     <div style="font-size:11px;color:var(--ink3);margin-top:6px">或輸入自訂日期時間</div>
@@ -2405,7 +2407,8 @@ function renderNextBookingArea(sid, remain){
 }
 
 function confirmCustomBook(sid){
-  const date=document.getElementById('customBookDate')?.value.trim();
+  const dateRaw=document.getElementById('customBookDate')?.value.trim();
+  const date=dateRaw?dateRaw.replace(/-/g,'/'):'';  
   const time=document.getElementById('customBookTime')?.value.trim();
   if(!date||!time){showToast('請填寫日期和時間','r');return}
   setNextBooking(sid,date,time);
@@ -2428,7 +2431,7 @@ function renderRecurringEditor(sid,rec){
     <select onchange="updRec('${sid}',${i},'day',this.value)" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:'Noto Sans TC',sans-serif;background:var(--white);outline:none">
       ${[1,2,3,4,5,6,0].map(d=>`<option value="${d}" ${r.day===d?'selected':''}>每週${WD_NAMES[d]}</option>`).join('')}
     </select>
-    <input type="text" value="${r.time}" placeholder="10:00" onchange="updRec('${sid}',${i},'time',this.value)" style="width:82px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:'Noto Sans TC',sans-serif;outline:none">
+    <input type="time" value="${r.time}" onchange="updRec('${sid}',${i},'time',this.value)" style="width:120px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:'Noto Sans TC',sans-serif;outline:none">
     <button onclick="delRec('${sid}',${i})" style="padding:6px 12px;background:var(--red2);color:var(--red);border:1px solid #F7C1C1;border-radius:7px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">刪除</button>
   </div>`).join('')+
   `<button onclick="addRec('${sid}')" style="margin-top:10px;padding:9px;width:100%;background:var(--bg2);border:1px dashed var(--border);border-radius:8px;font-size:13px;cursor:pointer;color:var(--ink3);font-family:'Noto Sans TC',sans-serif">＋ 新增固定時段</button>`;
@@ -2462,8 +2465,8 @@ function openEditStu(sid){
   document.getElementById('eTotal').value=s.total||0;
   document.getElementById('eUsed').value=s.used||0;
   document.getElementById('ePrice').value=s.price||0;
-  document.getElementById('eExpiry').value=s.expiry||'';
-  document.getElementById('ePayDate').value=s.payDate||'';
+  document.getElementById('eExpiry').value=(s.expiry||'').replace(/\//g,'-');
+  document.getElementById('ePayDate').value=(s.payDate||'').replace(/\//g,'-');
   document.getElementById('eActualPayment').value=s.actualPayment||'';
   document.getElementById('eNote').value=s.note||'';
   // 填老師選單
@@ -2518,9 +2521,11 @@ function saveEditStu(){
   s.total=parseInt(document.getElementById('eTotal').value)||s.total;
   s.used=parseInt(document.getElementById('eUsed').value)||0;
   s.price=parseInt(document.getElementById('ePrice').value)||s.price;
-  s.expiry=document.getElementById('eExpiry').value.trim();
+  const eExpiryRaw=document.getElementById('eExpiry').value.trim();
+  s.expiry=eExpiryRaw?eExpiryRaw.replace(/-/g,'/'):'';  
   s.payMethod=ePayMethod;
-  s.payDate=document.getElementById('ePayDate').value.trim();
+  const ePayDateRaw=document.getElementById('ePayDate').value.trim();
+  s.payDate=ePayDateRaw?ePayDateRaw.replace(/-/g,'/'):'';  
   s.actualPayment=parseInt(document.getElementById('eActualPayment').value)||0;
   s.note=document.getElementById('eNote').value.trim();
   save();renderMgrList();renderTeachers();
