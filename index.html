@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0048)file:///Users/zhenghuazhi/Downloads/index_4.html -->
+<!-- saved from url=(0048)file:///Users/zhenghuazhi/Downloads/index_5.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -504,7 +504,7 @@ const db={
   <div style="display:flex;align-items:center;gap:5px">
     <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk">16:31</div><div class="hdr-date" id="dat">6月4日（四）</div></div>
+  <div><div class="hdr-time" id="clk">16:44</div><div class="hdr-date" id="dat">6月4日（四）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -826,6 +826,7 @@ const db={
       <div><label>入帳日期</label><input type="text" id="ePayDate" placeholder="2026/06/02" style="margin-bottom:0"></div>
       <div><label>實際入帳金額（自動計算，可手動覆蓋）</label><input type="number" id="eActualPayment" placeholder="選擇付款方式後自動帶入" style="margin-bottom:0"></div>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px"><div><label>續課獎金（自動 3%，可手動調整）</label><input type="number" id="eBonus" style="margin-bottom:0"></div><div><label>獎金備註</label><input type="text" id="eBonusNote" placeholder="例：特殊調整…" style="margin-bottom:0"></div></div>
     <label>備註</label><input type="text" id="eNote" placeholder="例：分期、折扣…">
 
     <button class="btn-full bf-ink" onclick="saveEditStu()">儲存變更</button>
@@ -2137,15 +2138,19 @@ function renderWage(){
       const k=item.type==='trial'?`${item.tr.course} ${item.tr.ratio}（體驗）`:(item.r?.isUpgraded?item.s.course.split(' ')[0]+' ＋1人｜'+item.r.upgradedTo:item.s.course);
       if(!byType[k])byType[k]={count:0,fee:0};byType[k].count++;byType[k].fee+=item.fee;
     });
+    // 計算續課獎金（每個正式學員的購課獎金，同一學員只算一次）
+    const bonusSids=new Set(sessions.filter(x=>x.type==='regular').map(x=>x.s.id));
+    const bonusTotal=[...bonusSids].reduce((a,sid)=>{const s=S.find(x=>x.id===sid);return a+(s?.bonus!=null?s.bonus:Math.round((s?.price||0)*0.03))},0);
     const adjSessions=sessions.filter(x=>x.type==='regular'?isAdj(x.r):(x.tr.manualFee!=null));
     const trialCount=sessions.filter(x=>x.type==='trial').length;
     const tp=sessions.filter(x=>x.type==='regular').reduce((a,{s})=>{const ratio=(s.course||'').split(' ')[1]||'';return a+({'1on1':1,'1on2':2,'1on3':3}[ratio]||1)},0);
+    const grandTotal=total+bonusTotal;
     return`<div class="wage-card">
-      <div class="wc-header"><div class="wc-name">${t}${adjSessions.length?`<span class="adjusted-badge">含調整</span>`:''}</div><div class="wc-total">$${total.toLocaleString()}</div></div>
+      <div class="wc-header"><div class="wc-name">${t}${adjSessions.length?`<span class="adjusted-badge">含調整</span>`:''}</div><div class="wc-total">$${grandTotal.toLocaleString()}</div></div>
       <div class="wc-divider"></div>
       <div class="wc-body">
         ${Object.entries(byType).map(([c,d])=>`<div class="wc-row"><span style="color:var(--ink2);font-size:12px">${c}</span><span class="wc-fee">${d.count}堂／$${d.fee.toLocaleString()}</span></div>`).join('')}
-        <div class="wc-note">${sessions.length} 堂${tp?' ・ '+tp+' 人次':''}${trialCount?' ・ 含體驗 '+trialCount+' 堂':''}${adjSessions.length?' ・ 含 '+adjSessions.length+' 筆調整':''}</div>
+        <div class="wc-note">${sessions.length} 堂${tp?' ・ '+tp+' 人次':''}${trialCount?' ・ 含體驗 '+trialCount+' 堂':''}${adjSessions.length?' ・ 含 '+adjSessions.length+' 筆調整':''}</div>${bonusTotal>0?`<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--teal)">續課獎金</span><span style="color:var(--teal);font-weight:500">$${bonusTotal.toLocaleString()}</span></div>`:''}
       </div>
       <div class="wc-footer"><button class="wc-btn wc-btn-copy" onclick="copyTeacher('${t}','${mk}')">📋 複製薪資</button></div>
     </div>`;
@@ -2289,6 +2294,8 @@ function renderMgrList(){
         '<div class="smc-pay-row"><span>課程定價</span><span>$'+(s.price||0).toLocaleString()+'</span></div>'+
         '<div class="smc-pay-row"><span>實際入帳</span><span style="font-weight:500;color:var(--green)">'+pay+'</span></div>'+
         (s.payDate?'<div class="smc-pay-row"><span>入帳日期</span><span>'+s.payDate+'</span></div>':'')+
+        '<div class="smc-pay-row" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--bg2)"><span style="color:var(--teal);font-weight:500">續課獎金</span><span style="font-weight:600;color:var(--teal)">$'+(s.bonus!=null?s.bonus:Math.round((s.price||0)*0.03)).toLocaleString()+'</span></div>'+
+        (s.bonusNote?'<div style="font-size:11px;color:var(--ink3);margin-top:2px">'+s.bonusNote+'</div>':'')+
         '<span class="smc-pay-method '+pmCls+'">'+pmLabel+'</span>'+
         (s.note?'<div style="font-size:11px;color:var(--ink3);margin-top:4px">'+s.note+'</div>':'')+
       '</div>'+
@@ -2366,7 +2373,8 @@ function addStu(){
   if(!teacher){showToast('請選擇指導老師','r');return}
   if(!selPayMethod){showToast('請選擇繳款方式','r');return}
   const pay=calcPayment(selPrice,selPayMethod);
-  S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:0,price:selPrice,fee,expiry,payMethod:selPayMethod,payDate,actualPayment:pay.amount,note});
+  const bonus=Math.round(selPrice*0.03);
+  S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:0,price:selPrice,fee,expiry,payMethod:selPayMethod,payDate,actualPayment:pay.amount,note,bonus,bonusNote:''});
   save();renderTeachers();renderMgrList();closeAddOv();
   ['nName','nPhone','nExpiry','nPayDate','nNote'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
   showToast('✓ '+name+' 已新增・入帳 $'+pay.amount.toLocaleString());
@@ -2484,6 +2492,8 @@ function openEditStu(sid){
   document.getElementById('ePayDate').value=s.payDate||'';
   document.getElementById('eActualPayment').value=s.actualPayment||'';
   document.getElementById('eNote').value=s.note||'';
+  document.getElementById('eBonus').value=s.bonus!=null?s.bonus:Math.round((s.price||0)*0.03);
+  document.getElementById('eBonusNote').value=s.bonusNote||'';
   // 填老師選單
   const sel=document.getElementById('eTeacher');
   sel.innerHTML='<option value="">── 選擇 ──</option>'+ALL_TEACHERS.map(t=>`<option value="${t}"${s.teacher===t?' selected':''}>${t}</option>`).join('');
@@ -2541,6 +2551,8 @@ function saveEditStu(){
   s.payDate=document.getElementById('ePayDate').value.trim();
   s.actualPayment=parseInt(document.getElementById('eActualPayment').value)||0;
   s.note=document.getElementById('eNote').value.trim();
+  s.bonus=parseInt(document.getElementById('eBonus').value)||Math.round((s.price||0)*0.03);
+  s.bonusNote=document.getElementById('eBonusNote').value.trim();
   save();renderMgrList();renderTeachers();
   closeOvById('editStuOv');
   showToast('✓ '+name+' 的資料已更新');
