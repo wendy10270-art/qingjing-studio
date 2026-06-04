@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0048)file:///Users/zhenghuazhi/Downloads/index_9.html -->
+<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_10.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -504,7 +504,7 @@ const db={
   <div style="display:flex;align-items:center;gap:5px">
     <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk">18:16</div><div class="hdr-date" id="dat">6月4日（四）</div></div>
+  <div><div class="hdr-time" id="clk">18:22</div><div class="hdr-date" id="dat">6月4日（四）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -2157,12 +2157,14 @@ function renderWage(){
   const monthT=T.filter(t=>monthKey(t.date)===mk&&t.confirmed===true);
   const totalFee=monthR.reduce((a,r)=>{const s=S.find(x=>x.id===r.sid);return a+getRecFee(r,s)},0)
     +monthT.reduce((a,t)=>a+(t.manualFee!=null?t.manualFee:t.teacherFee),0);
+  const totalBonusPaid=LEDGER.filter(l=>monthKey(l.createdAt)===mk&&l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
+  const totalBonusPending=LEDGER.filter(l=>monthKey(l.createdAt)===mk&&!l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
   const activeT=new Set([...monthR.map(r=>{const s=S.find(x=>x.id===r.sid);return r.isSub?r.subTeacher:(s?.teacher||'其他')}),...monthT.map(t=>t.teacher)]).size;
   const adjCount=monthR.filter(r=>isAdj(r)).length+monthT.filter(t=>t.manualFee!=null).length;
   document.getElementById('statRow').innerHTML=`
     <div class="stat-card"><div class="stat-label">已確認課堂</div><div class="stat-value">${monthR.length+monthT.length}${adjCount?`<span style="font-size:12px;color:var(--orange);margin-left:8px">含 ${adjCount} 筆調整</span>`:''}</div></div>
     <div class="stat-card"><div class="stat-label">師資費用總計</div><div class="stat-value green">$${totalFee.toLocaleString()}</div></div>
-    <div class="stat-card"><div class="stat-label">有課老師</div><div class="stat-value">${activeT}</div></div>`;
+    <div class="stat-card"><div class="stat-label">已撥獎金</div><div class="stat-value" style="color:var(--teal)">$${totalBonusPaid.toLocaleString()}${totalBonusPending>0?`<span style="font-size:11px;color:var(--orange);display:block;margin-top:3px">待撥 $${totalBonusPending.toLocaleString()}</span>`:''}</div></div>`;
   document.getElementById('wageSectionLabel').textContent=`${y}年${parseInt(mo)}月　各老師薪資明細`;
   const tMap={};
   monthR.forEach(r=>{const s=S.find(x=>x.id===r.sid);if(!s)return;const t=r.isSub?r.subTeacher:(s.teacher||'其他');if(!tMap[t])tMap[t]=[];tMap[t].push({type:'regular',s,r,fee:getRecFee(r,s)})});
@@ -2178,9 +2180,9 @@ function renderWage(){
       const k=item.type==='trial'?`${item.tr.course} ${item.tr.ratio}（體驗）`:(item.r?.isUpgraded?item.s.course.split(' ')[0]+' ＋1人｜'+item.r.upgradedTo:item.s.course);
       if(!byType[k])byType[k]={count:0,fee:0};byType[k].count++;byType[k].fee+=item.fee;
     });
-    // 計算續課獎金（每個正式學員的購課獎金，同一學員只算一次）
-    const bonusSids=new Set(sessions.filter(x=>x.type==='regular').map(x=>x.s.id));
-    const bonusTotal=[...bonusSids].reduce((a,sid)=>{const s=S.find(x=>x.id===sid);return a+(s?.bonus!=null?s.bonus:Math.round((s?.price||0)*0.03))},0);
+    // 計算續課獎金 - 從流水帳讀取該老師已撥款的獎金
+    const bonusTotal=LEDGER.filter(l=>monthKey(l.createdAt)===mk&&l.teacher===t&&l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
+    const bonusPending=LEDGER.filter(l=>monthKey(l.createdAt)===mk&&l.teacher===t&&!l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
     const adjSessions=sessions.filter(x=>x.type==='regular'?isAdj(x.r):(x.tr.manualFee!=null));
     const trialCount=sessions.filter(x=>x.type==='trial').length;
     const tp=sessions.filter(x=>x.type==='regular').reduce((a,{s})=>{const ratio=(s.course||'').split(' ')[1]||'';return a+({'1on1':1,'1on2':2,'1on3':3}[ratio]||1)},0);
@@ -2190,7 +2192,7 @@ function renderWage(){
       <div class="wc-divider"></div>
       <div class="wc-body">
         ${Object.entries(byType).map(([c,d])=>`<div class="wc-row"><span style="color:var(--ink2);font-size:12px">${c}</span><span class="wc-fee">${d.count}堂／$${d.fee.toLocaleString()}</span></div>`).join('')}
-        <div class="wc-note">${sessions.length} 堂${tp?' ・ '+tp+' 人次':''}${trialCount?' ・ 含體驗 '+trialCount+' 堂':''}${adjSessions.length?' ・ 含 '+adjSessions.length+' 筆調整':''}</div>${bonusTotal>0?`<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--teal)">續課獎金</span><span style="color:var(--teal);font-weight:500">$${bonusTotal.toLocaleString()}</span></div>`:''}
+        <div class="wc-note">${sessions.length} 堂${tp?' ・ '+tp+' 人次':''}${trialCount?' ・ 含體驗 '+trialCount+' 堂':''}${adjSessions.length?' ・ 含 '+adjSessions.length+' 筆調整':''}</div>${bonusTotal>0?`<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--teal)">續課獎金（已撥）</span><span style="color:var(--teal);font-weight:500">$${bonusTotal.toLocaleString()}</span></div>`:''}${bonusPending>0?`<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px"><span style="color:var(--orange)">續課獎金（待撥）</span><span style="color:var(--orange)">$${bonusPending.toLocaleString()}</span></div>`:''}
       </div>
       <div class="wc-footer"><button class="wc-btn wc-btn-copy" onclick="copyTeacher('${t}','${mk}')">📋 複製薪資</button></div>
     </div>`;
