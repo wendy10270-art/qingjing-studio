@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_26.html -->
+<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_27.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -504,7 +504,7 @@ const db={
   <div style="display:flex;align-items:center;gap:5px">
     <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk">16:30</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
+  <div><div class="hdr-time" id="clk">18:17</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -3140,8 +3140,8 @@ function renderNextApptArea(sid){
     <div style="font-family:'Noto Serif TC',serif;font-size:15px;letter-spacing:2px;color:var(--gold);margin-bottom:12px">📅 約下次上課</div>
     ${suggestions.map(sg=>`<button onclick="confirmNextAppt('${sid}','${sg.date}','${sg.time}')" style="display:block;width:100%;padding:10px 14px;margin-bottom:8px;background:var(--gold4);color:var(--gold);border:1.5px solid var(--gold2);border-radius:10px;font-size:14px;cursor:pointer;font-family:'Noto Sans TC',sans-serif;text-align:left">✓ ${sg.label}</button>`).join('')}
     <div style="display:flex;gap:8px;margin-top:4px">
-      <input type="date" id="apptDate" style="flex:1;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;font-family:'Noto Sans TC',sans-serif;outline:none;background:var(--white)" value="${fmt(new Date(today.getFullYear(),today.getMonth(),today.getDate()+7)).replace(/\//g,'-')}">
-      <input type="time" id="apptTime" style="width:110px;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;font-family:'Noto Sans TC',sans-serif;outline:none;background:var(--white)" value="${s.recurring&&s.recurring.length?s.recurring[0].time:'10:00'}">
+      <input type="date" id="apptDate" style="flex:1;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;outline:none;background:var(--white)" value="${fmt(new Date(today.getFullYear(),today.getMonth(),today.getDate()+7)).replace(/\//g,'-')}">
+      <input type="time" id="apptTime" style="width:110px;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;outline:none;background:var(--white)" value="${s.recurring&&s.recurring.length?s.recurring[0].time:'10:00'}">
       <button onclick="confirmNextApptCustom('${sid}')" style="padding:9px 14px;background:var(--gold);color:#fff;border:none;border-radius:9px;font-size:13px;cursor:pointer;font-family:'Noto Sans TC',sans-serif;font-weight:500">確定</button>
     </div>
     <div id="apptConfirmed" style="display:none;margin-top:10px;background:var(--green2);border:1px solid #90D4B0;border-radius:9px;padding:10px 14px;font-size:13px;color:var(--green)"></div>
@@ -3164,16 +3164,20 @@ function confirmNextApptCustom(sid){
 }
 
 function updateLineMsgWithAppt(date,time){
-  // 把下次時間更新進 LINE 訊息
   const el=document.getElementById('lineMsgText');
   if(!el)return;
-  const current=el.innerHTML.replace(/<br>/g,'\n').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
-  // 移除舊的下次時間（如果有）
-  const cleaned=current.replace(/\n📅 下次上課時間\n.*?(\n|$)/g,'\n');
-  const apptLine='\n📅 下次上課時間\n'+date+' '+time;
-  // 插入在「我們下週見」之前
-  const newMsg=cleaned.replace('我們下週見唷～～', apptLine+'\n\n我們下週見唷～～');
-  el.innerHTML=newMsg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  // 取得純文字
+  let text=el.innerHTML.replace(/<br>/g,'\n').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+  // 移除舊的下次時間區塊
+  text=text.replace(/\n📅 下次上課時間\n[^\n]*/g,'');
+  // 在「我們下週見」前插入
+  const apptBlock='\n📅 下次上課時間\n'+date+' '+time;
+  if(text.includes('我們下週見唷～～')){
+    text=text.replace('我們下週見唷～～', apptBlock+'\n\n我們下週見唷～～');
+  } else {
+    text=text+apptBlock;
+  }
+  el.innerHTML=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
 }
 
 
