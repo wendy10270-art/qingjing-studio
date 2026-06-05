@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_21.html -->
+<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_22.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -504,7 +504,7 @@ const db={
   <div style="display:flex;align-items:center;gap:5px">
     <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk">09:56</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
+  <div><div class="hdr-time" id="clk">13:56</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -518,7 +518,13 @@ const db={
       <div class="day-hint" id="heroHint"></div>
     </div>
     <div id="teacherArea"><div class="no-sch-box"><div style="font-size:28px;margin-bottom:12px">📋</div><div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:17px;letter-spacing:2px;color:var(--ink2);margin:12px 0 8px">今日尚未設定課程</div><div style="font-size:13px;color:var(--ink3);line-height:1.9">請小幫手點右上角小圓點<br>輸入密碼進入管理後台設定</div></div>
-    <div class="trial-add-btn" onclick="openTrialModal()" style="margin-top:12px"><div class="trial-add-icon">＋</div><div class="trial-add-text"><div class="trial-add-ttl">新增體驗學員</div><div class="trial-add-sub">快速記錄今日體驗同學</div></div></div></div>
+    <div class="trial-add-btn" onclick="openTrialModal()" style="margin-top:12px">
+      <div class="trial-add-icon">＋</div>
+      <div class="trial-add-text">
+        <div class="trial-add-ttl">新增體驗學員</div>
+        <div class="trial-add-sub">快速記錄今日體驗同學</div>
+      </div>
+    </div></div>
   </div></div>
 
   <!-- 學生清單 -->
@@ -1517,7 +1523,7 @@ function confirmSig(){
     alertEl.innerHTML='<div class="supplement-alert"><div class="supplement-alert-title">💰 請向學員收取本堂補費</div><div class="supplement-amount">$'+curUpgradeDiff.toLocaleString()+'</div><div class="supplement-body">本堂升級為 '+parts[0]+' '+curUpgradeRatio+'</div></div>';
   } else { alertEl.innerHTML=''; }
   const installmentAlert=s.installment&&s.installEvery&&s.used>0&&s.used%s.installEvery===0?
-    '<div style="background:var(--orange2);border:2px solid var(--orange3);border-radius:13px;padding:14px 17px;margin-bottom:16px;text-align:center"><div style="font-family:'Noto Serif TC',serif;font-size:15px;color:var(--orange);letter-spacing:1px;margin-bottom:5px">💰 分期付款提醒</div><div style="font-size:13px;color:#8B4000">已完成第 '+s.used+' 堂<br>請提醒學員繳納下一期費用</div></div>'
+    `<div style="background:var(--orange2);border:2px solid var(--orange3);border-radius:13px;padding:14px 17px;margin-bottom:16px;text-align:center"><div style="font-size:15px;color:var(--orange);letter-spacing:1px;margin-bottom:5px">💰 分期付款提醒</div><div style="font-size:13px;color:#8B4000">已完成第 ${s.used} 堂<br>請提醒學員繳納下一期費用</div></div>`
     :'';
   document.getElementById('supplementAlert').innerHTML=(document.getElementById('supplementAlert').innerHTML||'')+installmentAlert;
   document.getElementById('successSub').textContent='第 '+s.used+' 堂完成簽到\n'+todayStr()+' '+nowTime()+(isUpgraded?'\n＋1人｜'+parts[1]+'→'+curUpgradeRatio:'')+(isSub?'\n代課老師：'+subTeacher:'');
