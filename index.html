@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_19.html -->
+<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_21.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -502,9 +502,9 @@ const db={
   </div>
   <div style="display:flex;align-items:center;gap:10px">
   <div style="display:flex;align-items:center;gap:5px">
-    <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgb(46, 125, 82); transition: 0.3s;" title="已同步至雲端"></div>
+    <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk">11:49</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
+  <div><div class="hdr-time" id="clk">09:56</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -518,13 +518,7 @@ const db={
       <div class="day-hint" id="heroHint"></div>
     </div>
     <div id="teacherArea"><div class="no-sch-box"><div style="font-size:28px;margin-bottom:12px">📋</div><div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:17px;letter-spacing:2px;color:var(--ink2);margin:12px 0 8px">今日尚未設定課程</div><div style="font-size:13px;color:var(--ink3);line-height:1.9">請小幫手點右上角小圓點<br>輸入密碼進入管理後台設定</div></div>
-    <div class="trial-add-btn" onclick="openTrialModal()" style="margin-top:12px">
-      <div class="trial-add-icon">＋</div>
-      <div class="trial-add-text">
-        <div class="trial-add-ttl">新增體驗學員</div>
-        <div class="trial-add-sub">快速記錄今日體驗同學</div>
-      </div>
-    </div></div>
+    <div class="trial-add-btn" onclick="openTrialModal()" style="margin-top:12px"><div class="trial-add-icon">＋</div><div class="trial-add-text"><div class="trial-add-ttl">新增體驗學員</div><div class="trial-add-sub">快速記錄今日體驗同學</div></div></div></div>
   </div></div>
 
   <!-- 學生清單 -->
@@ -749,6 +743,17 @@ const db={
     <label>入帳日期</label><input type="text" id="nPayDate" placeholder="2026/06/02">
     </div>
     <label>備註（選填）</label><input type="text" id="nNote" placeholder="例：分期、折扣備注…">
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border-radius:10px;margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;flex:1">
+        <input type="checkbox" id="nInstallment" onchange="toggleInstallment()" style="width:18px;height:18px;accent-color:var(--gold)">
+        <span style="font-size:14px;color:var(--ink2)">分期付款</span>
+      </label>
+      <div id="nInstallmentDetail" style="display:none;display:flex;align-items:center;gap:6px">
+        <span style="font-size:13px;color:var(--ink3)">每</span>
+        <input type="number" id="nInstallmentEvery" value="5" min="1" style="width:60px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;text-align:center;outline:none">
+        <span style="font-size:13px;color:var(--ink3)">堂提醒一次</span>
+      </div>
+    </div>
     <button class="btn-full bf-ink" onclick="addStu()">儲存學員</button>
     <button class="btn-full bf-soft" style="margin-top:9px" onclick="closeAddOv()">取消</button>
   </div>
@@ -806,6 +811,17 @@ const db={
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px"><div><label>續課獎金（自動 3%，可手動調整）</label><input type="number" id="eBonus" style="margin-bottom:0"></div><div><label>獎金備註</label><input type="text" id="eBonusNote" placeholder="例：特殊調整…" style="margin-bottom:0"></div></div>
     <label>備註</label><input type="text" id="eNote" placeholder="例：分期、折扣…">
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border-radius:10px;margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;flex:1">
+        <input type="checkbox" id="eInstallment" onchange="eToggleInstallment()" style="width:18px;height:18px;accent-color:var(--gold)">
+        <span style="font-size:14px;color:var(--ink2)">分期付款</span>
+      </label>
+      <div id="eInstallmentDetail" style="display:none">
+        <span style="font-size:13px;color:var(--ink3)">每</span>
+        <input type="number" id="eInstallmentEvery" value="5" min="1" style="width:60px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;text-align:center;outline:none;margin:0 6px">
+        <span style="font-size:13px;color:var(--ink3)">堂提醒一次</span>
+      </div>
+    </div>
 
     <button class="btn-full bf-ink" onclick="saveEditStu()">儲存變更</button>
     <button class="btn-full bf-soft" style="margin-top:9px" onclick="closeOvById(&#39;editStuOv&#39;)">取消</button>
@@ -1239,7 +1255,21 @@ function renderCard(sid){
   const remain=s.total-s.used;const ct=getCT(s.course);const ci=CT[ct];
   const pc=remain<=0?'var(--red)':remain<=3?'#B8860B':remain<=6?'var(--gold2)':'var(--gold)';
   const parts=(s.course||'').split(' ');const pct=Math.round(s.used/s.total*100);
-  document.getElementById('cardTop').innerHTML=`<div class="stu-top">
+  // 檢查老師近期請假
+  const today=new Date();
+  const twoWeeksLater=new Date(today);twoWeeksLater.setDate(today.getDate()+14);
+  const upcomingLeaves=TL.filter(l=>{
+    if(l.teacher!==s.teacher)return false;
+    const ld=parseDate(l.date);
+    return ld>=today&&ld<=twoWeeksLater;
+  });
+  const leaveAlert=upcomingLeaves.length?
+    `<div style="background:var(--orange2);border:1.5px solid var(--orange3);border-radius:12px;padding:12px 16px;margin-bottom:13px">
+      <div style="font-size:13px;font-weight:500;color:var(--orange);margin-bottom:4px">⚠️ 老師近期請假通知</div>
+      ${upcomingLeaves.map(l=>`<div style="font-size:12px;color:#8B4000;margin-top:3px">📅 ${l.dateTo?l.date+' ～ '+l.dateTo:l.date}${l.note?' ・ '+l.note:''}</div>`).join('')}
+    </div>`
+    :'';
+  document.getElementById('cardTop').innerHTML=leaveAlert+`<div class="stu-top">
     <div class="${ci.stripe} stripe"></div>
     <div class="stu-top-row">
       <div><div class="stu-name-big">${s.name}</div><div class="stu-meta">${s.phone}<br>指導老師：${s.teacher||'—'}　</div></div>
@@ -1474,12 +1504,22 @@ function confirmSig(){
   R.push({id:'r'+Date.now(),sid:curSid,date:todayStr(),time:nowTime(),session:s.used,sig:document.getElementById('sigC')?.toDataURL()||null,isSub,subTeacher,isUpgraded,upgradedTo:isUpgraded?curUpgradeRatio:'',upgradeDiff:isUpgraded?curUpgradeDiff:0,actualFee,manualFee:null,manualNote:'',confirmed:false,upgPayMethod:isUpgraded?upgPayMethod:'',feeCollected:isUpgraded?feeCollected:false});
   save();renderTeachers();
   const remain=s.total-s.used;
+  // 分期付款提醒
+  if(s.installment&&s.installEvery&&s.used>0&&s.used%s.installEvery===0){
+    setTimeout(()=>{
+      showToast('💰 已完成第 '+s.used+' 堂，請提醒學員繳納下一期費用！');
+    },1500);
+  }
   const si=document.getElementById('successIcon');si.className='success-icon normal';si.textContent='✦';
   document.getElementById('successName').textContent=s.name;
   const alertEl=document.getElementById('supplementAlert');
   if(isUpgraded&&curUpgradeDiff>0){
     alertEl.innerHTML='<div class="supplement-alert"><div class="supplement-alert-title">💰 請向學員收取本堂補費</div><div class="supplement-amount">$'+curUpgradeDiff.toLocaleString()+'</div><div class="supplement-body">本堂升級為 '+parts[0]+' '+curUpgradeRatio+'</div></div>';
   } else { alertEl.innerHTML=''; }
+  const installmentAlert=s.installment&&s.installEvery&&s.used>0&&s.used%s.installEvery===0?
+    '<div style="background:var(--orange2);border:2px solid var(--orange3);border-radius:13px;padding:14px 17px;margin-bottom:16px;text-align:center"><div style="font-family:'Noto Serif TC',serif;font-size:15px;color:var(--orange);letter-spacing:1px;margin-bottom:5px">💰 分期付款提醒</div><div style="font-size:13px;color:#8B4000">已完成第 '+s.used+' 堂<br>請提醒學員繳納下一期費用</div></div>'
+    :'';
+  document.getElementById('supplementAlert').innerHTML=(document.getElementById('supplementAlert').innerHTML||'')+installmentAlert;
   document.getElementById('successSub').textContent='第 '+s.used+' 堂完成簽到\n'+todayStr()+' '+nowTime()+(isUpgraded?'\n＋1人｜'+parts[1]+'→'+curUpgradeRatio:'')+(isSub?'\n代課老師：'+subTeacher:'');
   document.getElementById('successRemain').textContent=remain;
   document.getElementById('successLbl').textContent='堂課程可用';
@@ -2337,7 +2377,7 @@ function renderMgrList(){
             '<div class="smc-name">'+s.name+pill+(s.paymentStatus==="unpaid"?'<span style="display:inline-block;background:var(--orange2);color:var(--orange);border:1px solid var(--orange3);border-radius:4px;padding:1px 8px;font-size:11px;margin-left:6px;vertical-align:middle">待收款 ⚠</span>':'')+'</div>'+
             ('<button onclick="openEditStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--ink2)">編輯</button>')+('<button onclick="openRenewStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--teal2);border:1px solid var(--teal3);border-radius:6px;font-size:11px;cursor:pointer;color:var(--teal);margin-left:5px">續課</button>')+('<button onclick="deleteStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:6px;font-size:11px;cursor:pointer;color:var(--red);margin-left:5px">刪除</button>')+
           '</div>'+
-          '<div class="smc-sub">'+s.course+'・'+s.teacher+'老師<br>師資費 $'+getDefaultFee(s.teacher,s.course)+'/堂</div>'+
+          '<div class="smc-sub">'+s.course+'・'+s.teacher+'老師<br>師資費 $'+getDefaultFee(s.teacher,s.course)+'/堂'+(s.installment?' ・ <span style="color:var(--orange)">分期每'+s.installEvery+'堂</span>':'')+'</div>'+
         '</div>'+
         '<div><div class="smc-rem" style="color:'+remColor+'">'+rem+'</div><div class="smc-lbl">堂可用</div></div>'+
       '</div>'+
@@ -2410,6 +2450,18 @@ function setPayStatus(status){
   }
 }
 
+
+function eToggleInstallment(){
+  const cb=document.getElementById('eInstallment');
+  const detail=document.getElementById('eInstallmentDetail');
+  if(detail)detail.style.display=cb?.checked?'flex':'none';
+}
+function toggleInstallment(){
+  const cb=document.getElementById('nInstallment');
+  const detail=document.getElementById('nInstallmentDetail');
+  if(detail)detail.style.display=cb?.checked?'flex':'none';
+}
+
 function selectPM(el,method){
   document.querySelectorAll('#payMethods>div').forEach(p=>{p.style.borderColor='var(--border)';p.style.background='var(--white)'});
   el.style.borderColor='var(--gold)';el.style.background='var(--gold4)';
@@ -2430,6 +2482,7 @@ function updatePaymentSummary(){
   if(pay.feeLabel){feeRow.style.display='flex';document.getElementById('psFeeLabel').textContent=pay.feeLabel;document.getElementById('psFeeAmount').textContent=(pay.feeAmount>0?'+':'')+' $'+Math.abs(pay.feeAmount).toLocaleString()}
   else{feeRow.style.display='none'}
   document.getElementById('psTotal').textContent='$'+pay.amount.toLocaleString();
+  const nAP=document.getElementById('nActualPayment');if(nAP)nAP.value=pay.amount;
 }
 function openAdd(){buildPlanPicker();selPlan='';selPType='';selN=0;selPrice=0;nPayStatusVal='paid';setTimeout(()=>setPayStatus('paid'),50);document.getElementById('addOv').classList.add('open')}
 function closeAddOv(){document.getElementById('addOv').classList.remove('open')}
@@ -2448,10 +2501,16 @@ function addStu(){
   const pay=calcPayment(selPrice,selPayMethod);
   const bonus=Math.round(selPrice*0.03);
   const isPaid=nPayStatusVal==='paid';
-  S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:0,price:selPrice,fee,payMethod:isPaid?selPayMethod:'',payDate:isPaid?payDate:'',actualPayment:isPaid?pay.amount:0,note,bonus:isPaid?bonus:0,bonusNote:'',paymentStatus:isPaid?'paid':'unpaid'});
-  if(isPaid)addLedgerEntry({type:'purchase',sid:S[S.length-1].id,name,teacher,course:selPlan,total:selN,price:selPrice,actualPayment:pay.amount,payMethod:selPayMethod,payDate,bonus:Math.round(selPrice*0.03),bonusPaid:false});
+  const manualActual=parseInt(document.getElementById('nActualPayment')?.value)||0;
+  const finalActual=isPaid?(manualActual||pay.amount):0;
+  const isInstallment=document.getElementById('nInstallment')?.checked||false;
+  const installEvery=parseInt(document.getElementById('nInstallmentEvery')?.value)||5;
+  S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:0,price:selPrice,fee,payMethod:isPaid?selPayMethod:'',payDate:isPaid?payDate:'',actualPayment:finalActual,note,bonus:isPaid?Math.round(finalActual*0.03):0,bonusNote:'',paymentStatus:isPaid?'paid':'unpaid',installment:isInstallment,installEvery:isInstallment?installEvery:null});
+  if(isPaid)addLedgerEntry({type:'purchase',sid:S[S.length-1].id,name,teacher,course:selPlan,total:selN,price:selPrice,actualPayment:finalActual,payMethod:selPayMethod,payDate,bonus:Math.round(finalActual*0.03),bonusPaid:false});
   save();renderTeachers();renderMgrList();closeAddOv();
-  ['nName','nPhone','nPayDate','nNote'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+  ['nName','nPhone','nPayDate','nNote','nActualPayment'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+  const nInst=document.getElementById('nInstallment');if(nInst)nInst.checked=false;
+  const nInstD=document.getElementById('nInstallmentDetail');if(nInstD)nInstD.style.display='none';
   showToast('✓ '+name+' 已新增・入帳 $'+pay.amount.toLocaleString());
 }
 
@@ -2566,6 +2625,9 @@ function openEditStu(sid){
   document.getElementById('ePayDate').value=s.payDate||'';
   document.getElementById('eActualPayment').value=s.actualPayment||'';
   document.getElementById('eNote').value=s.note||'';
+  const eInst=document.getElementById('eInstallment');if(eInst)eInst.checked=s.installment||false;
+  const eInstD=document.getElementById('eInstallmentDetail');if(eInstD)eInstD.style.display=s.installment?'flex':'none';
+  const eInstE=document.getElementById('eInstallmentEvery');if(eInstE)eInstE.value=s.installEvery||5;
   document.getElementById('eBonus').value=s.bonus!=null?s.bonus:Math.round((s.price||0)*0.03);
   document.getElementById('eBonusNote').value=s.bonusNote||'';
   // 填老師選單
@@ -2624,6 +2686,8 @@ function saveEditStu(){
   s.payDate=document.getElementById('ePayDate').value.trim();
   s.actualPayment=parseInt(document.getElementById('eActualPayment').value)||0;
   s.note=document.getElementById('eNote').value.trim();
+  s.installment=document.getElementById('eInstallment')?.checked||false;
+  s.installEvery=parseInt(document.getElementById('eInstallmentEvery')?.value)||5;
   s.bonus=parseInt(document.getElementById('eBonus').value)||Math.round((s.price||0)*0.03);
   s.bonusNote=document.getElementById('eBonusNote').value.trim();
   save();renderMgrList();renderTeachers();
@@ -2729,12 +2793,23 @@ function renderTeacherLeave(){
     :'';
   el.innerHTML=`
     <div style="font-size:15px;letter-spacing:2px;color:var(--ink2);margin-bottom:12px">老師請假管理</div>
+    <select id="tlTeacher" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none;margin-bottom:8px">
+      <option value="">選擇老師</option>
+      ${teacherOpts}
+    </select>
     <div style="display:flex;gap:8px;margin-bottom:8px">
-      <select id="tlTeacher" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none">
-        <option value="">選擇老師</option>
-        ${teacherOpts}
-      </select>
-      <input type="date" id="tlDate" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none">
+      <div id="tlSingle" onclick="setLeaveMode('single')" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid var(--gold);background:var(--gold4);text-align:center;cursor:pointer;font-size:13px;color:var(--gold);font-weight:500">單天</div>
+      <div id="tlRange" onclick="setLeaveMode('range')" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);text-align:center;cursor:pointer;font-size:13px;color:var(--ink3)">區間</div>
+    </div>
+    <div id="tlSingleMode">
+      <input type="date" id="tlDate" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none;margin-bottom:8px">
+    </div>
+    <div id="tlRangeMode" style="display:none">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <input type="date" id="tlDateFrom" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none">
+        <span style="color:var(--ink3);flex-shrink:0">～</span>
+        <input type="date" id="tlDateTo" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none">
+      </div>
     </div>
     <input type="text" id="tlNote" placeholder="請假備註（選填）" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none;margin-bottom:8px">
     <button onclick="addTeacherLeave()" style="width:100%;padding:10px;background:var(--ink);color:#fff;border:none;border-radius:9px;font-size:14px;cursor:pointer;font-weight:500;margin-bottom:14px">登記請假</button>
@@ -2743,14 +2818,43 @@ function renderTeacherLeave(){
   `;
 }
 
+let tlModeVal='single';
+function setLeaveMode(mode){
+  tlModeVal=mode;
+  const single=document.getElementById('tlSingle');
+  const range=document.getElementById('tlRange');
+  const singleMode=document.getElementById('tlSingleMode');
+  const rangeMode=document.getElementById('tlRangeMode');
+  if(mode==='single'){
+    if(single){single.style.borderColor='var(--gold)';single.style.background='var(--gold4)';single.style.color='var(--gold)';}
+    if(range){range.style.borderColor='var(--border)';range.style.background='var(--white)';range.style.color='var(--ink3)';}
+    if(singleMode)singleMode.style.display='block';
+    if(rangeMode)rangeMode.style.display='none';
+  } else {
+    if(range){range.style.borderColor='var(--gold)';range.style.background='var(--gold4)';range.style.color='var(--gold)';}
+    if(single){single.style.borderColor='var(--border)';single.style.background='var(--white)';single.style.color='var(--ink3)';}
+    if(singleMode)singleMode.style.display='none';
+    if(rangeMode)rangeMode.style.display='block';
+  }
+}
+
 function addTeacherLeave(){
   const teacher=document.getElementById('tlTeacher').value;
-  const dateRaw=document.getElementById('tlDate').value;
   const note=document.getElementById('tlNote').value.trim();
   if(!teacher){showToast('請選擇老師','r');return}
-  if(!dateRaw){showToast('請選擇請假日期','r');return}
-  const date=dateRaw.replace(/-/g,'/');
-  TL.push({id:'tl'+Date.now(),teacher,date,note});
+  let date='', dateTo='';
+  if(tlModeVal==='single'){
+    const dateRaw=document.getElementById('tlDate')?.value;
+    if(!dateRaw){showToast('請選擇請假日期','r');return}
+    date=dateRaw.replace(/-/g,'/');
+  } else {
+    const fromRaw=document.getElementById('tlDateFrom')?.value;
+    const toRaw=document.getElementById('tlDateTo')?.value;
+    if(!fromRaw||!toRaw){showToast('請選擇開始和結束日期','r');return}
+    date=fromRaw.replace(/-/g,'/');
+    dateTo=toRaw.replace(/-/g,'/');
+  }
+  TL.push({id:'tl'+Date.now(),teacher,date,dateTo,note});
   localStorage.setItem('qjf_tl',JSON.stringify(TL));
   db.ref('qingjing_tl').set(TL).catch(e=>{});
   document.getElementById('tlDate').value='';
