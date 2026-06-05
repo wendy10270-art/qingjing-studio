@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_25.html -->
+<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_26.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -504,7 +504,7 @@ const db={
   <div style="display:flex;align-items:center;gap:5px">
     <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk">16:23</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
+  <div><div class="hdr-time" id="clk">16:30</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -3206,10 +3206,11 @@ function loadLedgerFromFirebase(callback){
   }).catch(e=>{if(callback)callback();});
 }
 
-  // PAY_NAME 已在上方宣告
+
 
 function renderLedger(){
   const el=document.getElementById('ledgerContent');if(!el)return;
+  const PAY_NAME={'transfer_fubon':'匯款聯邦','transfer_cathay':'匯款國泰','card':'刷卡','cash':'付現金'};
   // 月份選擇
   const months=[...new Set(LEDGER.map(l=>monthKey(l.createdAt)))].sort().reverse();
   const now=new Date();const curMk=`${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}`;
