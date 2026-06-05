@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_14.html -->
+<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_16.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -504,7 +504,7 @@ const db={
   <div style="display:flex;align-items:center;gap:5px">
     <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk">10:51</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
+  <div><div class="hdr-time" id="clk">09:56</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -517,14 +517,7 @@ const db={
       <div class="day-week" id="heroWeek">星期五</div>
       <div class="day-hint" id="heroHint"></div>
     </div>
-    <div id="teacherArea"><div class="no-sch-box"><div style="font-size:28px;margin-bottom:12px">📋</div><div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:17px;letter-spacing:2px;color:var(--ink2);margin:12px 0 8px">今日尚未設定課程</div><div style="font-size:13px;color:var(--ink3);line-height:1.9">請小幫手點右上角小圓點<br>輸入密碼進入管理後台設定</div></div>
-    <div class="trial-add-btn" onclick="openTrialModal()" style="margin-top:12px">
-      <div class="trial-add-icon">＋</div>
-      <div class="trial-add-text">
-        <div class="trial-add-ttl">新增體驗學員</div>
-        <div class="trial-add-sub">快速記錄今日體驗同學</div>
-      </div>
-    </div></div>
+    <div id="teacherArea"><div class="no-sch-box"><div style="font-size:28px;margin-bottom:12px">📋</div><div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:17px;letter-spacing:2px;color:var(--ink2);margin:12px 0 8px">今日尚未設定課程</div><div style="font-size:13px;color:var(--ink3);line-height:1.9">請小幫手點右上角小圓點<br>輸入密碼進入管理後台設定</div></div></div>
   </div></div>
 
   <!-- 學生清單 -->
@@ -627,7 +620,7 @@ const db={
       <button class="btn-full bf-ink" style="margin-bottom:13px" onclick="openAdd()">＋ 新增學員</button>
       <div id="mgrStuList"></div>
     </div>
-    <div class="a-page" id="ap-tch"><div id="tchContent" style="padding:4px 0"></div></div>
+    <div class="a-page" id="ap-tch"><div style="padding:4px 0"><div id="tchLeaveContent" style="margin-bottom:16px"></div><div id="tchContent"></div></div></div>
   </div>
 </div>
 
@@ -729,6 +722,11 @@ const db={
     <input type="number" id="nFee" placeholder="800">
     <div style="height:1px;background:var(--bg2);margin:14px 0"></div>
     <div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:13px;letter-spacing:1.5px;color:var(--ink2);margin-bottom:12px">付款資訊</div>
+    <div style="display:flex;gap:10px;margin-bottom:12px" id="nPayStatusRow">
+      <div id="nPayStatus_paid" onclick="setPayStatus(&#39;paid&#39;)" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--gold);background:var(--gold4);text-align:center;cursor:pointer"><div style="font-size:16px;margin-bottom:3px">✓</div><div style="font-size:13px;font-weight:500;color:var(--gold)">已付款</div></div>
+      <div id="nPayStatus_unpaid" onclick="setPayStatus(&#39;unpaid&#39;)" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--white);text-align:center;cursor:pointer"><div style="font-size:16px;margin-bottom:3px">⏳</div><div style="font-size:13px;font-weight:500;color:var(--ink3)">尚未付款</div></div>
+    </div>
+    <div id="nPayMethodSection">
     <label>繳款方式</label>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px" id="payMethods">
       <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white);transition:.15s" onclick="selectPM(this,&#39;transfer_fubon&#39;)" data-pm="transfer_fubon"><div style="font-size:18px;margin-bottom:4px">🏦</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">匯款聯邦</div><div style="font-size:11px;color:var(--ink3)">聯邦銀行</div></div>
@@ -742,6 +740,7 @@ const db={
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;margin-top:8px;border-top:1px solid var(--gold2)"><span style="font-size:14px;font-weight:500;color:var(--gold)">實際入帳</span><span style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:20px;color:var(--gold)" id="psTotal">—</span></div>
     </div>
     <label>入帳日期</label><input type="text" id="nPayDate" placeholder="2026/06/02">
+    </div>
     <label>備註（選填）</label><input type="text" id="nNote" placeholder="例：分期、折扣備注…">
     <button class="btn-full bf-ink" onclick="addStu()">儲存學員</button>
     <button class="btn-full bf-soft" style="margin-top:9px" onclick="closeAddOv()">取消</button>
@@ -1027,6 +1026,7 @@ function loadLedgerFromFB(callback){
 }
 
 function loadCustomTeachersFromFirebase(){
+  db.ref('qingjing_tl').once('value').then(snap=>{const d=snap.val();if(d&&Array.isArray(d)&&d.length>0){TL=d;localStorage.setItem('qjf_tl',JSON.stringify(TL));}}).catch(e=>{});
   db.ref('qingjing_ct').once('value').then(snap=>{
     const data=snap.val();
     if(data&&Array.isArray(data)&&data.length>0){
@@ -2327,7 +2327,7 @@ function renderMgrList(){
       '<div class="smc-top">'+
         '<div>'+
           '<div style="display:flex;align-items:center;gap:8px">'+
-            '<div class="smc-name">'+s.name+pill+'</div>'+
+            '<div class="smc-name">'+s.name+pill+(s.paymentStatus==="unpaid"?'<span style="display:inline-block;background:var(--orange2);color:var(--orange);border:1px solid var(--orange3);border-radius:4px;padding:1px 8px;font-size:11px;margin-left:6px;vertical-align:middle">待收款 ⚠</span>':'')+'</div>'+
             ('<button onclick="openEditStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--ink2)">編輯</button>')+('<button onclick="openRenewStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--teal2);border:1px solid var(--teal3);border-radius:6px;font-size:11px;cursor:pointer;color:var(--teal);margin-left:5px">續課</button>')+('<button onclick="deleteStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:6px;font-size:11px;cursor:pointer;color:var(--red);margin-left:5px">刪除</button>')+
           '</div>'+
           '<div class="smc-sub">'+s.course+'・'+s.teacher+'老師<br>師資費 $'+getDefaultFee(s.teacher,s.course)+'/堂</div>'+
@@ -2382,6 +2382,27 @@ function pickS(el,n,price){document.querySelectorAll('.sc').forEach(c=>c.classLi
 function updSelDisp(){const el=document.getElementById('selDisp');if(selPlan&&selN){el.classList.add('show');el.textContent=`已選：${selPlan}・${selN}堂・$${selPrice.toLocaleString()}`}else el.classList.remove('show')}
 function autoFee(){const t=document.getElementById('nTeacher').value;if(!t||!selPlan)return;document.getElementById('nFee').value=getDefaultFee(t,selPlan)}
 // ── 付款方式 ──
+
+let nPayStatusVal='paid';
+function setPayStatus(status){
+  nPayStatusVal=status;
+  const paid=document.getElementById('nPayStatus_paid');
+  const unpaid=document.getElementById('nPayStatus_unpaid');
+  const paySection=document.getElementById('nPayMethodSection');
+  const dateSection=document.getElementById('nPayDateSection');
+  if(status==='paid'){
+    if(paid){paid.style.borderColor='var(--gold)';paid.style.background='var(--gold4)';}
+    if(unpaid){unpaid.style.borderColor='var(--border)';unpaid.style.background='var(--white)';}
+    if(paySection)paySection.style.display='block';
+    if(dateSection)dateSection.style.display='block';
+  } else {
+    if(unpaid){unpaid.style.borderColor='var(--orange)';unpaid.style.background='var(--orange2)';}
+    if(paid){paid.style.borderColor='var(--border)';paid.style.background='var(--white)';}
+    if(paySection)paySection.style.display='none';
+    if(dateSection)dateSection.style.display='none';
+  }
+}
+
 function selectPM(el,method){
   document.querySelectorAll('#payMethods>div').forEach(p=>{p.style.borderColor='var(--border)';p.style.background='var(--white)'});
   el.style.borderColor='var(--gold)';el.style.background='var(--gold4)';
@@ -2403,7 +2424,7 @@ function updatePaymentSummary(){
   else{feeRow.style.display='none'}
   document.getElementById('psTotal').textContent='$'+pay.amount.toLocaleString();
 }
-function openAdd(){buildPlanPicker();selPlan='';selPType='';selN=0;selPrice=0;document.getElementById('addOv').classList.add('open')}
+function openAdd(){buildPlanPicker();selPlan='';selPType='';selN=0;selPrice=0;nPayStatusVal='paid';setTimeout(()=>setPayStatus('paid'),50);document.getElementById('addOv').classList.add('open')}
 function closeAddOv(){document.getElementById('addOv').classList.remove('open')}
 function closeAddOut(e){if(e.target===document.getElementById('addOv'))closeAddOv()}
 function addStu(){
@@ -2416,12 +2437,13 @@ function addStu(){
   if(!name){showToast('請填寫姓名','r');return}
   if(!selPlan||!selN){showToast('請選擇課程方案','r');return}
   if(!teacher){showToast('請選擇指導老師','r');return}
-  if(!selPayMethod){showToast('請選擇繳款方式','r');return}
+  if(nPayStatusVal==='paid'&&!selPayMethod){showToast('請選擇繳款方式','r');return}
   const pay=calcPayment(selPrice,selPayMethod);
   const bonus=Math.round(selPrice*0.03);
-  S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:0,price:selPrice,fee,payMethod:selPayMethod,payDate,actualPayment:pay.amount,note,bonus,bonusNote:''});
-  // 建立流水帳記錄
-  addLedgerEntry({type:'purchase',sid:S[S.length-1].id,name,teacher,course:selPlan,total:selN,price:selPrice,actualPayment:pay.amount,payMethod:selPayMethod,payDate,bonus:Math.round(selPrice*0.03),bonusPaid:false});
+  const isPaid=nPayStatusVal==='paid';
+  S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:0,price:selPrice,fee,payMethod:isPaid?selPayMethod:'',payDate:isPaid?payDate:'',actualPayment:isPaid?pay.amount:0,note,bonus:isPaid?bonus:0,bonusNote:'',paymentStatus:isPaid?'paid':'unpaid'});
+  const isPaid=nPayStatusVal==='paid';
+  if(isPaid)addLedgerEntry({type:'purchase',sid:S[S.length-1].id,name,teacher,course:selPlan,total:selN,price:selPrice,actualPayment:pay.amount,payMethod:selPayMethod,payDate,bonus:Math.round(selPrice*0.03),bonusPaid:false});
   save();renderTeachers();renderMgrList();closeAddOv();
   ['nName','nPhone','nPayDate','nNote'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
   showToast('✓ '+name+' 已新增・入帳 $'+pay.amount.toLocaleString());
@@ -2673,7 +2695,78 @@ function copyLineMsgById(){
 const COURSE_TYPES=['器械皮拉提斯','重訓課程','瑜珈課程'];
 const RATIOS={'器械皮拉提斯':['1on1','1on2','1on3'],'重訓課程':['1on1','1on2'],'瑜珈課程':['1on1']};
 
+
+// ── 老師請假管理 ──
+function renderTeacherLeave(){
+  const el=document.getElementById('tchLeaveContent');if(!el)return;
+  const upcoming=TL.filter(l=>l.date>=todayStr()).sort((a,b)=>a.date.localeCompare(b.date));
+  const past=TL.filter(l=>l.date<todayStr()).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,3);
+  el.innerHTML=
+    '<div style="font-family:'Noto Serif TC',serif;font-size:15px;letter-spacing:2px;color:var(--ink2);margin-bottom:12px">老師請假管理</div>'+
+    '<div style="display:flex;gap:8px;margin-bottom:8px">'+
+    '<select id="tlTeacher" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none">'+
+    '<option value="">選擇老師</option>'+
+    ALL_TEACHERS.map(t=>'<option value="'+t+'">'+t+'</option>').join('')+
+    '</select>'+
+    '<input type="date" id="tlDate" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none">'+
+    '</div>'+
+    '<input type="text" id="tlNote" placeholder="請假備註（選填）" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none;margin-bottom:8px">'+
+    '<button onclick="addTeacherLeave()" style="width:100%;padding:10px;background:var(--ink);color:#fff;border:none;border-radius:9px;font-size:14px;cursor:pointer;font-family:'Noto Sans TC',sans-serif;font-weight:500;margin-bottom:14px">登記請假</button>'+
+    (upcoming.length?
+      '<div style="font-size:12px;color:var(--ink3);letter-spacing:1px;margin-bottom:8px">即將到來（'+upcoming.length+' 筆）</div>'+
+      upcoming.map(l=>
+        '<div style="background:var(--orange2);border:1.5px solid var(--orange3);border-radius:10px;padding:11px 14px;margin-bottom:8px">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between">'+
+        '<div><div style="font-family:'Noto Serif TC',serif;font-size:15px">'+l.teacher+'</div>'+
+        '<div style="font-size:13px;color:var(--orange);margin-top:2px">'+l.date+(l.note?' ・ '+l.note:'')+'</div></div>'+
+        '<div style="display:flex;gap:7px">'+
+        '<button onclick="copyTeacherLeaveMsg(''+l.id+'')" style="padding:5px 12px;background:var(--white);border:1px solid var(--orange3);border-radius:7px;font-size:12px;cursor:pointer;color:var(--orange)">複製通知</button>'+
+        '<button onclick="deleteTeacherLeave(''+l.id+'')" style="padding:5px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:7px;font-size:12px;cursor:pointer;color:var(--red)">刪除</button>'+
+        '</div></div></div>'
+      ).join('')
+      :'<div style="text-align:center;color:var(--ink3);padding:12px 0;font-size:13px">目前沒有請假記錄</div>'
+    )+
+    (past.length?
+      '<div style="font-size:12px;color:var(--ink3);margin-top:8px;margin-bottom:6px">近期已過</div>'+
+      past.map(l=>'<div style="background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:9px 13px;margin-bottom:5px;opacity:.7;font-size:12px;color:var(--ink3)">'+l.teacher+' ・ '+l.date+(l.note?' ・ '+l.note:'')+'</div>').join('')
+      :''
+    );
+}
+
+function addTeacherLeave(){
+  const teacher=document.getElementById('tlTeacher').value;
+  const dateRaw=document.getElementById('tlDate').value;
+  const note=document.getElementById('tlNote').value.trim();
+  if(!teacher){showToast('請選擇老師','r');return}
+  if(!dateRaw){showToast('請選擇請假日期','r');return}
+  const date=dateRaw.replace(/-/g,'/');
+  TL.push({id:'tl'+Date.now(),teacher,date,note});
+  localStorage.setItem('qjf_tl',JSON.stringify(TL));
+  db.ref('qingjing_tl').set(TL).catch(e=>{});
+  document.getElementById('tlDate').value='';
+  document.getElementById('tlNote').value='';
+  renderTeacherLeave();
+  showToast('✓ '+teacher+' 請假已登記：'+date);
+}
+
+function deleteTeacherLeave(id){
+  TL=TL.filter(x=>x.id!==id);
+  localStorage.setItem('qjf_tl',JSON.stringify(TL));
+  db.ref('qingjing_tl').set(TL).catch(e=>{});
+  renderTeacherLeave();showToast('✓ 已刪除');
+}
+
+function copyTeacherLeaveMsg(id){
+  const l=TL.find(x=>x.id===id);if(!l)return;
+  const d=parseDate(l.date);
+  const wd=['日','一','二','三','四','五','六'][d.getDay()];
+  const msg='嗨！\n輕境運動工作室通知 🌿\n\n'+l.teacher+'老師將於\n📅 '+l.date+'（星期'+wd+'）請假一天\n'+(l.note?'原因：'+l.note+'\n':'')+'\n受影響的同學我們會另行安排補課或調課，請稍候我們聯繫 🙏\n\n造成不便敬請見諒，謝謝！\n輕境運動工作室';
+  if(navigator.clipboard){navigator.clipboard.writeText(msg).then(()=>showToast('✓ 通知訊息已複製，可貼到 LINE'));}
+  else{const t=document.createElement('textarea');t.value=msg;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);showToast('✓ 通知訊息已複製');}
+}
+
 function renderTchMgr(){
+  renderTeacherLeave();
   const el=document.getElementById('tchContent');if(!el)return;
   refreshTeacherList();
   const allT=ALL_TEACHERS;
@@ -2936,6 +3029,7 @@ function updateLineMsgWithAppt(date,time){
 
 // ── 流水帳 ──
 let LEDGER=JSON.parse(localStorage.getItem('qjf_ledger')||'[]');
+let TL=JSON.parse(localStorage.getItem('qjf_tl')||'[]');
 
 function addLedgerEntry(entry){
   entry.id='led'+Date.now();
