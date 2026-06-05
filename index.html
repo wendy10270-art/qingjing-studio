@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_11.html -->
+<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_12.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -504,7 +504,7 @@ const db={
   <div style="display:flex;align-items:center;gap:5px">
     <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk">09:56</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
+  <div><div class="hdr-time" id="clk">10:23</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -955,6 +955,8 @@ let syncTimer=null;
 function syncToFirebase(){
   clearTimeout(syncTimer);
   syncTimer=setTimeout(()=>{
+    // 同時同步 LEDGER
+    db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync:',e));
     db.ref('qingjing').set({
       s:S, r:R, sch:SCH, t:T, l:L,
       lastUpdated: Date.now()
@@ -1005,8 +1007,16 @@ function loadFromFirebase(callback){
   });
 }
 
-function loadLedgerFromFB(){
-  db.ref('qingjing_ledger').once('value').then(snap=>{const d=snap.val();if(d&&Array.isArray(d)&&d.length>0){LEDGER=d;localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));}}).catch(e=>{});
+function loadLedgerFromFB(callback){
+  db.ref('qingjing_ledger').once('value').then(snap=>{
+    const d=snap.val();
+    if(d&&Array.isArray(d)&&d.length>0){
+      LEDGER=d;
+      localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
+      console.log('✓ 從 Firebase 載入流水帳，共',LEDGER.length,'筆');
+    }
+    if(callback)callback();
+  }).catch(e=>{console.warn('Ledger load error:',e);if(callback)callback();});
 }
 
 function loadCustomTeachersFromFirebase(){
@@ -1036,9 +1046,10 @@ window.addEventListener('load', ()=>{
   showSyncStatus('syncing');
   loadFromFirebase(()=>{
     loadCustomTeachersFromFirebase();
-    loadLedgerFromFB();
-    renderTeachers();
-    showSyncStatus('synced');
+    loadLedgerFromFB(()=>{
+      renderTeachers();
+      showSyncStatus('synced');
+    });
   });
 });
 
@@ -1098,9 +1109,9 @@ function renderTeachers(){
     const times=[...slots.map(sl=>sl.time),...trialForT.map(tr=>tr.time)].filter(Boolean).sort();
     const timeRange=times.length?(times[0]+(times.length>1?' – '+times[times.length-1]:'')):'';
 
-    return`<div style="background:var(--white);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px;cursor:pointer;box-shadow:0 2px 8px rgba(44,36,22,.1);position:relative;overflow:hidden;transition:.15s;-webkit-tap-highlight-color:transparent" onclick="selectTeacher('${t}')" onmousedown="this.style.transform='scale(.98)'" onmouseup="this.style.transform=''" ontouchend="this.style.transform=''">
+    return`<div style="background:var(--white);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px;box-shadow:0 2px 8px rgba(44,36,22,.1);position:relative;overflow:hidden">
       <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--gold2)"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="selectTeacher('${t}')">
         <div>
           <div style="font-family:'Noto Serif TC',serif;font-size:22px;letter-spacing:3px;color:var(--ink)">${t}</div>
           <div style="font-size:12px;color:var(--ink3);margin-top:4px">${timeRange||'時間未定'}・${totalSlots} 堂</div>
@@ -1109,6 +1120,11 @@ function renderTeachers(){
           <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">${chips}</div>
           <div style="font-size:13px;color:var(--ink3)">點選進入 ›</div>
         </div>
+      </div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bg2);display:flex;justify-content:flex-end" onclick="event.stopPropagation()">
+        <button onclick="openTrialModalForTeacher('${t}')" style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:var(--teal2);border:1.5px solid var(--teal3);border-radius:20px;font-size:13px;cursor:pointer;color:var(--teal);font-family:'Noto Sans TC',sans-serif">
+          ＋ 新增體驗學員
+        </button>
       </div>
     </div>`;
   }).join('')}</div>`;
@@ -1467,6 +1483,15 @@ document.getElementById('trialTeacher').addEventListener('change',function(){
 
 // ── 體驗課 Modal ──
 let trialPlan='',trialRatio='';
+function openTrialModalForTeacher(teacher){
+  openTrialModal();
+  // 預設選該老師
+  setTimeout(()=>{
+    const sel=document.getElementById('trialTeacher');
+    if(sel)Array.from(sel.options).forEach(o=>{if(o.value===teacher)o.selected=true});
+  },50);
+}
+
 function openTrialModal(){
   trialPlan='';trialRatio='';
   document.getElementById('trialName').value='';
