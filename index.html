@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_17.html -->
+<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_18.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -504,7 +504,7 @@ const db={
   <div style="display:flex;align-items:center;gap:5px">
     <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk">09:56</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
+  <div><div class="hdr-time" id="clk">11:45</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -517,7 +517,14 @@ const db={
       <div class="day-week" id="heroWeek">星期五</div>
       <div class="day-hint" id="heroHint"></div>
     </div>
-    <div id="teacherArea"><div class="no-sch-box"><div style="font-size:28px;margin-bottom:12px">📋</div><div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:17px;letter-spacing:2px;color:var(--ink2);margin:12px 0 8px">今日尚未設定課程</div><div style="font-size:13px;color:var(--ink3);line-height:1.9">請小幫手點右上角小圓點<br>輸入密碼進入管理後台設定</div></div></div>
+    <div id="teacherArea"><div class="no-sch-box"><div style="font-size:28px;margin-bottom:12px">📋</div><div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:17px;letter-spacing:2px;color:var(--ink2);margin:12px 0 8px">今日尚未設定課程</div><div style="font-size:13px;color:var(--ink3);line-height:1.9">請小幫手點右上角小圓點<br>輸入密碼進入管理後台設定</div></div>
+    <div class="trial-add-btn" onclick="openTrialModal()" style="margin-top:12px">
+      <div class="trial-add-icon">＋</div>
+      <div class="trial-add-text">
+        <div class="trial-add-ttl">新增體驗學員</div>
+        <div class="trial-add-sub">快速記錄今日體驗同學</div>
+      </div>
+    </div></div>
   </div></div>
 
   <!-- 學生清單 -->
@@ -2700,36 +2707,40 @@ function renderTeacherLeave(){
   const el=document.getElementById('tchLeaveContent');if(!el)return;
   const upcoming=TL.filter(l=>l.date>=todayStr()).sort((a,b)=>a.date.localeCompare(b.date));
   const past=TL.filter(l=>l.date<todayStr()).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,3);
-  el.innerHTML=
-    '<div style="font-family:'Noto Serif TC',serif;font-size:15px;letter-spacing:2px;color:var(--ink2);margin-bottom:12px">老師請假管理</div>'+
-    '<div style="display:flex;gap:8px;margin-bottom:8px">'+
-    '<select id="tlTeacher" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none">'+
-    '<option value="">選擇老師</option>'+
-    ALL_TEACHERS.map(t=>'<option value="'+t+'">'+t+'</option>').join('')+
-    '</select>'+
-    '<input type="date" id="tlDate" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none">'+
-    '</div>'+
-    '<input type="text" id="tlNote" placeholder="請假備註（選填）" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none;margin-bottom:8px">'+
-    '<button onclick="addTeacherLeave()" style="width:100%;padding:10px;background:var(--ink);color:#fff;border:none;border-radius:9px;font-size:14px;cursor:pointer;font-family:'Noto Sans TC',sans-serif;font-weight:500;margin-bottom:14px">登記請假</button>'+
-    (upcoming.length?
-      '<div style="font-size:12px;color:var(--ink3);letter-spacing:1px;margin-bottom:8px">即將到來（'+upcoming.length+' 筆）</div>'+
-      upcoming.map(l=>
-        '<div style="background:var(--orange2);border:1.5px solid var(--orange3);border-radius:10px;padding:11px 14px;margin-bottom:8px">'+
-        '<div style="display:flex;align-items:center;justify-content:space-between">'+
-        '<div><div style="font-family:'Noto Serif TC',serif;font-size:15px">'+l.teacher+'</div>'+
-        '<div style="font-size:13px;color:var(--orange);margin-top:2px">'+l.date+(l.note?' ・ '+l.note:'')+'</div></div>'+
-        '<div style="display:flex;gap:7px">'+
-        '<button onclick="copyTeacherLeaveMsg(''+l.id+'')" style="padding:5px 12px;background:var(--white);border:1px solid var(--orange3);border-radius:7px;font-size:12px;cursor:pointer;color:var(--orange)">複製通知</button>'+
-        '<button onclick="deleteTeacherLeave(''+l.id+'')" style="padding:5px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:7px;font-size:12px;cursor:pointer;color:var(--red)">刪除</button>'+
-        '</div></div></div>'
-      ).join('')
-      :'<div style="text-align:center;color:var(--ink3);padding:12px 0;font-size:13px">目前沒有請假記錄</div>'
-    )+
-    (past.length?
-      '<div style="font-size:12px;color:var(--ink3);margin-top:8px;margin-bottom:6px">近期已過</div>'+
-      past.map(l=>'<div style="background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:9px 13px;margin-bottom:5px;opacity:.7;font-size:12px;color:var(--ink3)">'+l.teacher+' ・ '+l.date+(l.note?' ・ '+l.note:'')+'</div>').join('')
-      :''
-    );
+  const teacherOpts=ALL_TEACHERS.map(t=>`<option value="${t}">${t}</option>`).join('');
+  const upcomingHtml=upcoming.length?
+    `<div style="font-size:12px;color:var(--ink3);letter-spacing:1px;margin-bottom:8px">即將到來（${upcoming.length} 筆）</div>`+
+    upcoming.map(l=>`<div style="background:var(--orange2);border:1.5px solid var(--orange3);border-radius:10px;padding:11px 14px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:15px;font-weight:500">${l.teacher}</div>
+          <div style="font-size:13px;color:var(--orange);margin-top:2px">${l.date}${l.note?' ・ '+l.note:''}</div>
+        </div>
+        <div style="display:flex;gap:7px">
+          <button onclick="copyTeacherLeaveMsg('${l.id}')" style="padding:5px 12px;background:var(--white);border:1px solid var(--orange3);border-radius:7px;font-size:12px;cursor:pointer;color:var(--orange)">複製通知</button>
+          <button onclick="deleteTeacherLeave('${l.id}')" style="padding:5px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:7px;font-size:12px;cursor:pointer;color:var(--red)">刪除</button>
+        </div>
+      </div>
+    </div>`).join('')
+    :'<div style="text-align:center;color:var(--ink3);padding:12px 0;font-size:13px">目前沒有請假記錄</div>';
+  const pastHtml=past.length?
+    `<div style="font-size:12px;color:var(--ink3);margin-top:8px;margin-bottom:6px">近期已過</div>`+
+    past.map(l=>`<div style="background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:9px 13px;margin-bottom:5px;opacity:.7;font-size:12px;color:var(--ink3)">${l.teacher} ・ ${l.date}${l.note?' ・ '+l.note:''}</div>`).join('')
+    :'';
+  el.innerHTML=`
+    <div style="font-size:15px;letter-spacing:2px;color:var(--ink2);margin-bottom:12px">老師請假管理</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <select id="tlTeacher" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none">
+        <option value="">選擇老師</option>
+        ${teacherOpts}
+      </select>
+      <input type="date" id="tlDate" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none">
+    </div>
+    <input type="text" id="tlNote" placeholder="請假備註（選填）" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none;margin-bottom:8px">
+    <button onclick="addTeacherLeave()" style="width:100%;padding:10px;background:var(--ink);color:#fff;border:none;border-radius:9px;font-size:14px;cursor:pointer;font-weight:500;margin-bottom:14px">登記請假</button>
+    ${upcomingHtml}
+    ${pastHtml}
+  `;
 }
 
 function addTeacherLeave(){
