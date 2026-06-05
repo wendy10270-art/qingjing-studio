@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_16.html -->
+<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_17.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -2442,7 +2442,6 @@ function addStu(){
   const bonus=Math.round(selPrice*0.03);
   const isPaid=nPayStatusVal==='paid';
   S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:0,price:selPrice,fee,payMethod:isPaid?selPayMethod:'',payDate:isPaid?payDate:'',actualPayment:isPaid?pay.amount:0,note,bonus:isPaid?bonus:0,bonusNote:'',paymentStatus:isPaid?'paid':'unpaid'});
-  const isPaid=nPayStatusVal==='paid';
   if(isPaid)addLedgerEntry({type:'purchase',sid:S[S.length-1].id,name,teacher,course:selPlan,total:selN,price:selPrice,actualPayment:pay.amount,payMethod:selPayMethod,payDate,bonus:Math.round(selPrice*0.03),bonusPaid:false});
   save();renderTeachers();renderMgrList();closeAddOv();
   ['nName','nPhone','nPayDate','nNote'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
