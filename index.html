@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_27.html -->
+<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_28.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -504,7 +504,7 @@ const db={
   <div style="display:flex;align-items:center;gap:5px">
     <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk">18:17</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
+  <div><div class="hdr-time" id="clk">18:52</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -727,6 +727,20 @@ const db={
     <label style="margin-bottom:9px">課程方案</label>
     <div id="planPicker"></div>
     <div class="sel-disp" id="selDisp"></div>
+    <!-- 自訂方案 -->
+    <div style="margin-bottom:11px">
+      <div onclick="toggleCustomPlan()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 12px;background:var(--bg);border-radius:9px;border:1.5px solid var(--border)">
+        <input type="checkbox" id="nCustomPlan" style="width:18px;height:18px;accent-color:var(--gold)">
+        <span style="font-size:13px;color:var(--ink2)">自訂方案（舊方案或特殊定價）</span>
+      </div>
+      <div id="nCustomPlanDetail" style="display:none;margin-top:8px;padding:12px;background:var(--gold4);border:1px solid var(--gold2);border-radius:9px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+          <div><label>總堂數</label><input type="number" id="nCustomTotal" placeholder="例：20" style="margin-bottom:0;width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:15px;outline:none"></div>
+          <div><label>課程定價</label><input type="number" id="nCustomPrice" placeholder="例：38000" oninput="updateCustomPaySummary()" style="margin-bottom:0;width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:15px;outline:none"></div>
+        </div>
+        <div style="font-size:11px;color:var(--gold);margin-top:8px">填入後會覆蓋上方選擇的方案</div>
+      </div>
+    </div>
     <label>指導老師</label>
     <select id="nTeacher" onchange="autoFee()"><option value="">── 選擇老師 ──</option></select>
     <label>師資課費（每堂，自動帶入）</label>
@@ -2492,10 +2506,55 @@ function eToggleInstallment(){
   const detail=document.getElementById('eInstallmentDetail');
   if(detail)detail.style.display=cb?.checked?'flex':'none';
 }
+
+function toggleCustomPlan(){
+  const cb=document.getElementById('nCustomPlan');
+  const detail=document.getElementById('nCustomPlanDetail');
+  if(detail)detail.style.display=cb?.checked?'block':'none';
+}
+
+function updateCustomPaySummary(){
+  const isCustom=document.getElementById('nCustomPlan')?.checked;
+  if(!isCustom)return;
+  const price=parseInt(document.getElementById('nCustomPrice')?.value)||0;
+  if(price&&selPayMethod){
+    const pay=calcPayment(price,selPayMethod);
+    const nAP=document.getElementById('nActualPayment');
+    if(nAP)nAP.value=pay.amount;
+    // 更新 paymentSummary 顯示
+    const ps=document.getElementById('paymentSummary');
+    if(ps&&ps.style.display!=='none'){
+      document.getElementById('psPlanPrice').textContent='$'+price.toLocaleString();
+      document.getElementById('psTotal').textContent='$'+pay.amount.toLocaleString();
+    }
+  }
+}
+
 function toggleInstallment(){
   const cb=document.getElementById('nInstallment');
   const detail=document.getElementById('nInstallmentDetail');
   if(detail)detail.style.display=cb?.checked?'flex':'none';
+}
+
+
+// ── 首頁簡化版新增學員（隱藏師資費） ──
+function openAddSimple(){
+  openAdd();
+  // 隱藏師資課費欄位
+  setTimeout(()=>{
+    const feeLabel=document.querySelector('label[for="nFee"]');
+    const feeWrap=document.getElementById('nFee');
+    if(feeWrap){
+      feeWrap.closest('div')?.style && (feeWrap.closest('div').style.display='none');
+      // 找 label
+      const labels=document.querySelectorAll('#addOv label');
+      labels.forEach(l=>{if(l.textContent.includes('師資課費'))l.style.display='none';});
+      const nFeeEl=document.getElementById('nFee');
+      if(nFeeEl){nFeeEl.style.display='none';nFeeEl.previousElementSibling&&(nFeeEl.previousElementSibling.style.display='none');}
+    }
+    // 標記為簡化模式
+    document.getElementById('addOv').dataset.simple='1';
+  },50);
 }
 
 function selectPM(el,method){
@@ -2521,9 +2580,12 @@ function updatePaymentSummary(){
   const nAP=document.getElementById('nActualPayment');if(nAP)nAP.value=pay.amount;
 }
 function openAdd(){buildPlanPicker();selPlan='';selPType='';selN=0;selPrice=0;nPayStatusVal='paid';setTimeout(()=>setPayStatus('paid'),50);document.getElementById('addOv').classList.add('open')}
-function closeAddOv(){document.getElementById('addOv').classList.remove('open')}
+function closeAddOv(){const ov=document.getElementById('addOv');ov.classList.remove('open');delete ov.dataset.simple;// 恢復顯示所有欄位
+const nFeeEl=document.getElementById('nFee');if(nFeeEl){nFeeEl.style.display='';if(nFeeEl.previousElementSibling)nFeeEl.previousElementSibling.style.display='';}
+document.querySelectorAll('#addOv label').forEach(l=>{l.style.display='';});}
 function closeAddOut(e){if(e.target===document.getElementById('addOv'))closeAddOv()}
 function addStu(){
+  const isSimple=document.getElementById('addOv')?.dataset.simple==='1';
   const name=document.getElementById('nName').value.trim();
   const phone=document.getElementById('nPhone').value.trim();
   const teacher=document.getElementById('nTeacher').value;
@@ -2531,7 +2593,13 @@ function addStu(){
   const payDate=document.getElementById('nPayDate')?.value.trim()||'';
   const note=document.getElementById('nNote')?.value.trim()||'';
   if(!name){showToast('請填寫姓名','r');return}
-  if(!selPlan||!selN){showToast('請選擇課程方案','r');return}
+  const isCustomPlan=document.getElementById('nCustomPlan')?.checked||false;
+  const customTotal=parseInt(document.getElementById('nCustomTotal')?.value)||0;
+  const customPrice=parseInt(document.getElementById('nCustomPrice')?.value)||0;
+  if(!isCustomPlan&&(!selPlan||!selN)){showToast('請選擇課程方案','r');return}
+  if(isCustomPlan&&(!selPlan||!customTotal)){showToast('請先選擇課程類型，再填自訂堂數','r');return}
+  // 如果是自訂方案，覆蓋 selN 和 selPrice
+  if(isCustomPlan){selN=customTotal;selPrice=customPrice||selPrice;}
   if(!teacher){showToast('請選擇指導老師','r');return}
   if(nPayStatusVal==='paid'&&!selPayMethod){showToast('請選擇繳款方式','r');return}
   const pay=calcPayment(selPrice,selPayMethod);
@@ -2546,6 +2614,9 @@ function addStu(){
   save();renderTeachers();renderMgrList();closeAddOv();
   ['nName','nPhone','nPayDate','nNote','nActualPayment'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
   const nInst=document.getElementById('nInstallment');if(nInst)nInst.checked=false;
+  const nCP=document.getElementById('nCustomPlan');if(nCP)nCP.checked=false;
+  const nCPD=document.getElementById('nCustomPlanDetail');if(nCPD)nCPD.style.display='none';
+  ['nCustomTotal','nCustomPrice'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const nInstD=document.getElementById('nInstallmentDetail');if(nInstD)nInstD.style.display='none';
   showToast('✓ '+name+' 已新增・入帳 $'+pay.amount.toLocaleString());
 }
