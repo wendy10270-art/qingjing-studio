@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_22.html -->
+<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_23.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -504,7 +504,7 @@ const db={
   <div style="display:flex;align-items:center;gap:5px">
     <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk">13:56</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
+  <div><div class="hdr-time" id="clk">14:35</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -876,6 +876,27 @@ const db={
     <label>備註（選填）</label><input type="text" id="renewNote" placeholder="例：第二期、折扣…">
     <button class="btn-full bf-ink" style="background:var(--teal)" onclick="confirmRenew()">確認續課</button>
     <button class="btn-full bf-soft" style="margin-top:9px" onclick="closeOvById(&#39;renewOv&#39;)">取消</button>
+  </div>
+</div>
+
+
+<!-- 行事曆新增課程 Modal -->
+<div class="add-ov" id="calAddOv" onclick="if(event.target===this)closeOvById(&#39;calAddOv&#39;)">
+  <div class="add-modal" style="max-height:75vh">
+    <div class="modal-ttl" id="calAddTitle">新增課程</div>
+    <div id="calAddDateInfo" style="background:var(--gold4);border:1px solid var(--gold2);border-radius:9px;padding:10px 14px;margin-bottom:14px;font-size:14px;color:var(--gold)"></div>
+    <label>授課老師</label>
+    <select id="calAddTeacher" onchange="calLoadStudents()" style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--white);font-size:15px;outline:none;margin-bottom:12px">
+      <option value="">── 選擇老師 ──</option>
+    </select>
+    <label>上課時間</label>
+    <input type="time" id="calAddTime" style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--white);font-size:15px;outline:none;margin-bottom:12px" value="10:00">
+    <label>學員</label>
+    <select id="calAddStudent" style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--white);font-size:15px;outline:none;margin-bottom:12px">
+      <option value="">── 先選老師 ──</option>
+    </select>
+    <button class="btn-full bf-ink" onclick="confirmCalAddCourse()">加入課程</button>
+    <button class="btn-full bf-soft" style="margin-top:9px" onclick="closeOvById(&#39;calAddOv&#39;)">取消</button>
   </div>
 </div>
 
@@ -1867,6 +1888,9 @@ function renderCalendar(){
         </div>
       </div>`;
     }).join(''):`<div style="text-align:center;color:var(--ink3);padding:28px 0;font-size:14px">今日無課程</div>`}
+    <div style="padding:12px 16px;border-top:1px solid var(--bg2)">
+      <button onclick="openCalAddCourse('${calSelectedDate}')" style="width:100%;padding:10px;background:var(--gold4);border:1.5px solid var(--gold2);border-radius:10px;font-size:14px;cursor:pointer;color:var(--gold);font-weight:500">＋ 新增課程到這天</button>
+    </div>
   </div>`:'<div style="text-align:center;color:var(--ink3);padding:18px 0;font-size:13px">點選日期查看當日課程</div>'}
 
   <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;font-size:11px">
@@ -3153,7 +3177,7 @@ let TL=JSON.parse(localStorage.getItem('qjf_tl')||'[]');
 
 function addLedgerEntry(entry){
   entry.id='led'+Date.now();
-  entry.createdAt=todayStr();
+  entry.createdAt=entry.payDate||todayStr();
   LEDGER.push(entry);
   localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
   // 同步到 Firebase
@@ -3279,6 +3303,55 @@ function editLedgerBonus(id){
   l.bonusNote=note||'';
   saveLedger();renderLedger();
   showToast('✓ 獎金已調整為 $'+l.bonus);
+}
+
+
+// ── 行事曆新增課程 ──
+let calAddDate='';
+
+function openCalAddCourse(ds){
+  calAddDate=ds;
+  const d=parseDate(ds);
+  const wd=['日','一','二','三','四','五','六'][d.getDay()];
+  document.getElementById('calAddTitle').textContent='新增課程';
+  document.getElementById('calAddDateInfo').textContent='📅 '+ds+'（星期'+wd+'）';
+  // 填老師選單
+  const sel=document.getElementById('calAddTeacher');
+  sel.innerHTML='<option value="">── 選擇老師 ──</option>'+ALL_TEACHERS.map(t=>`<option value="${t}">${t}</option>`).join('');
+  document.getElementById('calAddStudent').innerHTML='<option value="">── 先選老師 ──</option>';
+  document.getElementById('calAddTime').value='10:00';
+  document.getElementById('calAddOv').classList.add('open');
+}
+
+function calLoadStudents(){
+  const teacher=document.getElementById('calAddTeacher').value;
+  const sel=document.getElementById('calAddStudent');
+  if(!teacher){sel.innerHTML='<option value="">── 先選老師 ──</option>';return}
+  const stus=S.filter(s=>s.used<s.total); // 所有還有堂數的學員
+  sel.innerHTML='<option value="">── 選擇學員 ──</option>'+
+    stus.map(s=>`<option value="${s.id}">${s.name}（${s.course}・剩${s.total-s.used}堂）${s.teacher===teacher?'':' ★'+s.teacher}</option>`).join('');
+}
+
+function confirmCalAddCourse(){
+  const teacher=document.getElementById('calAddTeacher').value;
+  const sid=document.getElementById('calAddStudent').value;
+  const time=document.getElementById('calAddTime').value;
+  if(!teacher){showToast('請選擇老師','r');return}
+  if(!sid){showToast('請選擇學員','r');return}
+  if(!time){showToast('請填寫時間','r');return}
+  // 加入排課
+  if(!SCH[calAddDate])SCH[calAddDate]={};
+  if(!SCH[calAddDate][teacher])SCH[calAddDate][teacher]=[];
+  // 檢查是否已存在
+  if(SCH[calAddDate][teacher].find(sl=>sl.sid===sid)){
+    showToast('這位學員已在該老師當天課表中','r');return;
+  }
+  SCH[calAddDate][teacher].push({sid,time});
+  save();
+  closeOvById('calAddOv');
+  renderCalendar();
+  if(calAddDate===todayStr())renderTeachers();
+  showToast('✓ 課程已加入 '+calAddDate);
 }
 
 // ── 備份系統 ──
