@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_18.html -->
+<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_19.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -502,9 +502,9 @@ const db={
   </div>
   <div style="display:flex;align-items:center;gap:10px">
   <div style="display:flex;align-items:center;gap:5px">
-    <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
+    <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgb(46, 125, 82); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk">11:45</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
+  <div><div class="hdr-time" id="clk">11:49</div><div class="hdr-date" id="dat">6月5日（五）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -3130,7 +3130,6 @@ function renderLedger(){
       <div style="display:flex;align-items:center;gap:8px">
         <button onclick="editLedgerBonus('${l.id}')" style="padding:4px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--ink2)">調整</button>
         <button onclick="deleteLedgerEntry('${l.id}')" style="padding:4px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:6px;font-size:11px;cursor:pointer;color:var(--red)">刪除</button>
-        <button onclick="deleteLedgerEntry('${l.id}')" style="padding:4px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:6px;font-size:11px;cursor:pointer;color:var(--red)">刪除</button>
         ${l.bonusPaid?
           `<span style="font-size:11px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:3px 10px;cursor:pointer" onclick="toggleBonusPaid('${l.id}')">已撥款 ✓</span>`:
           `<button onclick="toggleBonusPaid('${l.id}')" style="padding:5px 12px;background:var(--teal);color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif;font-weight:500">確認撥款</button>`
@@ -3152,13 +3151,7 @@ function deleteLedgerEntry(id){
 }
 
 
-function deleteLedgerEntry(id){
-  const l=LEDGER.find(x=>x.id===id);if(!l)return;
-  if(!confirm('確定要刪除「'+l.name+'」這筆購課記錄？\n此操作無法復原！'))return;
-  LEDGER=LEDGER.filter(x=>x.id!==id);
-  saveLedger();renderLedger();
-  showToast('✓ 已刪除這筆記錄');
-}
+
 
 function toggleBonusPaid(id){
   const l=LEDGER.find(x=>x.id===id);if(!l)return;
