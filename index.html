@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_30.html -->
+<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_31.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -504,7 +504,7 @@ const db={
   <div style="display:flex;align-items:center;gap:5px">
     <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk">14:05</div><div class="hdr-date" id="dat">6月6日（六）</div></div>
+  <div><div class="hdr-time" id="clk">14:18</div><div class="hdr-date" id="dat">6月6日（六）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -1209,7 +1209,18 @@ function renderTeachers(){
         </button>
       </div>
     </div>`;
-  }).join('')}</div>`;
+  }).join('')}
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <div class="trial-add-btn" onclick="openTrialModal()" style="flex:1;margin-top:0">
+        <div class="trial-add-icon">＋</div>
+        <div class="trial-add-text"><div class="trial-add-ttl">新增體驗學員</div><div class="trial-add-sub">快速記錄今日體驗同學</div></div>
+      </div>
+      <div class="trial-add-btn" onclick="openAddSimple()" style="flex:1;margin-top:0;background:var(--gold4);border-color:var(--gold2)">
+        <div class="trial-add-icon" style="background:var(--gold)">＋</div>
+        <div class="trial-add-text"><div class="trial-add-ttl" style="color:var(--gold)">新增學員</div><div class="trial-add-sub" style="color:var(--gold2)">登記新同學基本資料</div></div>
+      </div>
+    </div>
+  </div>`;
 }
 renderTeachers();
 let curTeacher='';
@@ -2553,6 +2564,21 @@ function openAddSimple(){
       if(nFeeEl){nFeeEl.style.display='none';nFeeEl.previousElementSibling&&(nFeeEl.previousElementSibling.style.display='none');}
     }
     // 標記為簡化模式
+    document.getElementById('addOv').dataset.simple='1';
+  },50);
+}
+
+
+function openAddSimple(){
+  openAdd();
+  setTimeout(()=>{
+    const feeLabel=document.querySelector('#addOv label[for="nFee"]');
+    const nFeeEl=document.getElementById('nFee');
+    if(nFeeEl){
+      nFeeEl.style.display='none';
+      let prev=nFeeEl.previousElementSibling;
+      if(prev&&prev.tagName==='LABEL')prev.style.display='none';
+    }
     document.getElementById('addOv').dataset.simple='1';
   },50);
 }
