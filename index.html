@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_33.html -->
+<!-- saved from url=(0049)file:///Users/zhenghuazhi/Downloads/index_35.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -149,7 +149,7 @@ body{background:var(--bg);color:var(--ink);font-size:15px;display:flex;flex-dire
 .grid-wrap{padding:11px 15px 15px}
 .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
 .cell{border-radius:8px;border:1px solid var(--border);background:var(--white);min-height:78px;display:flex;flex-direction:column;overflow:hidden}
-.cell.signed{background:var(--gold4);border-color:var(--gold2)}
+.cell.signed{background:var(--gold4);border-color:var(--gold2)}.cell.paper-signed{background:var(--bg2);border-color:var(--border);border-style:dashed}
 .cell.sub-signed{background:var(--blue2);border-color:var(--blue3)}
 .cell.upgraded{background:var(--orange2);border-color:var(--orange3)}
 .cell.next-up{border:2px solid var(--gold);box-shadow:0 0 0 3px var(--gold3);background:var(--gold4);animation:pulse 2s infinite}
@@ -504,7 +504,7 @@ const db={
   <div style="display:flex;align-items:center;gap:5px">
     <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
   </div>
-  <div><div class="hdr-time" id="clk">20:10</div><div class="hdr-date" id="dat">6月6日（六）</div></div>
+  <div><div class="hdr-time" id="clk">13:51</div><div class="hdr-date" id="dat">6月7日（日）</div></div>
 </div>
   <div class="admin-dot" onclick="openPin()"></div>
 </div>
@@ -513,22 +513,25 @@ const db={
 <div class="scroll-wrap" id="mainScroll">
   <div class="screen active" id="sc-teachers"><div class="sc-pad">
     <div class="day-hero">
-      <div class="day-date" id="heroDate">2026年6月6日</div>
-      <div class="day-week" id="heroWeek">星期六</div>
-      <div class="day-hint" id="heroHint">今日共 0 位老師・0 正式 ・ 11 體驗</div>
+      <div class="day-date" id="heroDate">2026年6月7日</div>
+      <div class="day-week" id="heroWeek">星期日</div>
+      <div class="day-hint" id="heroHint"></div>
     </div>
-    <div id="teacherArea"><div style="display:flex;flex-direction:column;gap:10px">
-    <div style="display:flex;gap:10px;margin-top:12px">
-      <div class="trial-add-btn" onclick="openTrialModal()" style="flex:1;margin-top:0">
-        <div class="trial-add-icon">＋</div>
-        <div class="trial-add-text"><div class="trial-add-ttl">新增體驗學員</div><div class="trial-add-sub">快速記錄今日體驗同學</div></div>
+    <div id="teacherArea"><div class="no-sch-box"><div style="font-size:28px;margin-bottom:12px">📋</div><div style="font-size:17px;letter-spacing:2px;color:var(--ink2);margin:12px 0 8px">今日尚未設定課程</div><div style="font-size:13px;color:var(--ink3);line-height:1.9">請小幫手點右上角小圓點<br>輸入密碼進入管理後台設定</div></div>
+    <div class="trial-add-btn" onclick="openTrialModal()" style="margin-top:12px">
+      <div class="trial-add-icon">＋</div>
+      <div class="trial-add-text">
+        <div class="trial-add-ttl">新增體驗學員</div>
+        <div class="trial-add-sub">快速記錄今日體驗同學</div>
       </div>
-      <div class="trial-add-btn" onclick="openAddSimple()" style="flex:1;margin-top:0;background:var(--gold4);border-color:var(--gold2)">
-        <div class="trial-add-icon" style="background:var(--gold)">＋</div>
-        <div class="trial-add-text"><div class="trial-add-ttl" style="color:var(--gold)">新增學員</div><div class="trial-add-sub" style="color:var(--gold2)">登記新同學基本資料</div></div>
+</div>
+    <div class="trial-add-btn" onclick="openAddSimple()" style="margin-top:10px;background:var(--gold4);border-color:var(--gold2)">
+      <div class="trial-add-icon" style="background:var(--gold)">＋</div>
+      <div class="trial-add-text">
+        <div class="trial-add-ttl" style="color:var(--gold)">新增學員</div>
+        <div class="trial-add-sub" style="color:var(--gold2)">登記新同學基本資料</div>
       </div>
-    </div>
-  </div></div>
+    </div></div>
   </div></div>
 
   <!-- 學生清單 -->
@@ -746,8 +749,8 @@ const db={
     </div>
     <label>指導老師</label>
     <select id="nTeacher" onchange="autoFee()"><option value="">── 選擇老師 ──</option></select>
-    <label>師資課費（每堂，自動帶入）</label>
-    <input type="number" id="nFee" placeholder="800">
+    <div id="nFeeWrapper"><label>師資課費（每堂，自動帶入）</label>
+    <input type="number" id="nFee" placeholder="800"></div>
     <div style="height:1px;background:var(--bg2);margin:14px 0"></div>
     <div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:13px;letter-spacing:1.5px;color:var(--ink2);margin-bottom:12px">付款資訊</div>
     <div style="display:flex;gap:10px;margin-bottom:12px" id="nPayStatusRow">
@@ -770,6 +773,13 @@ const db={
     <label>入帳日期</label><input type="text" id="nPayDate" placeholder="2026/06/02">
     </div>
     <label>備註（選填）</label><input type="text" id="nNote" placeholder="例：分期、折扣備注…">
+    <div style="background:var(--bg);border-radius:10px;padding:12px 14px;margin-bottom:12px">
+      <label style="margin-bottom:6px;color:var(--ink2)">紙本已簽到堂數（選填）</label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input type="number" id="nPaperUsed" placeholder="0" min="0" style="width:80px;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:15px;outline:none;text-align:center">
+        <span style="font-size:13px;color:var(--ink3)">堂（系統會自動標記為紙本簽到）</span>
+      </div>
+    </div>
     <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border-radius:10px;margin-bottom:12px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;flex:1">
         <input type="checkbox" id="nInstallment" onchange="toggleInstallment()" style="width:18px;height:18px;accent-color:var(--gold)">
@@ -1923,7 +1933,8 @@ function renderCalendar(){
           <div style="font-size:12px;color:var(--ink2);margin-top:1px">${ev.teacher} 老師</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
-          <span style="font-size:11px;color:${typeColor};background:var(--white);border:1px solid ${typeBorder};border-radius:20px;padding:3px 10px;display:block;white-space:nowrap">${typeLabel}</span>
+          <span style="font-size:11px;color:${typeColor};background:var(--white);border:1px solid ${typeBorder};border-radius:20px;padding:3px 10px;display:block;white-space:nowrap;margin-bottom:5px">${typeLabel}</span>
+          ${ev.type!=='signed'?`<button onclick="calDeleteSlot('${calSelectedDate}','${ev.teacher}','${ev.sid}')" style="padding:3px 8px;background:var(--red2);border:1px solid #F7C1C1;border-radius:5px;font-size:11px;cursor:pointer;color:var(--red)">刪除</button>`:''}
         </div>
       </div>`;
     }).join(''):`<div style="text-align:center;color:var(--ink3);padding:28px 0;font-size:14px">今日無課程</div>`}
@@ -1940,6 +1951,19 @@ function renderCalendar(){
     <span style="background:var(--teal2);color:var(--teal);border:1px solid var(--teal3);border-radius:4px;padding:2px 8px">體驗</span>
     <span style="background:var(--purple2);color:var(--purple);border:1px solid var(--purple3);border-radius:4px;padding:2px 8px">請假</span>
   </div>`;
+}
+
+
+function calDeleteSlot(date, teacher, sid){
+  if(!confirm('確定要刪除這堂預排課程？'))return;
+  if(SCH[date]&&SCH[date][teacher]){
+    SCH[date][teacher]=SCH[date][teacher].filter(sl=>sl.sid!==sid);
+    if(SCH[date][teacher].length===0)delete SCH[date][teacher];
+    if(SCH[date]&&Object.keys(SCH[date]).length===0)delete SCH[date];
+  }
+  save();renderCalendar();
+  if(date===todayStr())renderTeachers();
+  showToast('✓ 課程已刪除');
 }
 
 function calSelectDate(ds){
@@ -2561,23 +2585,12 @@ function toggleInstallment(){
 // ── 首頁簡化版新增學員（隱藏師資費） ──
 function openAddSimple(){
   openAdd();
-  // 隱藏師資課費欄位
   setTimeout(()=>{
-    const feeLabel=document.querySelector('label[for="nFee"]');
-    const feeWrap=document.getElementById('nFee');
-    if(feeWrap){
-      feeWrap.closest('div')?.style && (feeWrap.closest('div').style.display='none');
-      // 找 label
-      const labels=document.querySelectorAll('#addOv label');
-      labels.forEach(l=>{if(l.textContent.includes('師資課費'))l.style.display='none';});
-      const nFeeEl=document.getElementById('nFee');
-      if(nFeeEl){nFeeEl.style.display='none';nFeeEl.previousElementSibling&&(nFeeEl.previousElementSibling.style.display='none');}
-    }
-    // 標記為簡化模式
+    const w=document.getElementById('nFeeWrapper');
+    if(w)w.style.display='none';
     document.getElementById('addOv').dataset.simple='1';
   },50);
 }
-
 
 function openAddSimple(){
   openAdd();
@@ -2645,10 +2658,17 @@ function addStu(){
   const finalActual=isPaid?(manualActual||pay.amount):0;
   const isInstallment=document.getElementById('nInstallment')?.checked||false;
   const installEvery=parseInt(document.getElementById('nInstallmentEvery')?.value)||5;
-  S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:0,price:selPrice,fee,payMethod:isPaid?selPayMethod:'',payDate:isPaid?payDate:'',actualPayment:finalActual,note,bonus:isPaid?Math.round(finalActual*0.03):0,bonusNote:'',paymentStatus:isPaid?'paid':'unpaid',installment:isInstallment,installEvery:isInstallment?installEvery:null});
+  S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:paperUsed,price:selPrice,fee,payMethod:isPaid?selPayMethod:'',payDate:isPaid?payDate:'',actualPayment:finalActual,note,bonus:isPaid?Math.round(finalActual*0.03):0,bonusNote:'',paymentStatus:isPaid?'paid':'unpaid',installment:isInstallment,installEvery:isInstallment?installEvery:null});
+  // 產生紙本簽到記錄
+  if(paperUsed>0){
+    const newStu=S[S.length-1];
+    for(let i=1;i<=paperUsed;i++){
+      R.push({id:'r'+Date.now()+i,sid:newStu.id,date:newStu.payDate||todayStr(),time:'--:--',session:i,note:'紙本簽到',sig:null,isUpgraded:false,isSub:false});
+    }
+  }
   if(isPaid)addLedgerEntry({type:'purchase',sid:S[S.length-1].id,name,teacher,course:selPlan,total:selN,price:selPrice,actualPayment:finalActual,payMethod:selPayMethod,payDate,bonus:Math.round(finalActual*0.03),bonusPaid:false});
   save();renderTeachers();renderMgrList();closeAddOv();
-  ['nName','nPhone','nPayDate','nNote','nActualPayment'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+  ['nName','nPhone','nPayDate','nNote','nActualPayment','nPaperUsed'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
   const nInst=document.getElementById('nInstallment');if(nInst)nInst.checked=false;
   const nCP=document.getElementById('nCustomPlan');if(nCP)nCP.checked=false;
   const nCPD=document.getElementById('nCustomPlanDetail');if(nCPD)nCPD.style.display='none';
@@ -3484,7 +3504,7 @@ function confirmCalAddCourse(){
   save();
   closeOvById('calAddOv');
   renderCalendar();
-  if(calAddDate===todayStr())renderTeachers();
+  renderTeachers();
   showToast('✓ 課程已加入 '+calAddDate);
 }
 
