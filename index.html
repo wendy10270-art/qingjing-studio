@@ -2679,6 +2679,7 @@ function addStu(){
   const isPaid=nPayStatusVal==='paid';
   const manualActual=parseInt(document.getElementById('nActualPayment')?.value)||0;
   const finalActual=isPaid?(manualActual||pay.amount):0;
+  const paperUsed=parseInt(document.getElementById('nPaperUsed')?.value)||0;
   const isInstallment=document.getElementById('nInstallment')?.checked||false;
   const installEvery=parseInt(document.getElementById('nInstallmentEvery')?.value)||5;
   S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:paperUsed,price:selPrice,fee,payMethod:isPaid?selPayMethod:'',payDate:isPaid?payDate:'',actualPayment:finalActual,note,bonus:isPaid?Math.round(finalActual*0.03):0,bonusNote:'',paymentStatus:isPaid?'paid':'unpaid',installment:isInstallment,installEvery:isInstallment?installEvery:null});
