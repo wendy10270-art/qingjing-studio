@@ -2720,7 +2720,7 @@ function renderNextBookingArea(sid, remain){
     });
   }
   // Also allow custom date
-  const suggHTML=suggestions.map(sg=>`<button onclick="setNextBooking('${sid}','${sg.date}','${sg.time}')" style="display:block;width:100%;padding:9px 14px;margin-bottom:6px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:9px;font-size:13px;cursor:pointer;text-align:left">✓ 預排 ${sg.date} ${sg.time}</button>`).join('');
+  const suggHTML=suggestions.map(sg=>`<button onclick="bookApptAndSync('${sid}','${sg.date}','${sg.time}')" style="display:block;width:100%;padding:9px 14px;margin-bottom:6px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:9px;font-size:13px;cursor:pointer;text-align:left">✓ 預排 ${sg.date} ${sg.time}</button>`).join('');
   el.innerHTML=`<div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
     <div style="font-size:13px;letter-spacing:1px;color:var(--ink2);margin-bottom:10px">預排下次上課時間</div>
     ${suggHTML}
@@ -2732,15 +2732,37 @@ function renderNextBookingArea(sid, remain){
       </div>
     </div>
     <div style="font-size:11px;color:var(--ink3);margin-top:6px">或選擇自訂日期時間</div>
+    <div id="bookConfirmedMsg" style="display:none;margin-top:10px;background:var(--green2);border:1px solid #90D4B0;border-radius:9px;padding:10px 14px;font-size:13px;color:var(--green)"></div>
   </div>`;
+}
+
+// 預排確認：同步存資料 + 更新LINE + 寫入行事曆
+function bookApptAndSync(sid, date, time){
+  const s=S.find(x=>x.id===sid);if(!s)return;
+  // 1. 存 nextBooking
+  s.nextBooking={date,time};save();
+  // 2. 更新 LINE 訊息
+  updateLineMsgWithAppt(date,time);
+  // 3. 寫入行事曆 SCH（若當日該老師尚未有此學員）
+  if(s.teacher&&date){
+    if(!SCH[date])SCH[date]={};
+    if(!SCH[date][s.teacher])SCH[date][s.teacher]=[];
+    if(!SCH[date][s.teacher].find(sl=>sl.sid===sid)){
+      SCH[date][s.teacher].push({sid,time});
+      save();
+    }
+  }
+  // 4. 顯示成功訊息
+  const msg=document.getElementById('bookConfirmedMsg');
+  if(msg){msg.style.display='block';msg.textContent='✓ 已預排 '+date+' '+time+'，行事曆＆LINE 已更新';}
+  showToast('✓ 已預排：'+date+' '+time);
 }
 
 function confirmCustomBook(sid){
   const date=getDateSel('customBookDate');
   const time=getTimeSel('customBookTime');
   if(!date||!time){showToast('請選擇日期和時間','r');return}
-  setNextBooking(sid,date,time);
-  renderNextBookingArea(sid,0);
+  bookApptAndSync(sid,date,time);
 }
 
 // ── 固定排課設定（在學員管理）──
