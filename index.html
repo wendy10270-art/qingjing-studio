@@ -10,6 +10,7 @@
 <link rel="apple-touch-icon" href="data:image/svg+xml,&lt;svg xmlns=&#39;http://www.w3.org/2000/svg&#39; viewBox=&#39;0 0 100 100&#39;&gt;&lt;rect width=&#39;100&#39; height=&#39;100&#39; rx=&#39;22&#39; fill=&#39;%231A1510&#39;/&gt;&lt;path d=&#39;M65 20 A28 28 0 1 0 70 60&#39; stroke=&#39;%23F0D89A&#39; stroke-width=&#39;5&#39; stroke-linecap=&#39;round&#39; fill=&#39;none&#39;/&gt;&lt;path d=&#39;M20 42 Q32 34 50 42 Q68 50 80 42&#39; stroke=&#39;%23F0D89A&#39; stroke-width=&#39;4&#39; stroke-linecap=&#39;round&#39; fill=&#39;none&#39;/&gt;&lt;path d=&#39;M20 54 Q32 46 50 54 Q68 62 80 54&#39; stroke=&#39;%23F0D89A&#39; stroke-width=&#39;4&#39; stroke-linecap=&#39;round&#39; fill=&#39;none&#39;/&gt;&lt;/svg&gt;">
 <meta name="theme-color" content="#1A1510">
 <title>輕境運動工作室</title>
+<script src="https://accounts.google.com/gsi/client" async></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700&family=Noto+Sans+TC:wght@300;400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -613,6 +614,7 @@ const db={
     <div class="a-tab" onclick="aTab(&#39;wage&#39;)">月薪資</div>
     <div class="a-tab" onclick="aTab(&#39;mgr&#39;)">學員管理</div>
     <div class="a-tab" onclick="aTab(&#39;tch&#39;)">師資管理</div>
+    <div class="a-tab" onclick="aTab(&#39;gcal&#39;)">Google日曆</div>
     <div class="a-tab" onclick="leaveAdmin()" style="color:#8A5A50">← 離開</div>
   </div>
   <div class="admin-scroll">
@@ -645,6 +647,7 @@ const db={
       <div id="mgrStuList"></div>
     </div>
     <div class="a-page" id="ap-tch"><div style="padding:4px 0"><div id="tchLeaveContent" style="margin-bottom:16px"></div><div id="tchContent"></div></div></div>
+    <div class="a-page" id="ap-gcal"><div id="gcalContent" style="padding:4px 0"></div></div>
   </div>
 </div>
 
@@ -1815,7 +1818,7 @@ function pConfirm(){
 }
 
 function aTab(t){
-  const ns=['sch','daily','cal','ledger','wage','mgr','tch'];
+  const ns=['sch','daily','cal','ledger','wage','mgr','tch','gcal'];
   document.querySelectorAll('.a-tab').forEach((el,i)=>el.classList.toggle('active',ns[i]===t));
   ns.forEach(n=>document.getElementById('ap-'+n).classList.toggle('active',n===t));
   if(t==='daily')renderDaily();
@@ -1824,6 +1827,7 @@ function aTab(t){
   if(t==='wage'){buildMonthSelect();renderWage()}
   if(t==='mgr')renderMgrList();
   if(t==='tch')renderTchMgr();
+  if(t==='gcal')renderGcalPage();
 }
 
 // ── 月曆 ──
@@ -2752,7 +2756,19 @@ function bookApptAndSync(sid, date, time){
       save();
     }
   }
-  // 4. 顯示成功訊息
+  // 4. 若已連接 Google 日曆，寫入對應老師的 Google Calendar
+  if(typeof GC!=='undefined'&&GC.ok()&&s.teacher){
+    const calId=(GC.calMap||{})[s.teacher];
+    if(calId){
+      const courseType=s.course?s.course.split(/\s+/)[0]:'1on1';
+      const phone=s.phone?s.phone.replace(/[\s-]/g,''):'';
+      const gcTitle=courseType+' | '+s.name+(phone?' '+phone:'');
+      GC.createEvent(calId,gcTitle,date,time,60)
+        .then(()=>showToast('✓ 已同步至 Google 日曆'))
+        .catch(e=>showToast('Google 日曆寫入失敗：'+e.message,'r'));
+    }
+  }
+  // 5. 顯示成功訊息
   const msg=document.getElementById('bookConfirmedMsg');
   if(msg){msg.style.display='block';msg.textContent='✓ 已預排 '+date+' '+time+'，行事曆＆LINE 已更新';}
   showToast('✓ 已預排：'+date+' '+time);
@@ -3647,6 +3663,267 @@ function showToast(msg,t='g'){
   const cmin=document.getElementById('calAddTime-min');
   if(ch){ch.innerHTML=mkHourOpts(10);cmin.innerHTML=mkMinOpts(0);}
 })();
+
+// ══════════════════════════════════════════
+// Google Calendar 整合模組
+// ══════════════════════════════════════════
+const GC={
+  get cid(){return localStorage.getItem('gc_cid')||''},
+  set cid(v){localStorage.setItem('gc_cid',v)},
+  get calMap(){try{return JSON.parse(localStorage.getItem('gc_calmap')||'{}')}catch{return{}}},
+  set calMap(v){localStorage.setItem('gc_calmap',JSON.stringify(v))},
+  _tok:null,_tokExp:0,
+  get tok(){return this._tok},
+  ok(){return !!(this._tok&&Date.now()<this._tokExp)},
+  async connect(){
+    if(!this.cid)throw new Error('請先輸入並儲存 Client ID');
+    if(typeof google==='undefined'||!google.accounts)throw new Error('Google 登入程式尚未載入，請稍後再試或確認網路連線');
+    return new Promise((res,rej)=>{
+      try{
+        google.accounts.oauth2.initTokenClient({
+          client_id:this.cid,
+          scope:'https://www.googleapis.com/auth/calendar',
+          callback:r=>{
+            if(r.access_token){
+              this._tok=r.access_token;
+              this._tokExp=Date.now()+((parseInt(r.expires_in)||3600)-60)*1000;
+              res();
+            }else{rej(new Error(r.error_description||r.error||'授權失敗'));}
+          },
+          error_callback:e=>rej(new Error(e.message||'授權錯誤'))
+        }).requestAccessToken({prompt:''});
+      }catch(e){rej(e);}
+    });
+  },
+  async api(path,method,body){
+    if(!this._tok)throw new Error('請先連接 Google 帳號');
+    const r=await fetch('https://www.googleapis.com/calendar/v3'+path,{
+      method:method||'GET',
+      headers:{'Authorization':'Bearer '+this._tok,'Content-Type':'application/json'},
+      body:body?JSON.stringify(body):undefined
+    });
+    if(r.status===401){this._tok=null;this._tokExp=0;throw new Error('授權已過期，請重新連接');}
+    if(!r.ok){let e={};try{e=await r.json();}catch{}throw new Error((e.error&&e.error.message)||'API 錯誤 '+r.status);}
+    return r.json();
+  },
+  async listCals(){
+    const d=await this.api('/users/me/calendarList?maxResults=100');
+    return(d.items||[]).sort((a,b)=>(a.summary||'').localeCompare(b.summary||'','zh'));
+  },
+  async todayEvents(calId){
+    const now=new Date(),y=now.getFullYear(),mo=now.getMonth(),d=now.getDate();
+    const tMin=encodeURIComponent(new Date(y,mo,d).toISOString());
+    const tMax=encodeURIComponent(new Date(y,mo,d+1).toISOString());
+    const data=await this.api(`/calendars/${encodeURIComponent(calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=100`);
+    return data.items||[];
+  },
+  parseTitle(t){
+    if(!t)return null;
+    if(/^[\(（]取消/.test(t)||/^[\(（]老師出國/.test(t)||/^取消/.test(t))return null;
+    const m=t.match(/^(.+?)\s*[|｜]\s*(.+?)(\s+(\d{8,10}))?\s*$/);
+    if(!m)return null;
+    return{type:m[1].trim(),name:m[2].trim(),phone:(m[4]||'').trim()};
+  },
+  getTime(ev){
+    if(!ev.start||ev.start.date)return'10:00';
+    const d=new Date(ev.start.dateTime);
+    return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  },
+  async createEvent(calId,summary,date,time,durMin){
+    const parts=date.replace(/-/g,'/').split('/');
+    const tp=(time||'10:00').split(':');
+    const s=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]),parseInt(tp[0])||10,parseInt(tp[1])||0);
+    const e=new Date(s.getTime()+((durMin||60)*60000));
+    return this.api(`/calendars/${encodeURIComponent(calId)}/events`,'POST',{
+      summary,
+      start:{dateTime:s.toISOString(),timeZone:'Asia/Taipei'},
+      end:{dateTime:e.toISOString(),timeZone:'Asia/Taipei'}
+    });
+  }
+};
+
+let _gcAvailCals=[];
+
+function renderGcalPage(){
+  const el=document.getElementById('gcalContent');if(!el)return;
+  const ok=GC.ok();
+  el.innerHTML=`
+<div style="background:${ok?'#E8F7EF':'#FFF4EE'};border:1px solid ${ok?'#90D4B0':'#F5C4A1'};border-radius:10px;padding:11px 15px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+  <div style="width:10px;height:10px;border-radius:50%;background:${ok?'var(--green)':'#E87D3E'};flex-shrink:0"></div>
+  <div style="font-size:13px;color:${ok?'var(--green)':'#C05A20'}">${ok?'✓ 已連接 Google 日曆':'尚未連接 Google 日曆'}</div>
+</div>
+
+<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px">
+  <div style="font-size:13px;font-weight:500;color:var(--ink2);margin-bottom:3px">① 輸入 Google OAuth Client ID</div>
+  <div style="font-size:11px;color:var(--ink3);margin-bottom:10px">到 <a href="https://console.cloud.google.com" target="_blank" style="color:#4285F4">Google Cloud Console</a> 建立憑證後取得（見下方說明）</div>
+  <input type="text" id="gcCidInp" value="${GC.cid}" placeholder="123456789.apps.googleusercontent.com" style="margin-bottom:8px;font-size:13px">
+  <button onclick="gcSaveCid()" style="width:100%;padding:10px;background:var(--ink);color:#fff;border:none;border-radius:9px;font-size:14px;cursor:pointer">儲存 Client ID</button>
+</div>
+
+<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px">
+  <div style="font-size:13px;font-weight:500;color:var(--ink2);margin-bottom:10px">② 授權 Google 帳號</div>
+  <button onclick="gcConnect(event)" style="width:100%;padding:12px;background:${ok?'var(--bg2)':'#4285F4'};color:${ok?'var(--ink2)':'#fff'};border:none;border-radius:9px;font-size:14px;cursor:pointer">
+    ${ok?'🔄 重新連接':'🔗 連接 Google 帳號'}
+  </button>
+</div>
+
+<div id="gcCalMapSection" style="${ok?'':'display:none'}">
+  <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px">
+    <div style="font-size:13px;font-weight:500;color:var(--ink2);margin-bottom:4px">③ 設定老師 → Google 日曆 對照</div>
+    <div style="font-size:11px;color:var(--ink3);margin-bottom:12px">選擇每位老師對應的 Google 日曆（已嘗試自動配對）</div>
+    <div id="gcMapRows" style="border-top:1px solid var(--bg2)">載入中…</div>
+    <button onclick="gcSaveMap()" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:9px;font-size:14px;cursor:pointer;margin-top:12px">✓ 儲存對照設定</button>
+  </div>
+
+  <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px">
+    <div style="font-size:13px;font-weight:500;color:var(--ink2);margin-bottom:5px">④ 今日課表同步</div>
+    <div style="font-size:11px;color:var(--ink3);margin-bottom:11px">從 Google 日曆讀取今日課程，自動匯入今日開課名單</div>
+    <button onclick="gcSyncToday(event)" style="width:100%;padding:12px;background:#F9AB00;color:#fff;border:none;border-radius:9px;font-size:15px;cursor:pointer;font-weight:500">📥 從 Google 日曆匯入今日課表</button>
+    <div id="gcSyncResult" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:8px">
+  <div style="font-size:12px;font-weight:500;color:var(--ink2);margin-bottom:8px">📋 如何取得 Client ID（一次性設定）</div>
+  <div style="font-size:12px;color:var(--ink3);line-height:2.1">
+    1. 開啟 <a href="https://console.cloud.google.com" target="_blank" style="color:#4285F4">console.cloud.google.com</a><br>
+    2. 建立或選擇一個專案<br>
+    3. 左側選單 → API 和服務 → 程式庫 → 搜尋「Google Calendar API」→ 啟用<br>
+    4. API 和服務 → 憑證 → 建立憑證 → OAuth 2.0 用戶端 ID<br>
+    5. 應用程式類型選「網頁應用程式」<br>
+    6. 授權 JavaScript 來源加入：<br>
+    &nbsp;&nbsp;<code style="background:#f0f0f0;padding:2px 6px;border-radius:4px;font-size:11px">https://wendy10270-art.github.io</code><br>
+    7. 複製產生的「用戶端 ID」貼到上方欄位，點儲存
+  </div>
+</div>`;
+  if(ok)gcLoadCalMap();
+}
+
+function gcSaveCid(){
+  const v=(document.getElementById('gcCidInp')?.value||'').trim();
+  if(!v){showToast('請輸入 Client ID','r');return;}
+  GC.cid=v;showToast('✓ Client ID 已儲存');
+}
+
+async function gcConnect(ev){
+  const btn=ev&&ev.target?ev.target.closest('button'):null;
+  if(btn)btn.textContent='連接中…';
+  try{
+    await GC.connect();
+    showToast('✓ Google 日曆已連接');
+    renderGcalPage();
+  }catch(e){
+    if(btn)btn.textContent='🔗 連接 Google 帳號';
+    showToast('連接失敗：'+e.message,'r');
+  }
+}
+
+async function gcLoadCalMap(){
+  const el=document.getElementById('gcMapRows');if(!el)return;
+  el.innerHTML='<div style="padding:12px 0;color:var(--ink3);font-size:13px">載入日曆清單中…</div>';
+  try{
+    _gcAvailCals=await GC.listCals();
+    const calMap=GC.calMap;
+    const noOpt='<option value="">── 不設定 ──</option>';
+    const calOpts=noOpt+_gcAvailCals.map(c=>`<option value="${c.id}">${c.summary}</option>`).join('');
+    const teachers=ALL_TEACHERS.length?ALL_TEACHERS:Object.keys(calMap);
+    el.innerHTML=teachers.map(t=>{
+      const cur=calMap[t]||'';
+      // 自動配對：日曆名稱包含老師名字的前2字
+      const shortName=t.replace(/老師$/,'');
+      const autoMatch=_gcAvailCals.find(c=>c.summary&&(c.summary.includes(shortName)||shortName.includes(c.summary.replace(/老師.*$/,'').substring(0,2))));
+      const selected=cur||(autoMatch?autoMatch.id:'');
+      return`<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--bg2)">
+        <div style="font-size:14px;min-width:64px;letter-spacing:0.5px">${t}</div>
+        <select id="gcmap_${t.replace(/[^a-zA-Z一-鿿]/g,'_')}" style="flex:1;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--white);outline:none;margin:0;width:auto">${calOpts}</select>
+      </div>`;
+    }).join('');
+    // 設定選取值
+    teachers.forEach(t=>{
+      const cur=calMap[t]||'';
+      const shortName=t.replace(/老師$/,'');
+      const autoMatch=_gcAvailCals.find(c=>c.summary&&(c.summary.includes(shortName)||shortName.includes(c.summary.replace(/老師.*$/,'').substring(0,2))));
+      const sel=document.getElementById('gcmap_'+t.replace(/[^a-zA-Z一-鿿]/g,'_'));
+      if(sel)sel.value=cur||(autoMatch?autoMatch.id:'');
+    });
+  }catch(e){
+    el.innerHTML=`<div style="padding:12px 0;color:var(--red);font-size:13px">載入失敗：${e.message}</div>`;
+  }
+}
+
+function gcSaveMap(){
+  const teachers=ALL_TEACHERS.length?ALL_TEACHERS:[];
+  const map={};
+  teachers.forEach(t=>{
+    const s=document.getElementById('gcmap_'+t.replace(/[^a-zA-Z一-鿿]/g,'_'));
+    if(s&&s.value)map[t]=s.value;
+  });
+  GC.calMap=map;
+  showToast('✓ 日曆對照已儲存（'+Object.keys(map).length+' 位老師）');
+}
+
+async function gcSyncToday(ev){
+  const btn=ev&&ev.target?ev.target.closest('button'):null;
+  const resEl=document.getElementById('gcSyncResult');
+  if(resEl)resEl.innerHTML='<div style="color:var(--ink3);font-size:13px;padding:8px 0">同步中…</div>';
+  if(btn){btn.disabled=true;btn.textContent='同步中…';}
+  const calMap=GC.calMap;
+  const teachers=Object.keys(calMap);
+  if(!teachers.length){
+    showToast('請先設定老師日曆對照','r');
+    if(btn){btn.disabled=false;btn.textContent='📥 從 Google 日曆匯入今日課表';}
+    return;
+  }
+  const td=todayStr();
+  let added=0,skipped=0,notFound=[];const log=[];
+  try{
+    for(const teacher of teachers){
+      const calId=calMap[teacher];if(!calId)continue;
+      let evs=[];
+      try{evs=await GC.todayEvents(calId);}catch(e){log.push(`⚠ ${teacher} 日曆讀取失敗：${e.message}`);continue;}
+      for(const ev of evs){
+        const parsed=GC.parseTitle(ev.summary||'');
+        if(!parsed)continue;
+        const time=GC.getTime(ev);
+        // 尋找學員：電話或姓名匹配
+        const stu=S.find(s=>s.teacher===teacher&&(
+          (parsed.phone&&s.phone&&s.phone.replace(/[\s-]/g,'')===parsed.phone.replace(/[\s-]/g,''))||
+          (s.name&&s.name===parsed.name)
+        ));
+        if(stu){
+          if(!SCH[td])SCH[td]={};
+          if(!SCH[td][teacher])SCH[td][teacher]=[];
+          if(!SCH[td][teacher].find(sl=>sl.sid===stu.id)){
+            SCH[td][teacher].push({sid:stu.id,time});
+            added++;
+            log.push(`✓ ${teacher}・${stu.name}・${time}`);
+          }else{skipped++;}
+        }else{
+          notFound.push({teacher,name:parsed.name,phone:parsed.phone,type:parsed.type,time});
+          log.push(`⚠ 未找到學員：${teacher}・${parsed.name}${parsed.phone?' ('+parsed.phone+')':''}・${time}`);
+        }
+      }
+    }
+    if(added>0){save();renderSchEditor();}
+    let html=`<div style="background:#E8F7EF;border:1px solid #90D4B0;border-radius:9px;padding:12px 14px;font-size:13px;color:var(--green)">
+      <div style="font-weight:500;margin-bottom:6px">✓ 匯入完成：新增 ${added} 堂、略過重複 ${skipped} 筆</div>
+      <div style="font-size:12px;color:var(--ink2);line-height:2">${log.map(l=>`${l}`).join('<br>')}</div>
+    </div>`;
+    if(notFound.length){
+      html+=`<div style="margin-top:10px;background:#FFF4EE;border:1px solid #F5C4A1;border-radius:9px;padding:12px 14px;font-size:12px;color:#C05A20">
+        <div style="font-weight:500;margin-bottom:5px">⚠ 以下課程未能匹配系統學員（建議手動確認）</div>
+        ${notFound.map(n=>`<div>・${n.teacher} / ${n.type} / ${n.name}${n.phone?' '+n.phone:''} / ${n.time}</div>`).join('')}
+      </div>`;
+    }
+    if(resEl)resEl.innerHTML=html;
+    showToast('✓ 今日課表同步完成');
+  }catch(e){
+    if(resEl)resEl.innerHTML=`<div style="color:var(--red);font-size:13px;padding:8px 0">同步失敗：${e.message}</div>`;
+    showToast('同步失敗：'+e.message,'r');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='📥 從 Google 日曆匯入今日課表';}
+  }
+}
 </script>
 
 </body></html>
