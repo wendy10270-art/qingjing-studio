@@ -462,6 +462,12 @@ input:focus,select:focus{border-color:var(--gold2)}
 .toast.show{transform:translateX(-50%) translateY(0)}
 .empty{text-align:center;color:var(--ink3);padding:30px 0;font-size:14px}
 .hint{font-size:11px;color:var(--ink3);margin-top:5px}
+/* 日期/時間下拉選擇 */
+.dt-sel-wrap{display:flex;gap:4px;align-items:center;margin-bottom:12px;flex-wrap:nowrap}
+.dt-sel-wrap select{padding:9px 6px;border:1px solid var(--border);border-radius:9px;background:var(--white);font-size:14px;color:var(--ink);outline:none;cursor:pointer;font-family:'Noto Sans TC',sans-serif;-webkit-appearance:none;appearance:none;text-align:center;min-width:0}
+.dt-sep{color:var(--ink3);flex-shrink:0;font-size:13px}
+.dt-sel-y{flex:1.6}
+.dt-sel-m,.dt-sel-d,.dt-sel-h,.dt-sel-min{flex:1}
 </style>
 <script>
 // Firebase REST API（不需外部 SDK，任何瀏覽器都能跑）
@@ -770,7 +776,8 @@ const db={
       <div id="psFeeRow" style="display:none;flex;justify-content:space-between;font-size:13px;color:var(--ink2);padding:3px 0"><span id="psFeeLabel">—</span><span id="psFeeAmount">—</span></div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;margin-top:8px;border-top:1px solid var(--gold2)"><span style="font-size:14px;font-weight:500;color:var(--gold)">實際入帳</span><span style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:20px;color:var(--gold)" id="psTotal">—</span></div>
     </div>
-    <label>入帳日期</label><input type="text" id="nPayDate" placeholder="2026/06/02">
+    <label>入帳日期</label>
+    <div class="dt-sel-wrap" id="nPayDate-wrap"><select id="nPayDate-y" class="dt-sel-y"></select><span class="dt-sep">/</span><select id="nPayDate-m" class="dt-sel-m"></select><span class="dt-sep">/</span><select id="nPayDate-d" class="dt-sel-d"></select></div>
     </div>
     <label>備註（選填）</label><input type="text" id="nNote" placeholder="例：分期、折扣備注…">
     <div style="background:var(--bg);border-radius:10px;padding:12px 14px;margin-bottom:12px">
@@ -843,7 +850,7 @@ const db={
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;margin-top:6px;border-top:1px solid var(--gold2)"><span style="font-size:14px;font-weight:500;color:var(--gold)">實際入帳</span><span style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:18px;color:var(--gold)" id="epsTotal">—</span></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px">
-      <div><label>入帳日期</label><input type="text" id="ePayDate" placeholder="2026/06/02" style="margin-bottom:0"></div>
+      <div><label>入帳日期</label><div class="dt-sel-wrap" id="ePayDate-wrap" style="margin-bottom:0"><select id="ePayDate-y" class="dt-sel-y"></select><span class="dt-sep">/</span><select id="ePayDate-m" class="dt-sel-m"></select><span class="dt-sep">/</span><select id="ePayDate-d" class="dt-sel-d"></select></div></div>
       <div><label>實際入帳金額（自動計算，可手動覆蓋）</label><input type="number" id="eActualPayment" placeholder="選擇付款方式後自動帶入" style="margin-bottom:0"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px"><div><label>續課獎金（自動 3%，可手動調整）</label><input type="number" id="eBonus" style="margin-bottom:0"></div><div><label>獎金備註</label><input type="text" id="eBonusNote" placeholder="例：特殊調整…" style="margin-bottom:0"></div></div>
@@ -903,7 +910,7 @@ const db={
       <div id="renewPsFeeRow" style="display:none;justify-content:space-between;font-size:13px;color:var(--ink2);padding:3px 0"><span id="renewPsFeeLabel">—</span><span id="renewPsFeeAmount">—</span></div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;margin-top:8px;border-top:1px solid var(--gold2)"><span style="font-size:14px;font-weight:500;color:var(--gold)">實際入帳</span><span style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:20px;color:var(--gold)" id="renewPsTotal">—</span></div>
     </div>
-    <label>入帳日期</label><input type="date" id="renewPayDate" style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--white);font-family:&#39;Noto Sans TC&#39;,sans-serif;font-size:15px;color:var(--ink);margin-bottom:12px;outline:none">
+    <label>入帳日期</label><div class="dt-sel-wrap" id="renewPayDate-wrap"><select id="renewPayDate-y" class="dt-sel-y"></select><span class="dt-sep">/</span><select id="renewPayDate-m" class="dt-sel-m"></select><span class="dt-sep">/</span><select id="renewPayDate-d" class="dt-sel-d"></select></div>
     <label>備註（選填）</label><input type="text" id="renewNote" placeholder="例：第二期、折扣…">
     <button class="btn-full bf-ink" style="background:var(--teal)" onclick="confirmRenew()">確認續課</button>
     <button class="btn-full bf-soft" style="margin-top:9px" onclick="closeOvById(&#39;renewOv&#39;)">取消</button>
@@ -921,7 +928,7 @@ const db={
       <option value="">── 選擇老師 ──</option>
     </select>
     <label>上課時間</label>
-    <input type="time" id="calAddTime" style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--white);font-size:15px;outline:none;margin-bottom:12px" value="10:00">
+    <div class="dt-sel-wrap" id="calAddTime-wrap"><select id="calAddTime-h" class="dt-sel-h"></select><span class="dt-sep">:</span><select id="calAddTime-min" class="dt-sel-min"></select></div>
     <label>學員</label>
     <select id="calAddStudent" style="width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--white);font-size:15px;outline:none;margin-bottom:12px">
       <option value="">── 先選老師 ──</option>
@@ -935,6 +942,21 @@ const db={
 
 <script>
 const ADMIN_PIN='0131';
+
+// ── 日期/時間下拉選擇輔助函式 ──
+function mkYearOpts(sel){const cy=new Date().getFullYear();return[cy-1,cy,cy+1,cy+2].map(y=>`<option value="${y}" ${y===sel?'selected':''}>${y}年</option>`).join('')}
+function mkMonthOpts(sel){return Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i+1===sel?'selected':''}>${i+1}月</option>`).join('')}
+function mkDayOpts(sel){return Array.from({length:31},(_,i)=>`<option value="${i+1}" ${i+1===sel?'selected':''}>${i+1}日</option>`).join('')}
+function mkHourOpts(sel){return Array.from({length:16},(_,i)=>i+7).map(h=>`<option value="${h}" ${h===sel?'selected':''}>${String(h).padStart(2,'0')}</option>`).join('')}
+function mkMinOpts(sel){return[0,5,10,15,20,25,30,35,40,45,50,55].map(m=>`<option value="${m}" ${m===sel?'selected':''}>${String(m).padStart(2,'0')}</option>`).join('')}
+function parseDateVal(val){if(!val){const t=new Date();return{y:t.getFullYear(),m:t.getMonth()+1,d:t.getDate()}}const p=val.replace(/-/g,'/').split('/');return{y:parseInt(p[0])||new Date().getFullYear(),m:parseInt(p[1])||1,d:parseInt(p[2])||1}}
+function parseTimeVal(val){if(!val)return{h:10,min:0};const p=val.split(':');return{h:parseInt(p[0])||10,min:parseInt(p[1])||0}}
+function mkDateSelects(id,val,wrapStyle){const{y,m,d}=parseDateVal(val);const ws=wrapStyle||'';return`<div class="dt-sel-wrap" id="${id}-wrap" style="${ws}"><select id="${id}-y" class="dt-sel-y">${mkYearOpts(y)}</select><span class="dt-sep">/</span><select id="${id}-m" class="dt-sel-m">${mkMonthOpts(m)}</select><span class="dt-sep">/</span><select id="${id}-d" class="dt-sel-d">${mkDayOpts(d)}</select></div>`}
+function mkTimeSelects(id,val,wrapStyle,onch){const{h,min}=parseTimeVal(val);const ws=wrapStyle||'';const oc=onch?`onchange="${onch}"`:'';return`<div class="dt-sel-wrap" id="${id}-wrap" style="${ws}"><select id="${id}-h" class="dt-sel-h" ${oc}>${mkHourOpts(h)}</select><span class="dt-sep">:</span><select id="${id}-min" class="dt-sel-min" ${oc}>${mkMinOpts(min)}</select></div>`}
+function getDateSel(id){const y=document.getElementById(id+'-y')?.value;const m=document.getElementById(id+'-m')?.value;const d=document.getElementById(id+'-d')?.value;if(!y||!m||!d)return'';return y+'/'+String(m).padStart(2,'0')+'/'+String(d).padStart(2,'0')}
+function getTimeSel(id){const h=document.getElementById(id+'-h')?.value;const m=document.getElementById(id+'-min')?.value;if(h==null)return'';return String(h).padStart(2,'0')+':'+String(m||0).padStart(2,'0')}
+function setDateSel(id,val){const{y,m,d}=parseDateVal(val);const ey=document.getElementById(id+'-y');const em=document.getElementById(id+'-m');const ed=document.getElementById(id+'-d');if(ey)ey.value=y;if(em)em.value=m;if(ed)ed.value=d}
+function setTimeSel(id,val){const{h,min}=parseTimeVal(val);const eh=document.getElementById(id+'-h');const em=document.getElementById(id+'-min');if(eh)eh.value=h;if(em)em.value=min}
 
 // ── 完整課程方案 ──
 const PLANS={
@@ -2081,7 +2103,7 @@ function renderSlotEd(t,i,sl,myS){
   return`<div class="slot-ed">
     <div class="slot-ed-hd"><div class="slot-ed-ttl">時段 ${i+1}</div>
       <div style="display:flex;align-items:center;gap:9px">
-        <input class="slot-time-inp" type="text" placeholder="HH:MM" value="${sl.time||''}" oninput="updSlotTime('${t}',${i},this.value)">
+        ${mkTimeSelects('slotT-'+t.replace(/[^a-zA-Z0-9]/g,'_')+'-'+i,sl.time||'10:00','margin:0',`updSlotTimeFromSel('${t}',${i})`)}
         <span class="del-slot" onclick="delSlot('${t}',${i})">刪除</span>
       </div>
     </div>
@@ -2153,6 +2175,7 @@ function toggleT(t){const isOn=!!(tmpSch[t]&&tmpSch[t].length);if(isOn)tmpSch[t]
 function addSlot(t){if(!tmpSch[t])tmpSch[t]=[];tmpSch[t].push({sid:'',time:''});renderSchEditor(false)}
 function delSlot(t,i){tmpSch[t].splice(i,1);if(!tmpSch[t].length)delete tmpSch[t];renderSchEditor(false)}
 function updSlotTime(t,i,v){if(tmpSch[t]&&tmpSch[t][i])tmpSch[t][i].time=v}
+function updSlotTimeFromSel(t,i){const safe=t.replace(/[^a-zA-Z0-9]/g,'_');updSlotTime(t,i,getTimeSel('slotT-'+safe+'-'+i))}
 function togSlotStu(t,i,sid){
   if(!tmpSch[t]||!tmpSch[t][i])return;
   tmpSch[t][i].sid=tmpSch[t][i].sid===sid?'':sid;
@@ -2504,7 +2527,7 @@ function buildPlanPicker(){
   selPayMethod='';
   document.querySelectorAll('#payMethods>div').forEach(p=>{p.style.borderColor='var(--border)';p.style.background='var(--white)'});
   const ps=document.getElementById('paymentSummary');if(ps)ps.style.display='none';
-  const pd=document.getElementById('nPayDate');if(pd)pd.value=todayStr();
+  setDateSel('nPayDate',todayStr());
   document.getElementById('planPicker').innerHTML=Object.entries(PLANS).map(([name,plan])=>`
     <div class="plan-group"><div class="pg-ttl" style="color:${plan.type==='p'?'var(--gold)':plan.type==='s'?'var(--blue)':'var(--green)'}">${name}</div>
     <div class="plan-tags">${plan.ratios.map(r=>`<div class="pt" onclick="pickR(event,this,'${name}','${r}','${plan.type}')">${r}</div>`).join('')}</div>
@@ -2639,7 +2662,7 @@ function addStu(){
   const phone=document.getElementById('nPhone').value.trim();
   const teacher=document.getElementById('nTeacher').value;
   const fee=parseInt(document.getElementById('nFee').value)||800;
-  const payDate=document.getElementById('nPayDate')?.value.trim()||'';
+  const payDate=getDateSel('nPayDate');
   const note=document.getElementById('nNote')?.value.trim()||'';
   if(!name){showToast('請填寫姓名','r');return}
   const isCustomPlan=document.getElementById('nCustomPlan')?.checked||false;
@@ -2668,7 +2691,7 @@ function addStu(){
   }
   if(isPaid)addLedgerEntry({type:'purchase',sid:S[S.length-1].id,name,teacher,course:selPlan,total:selN,price:selPrice,actualPayment:finalActual,payMethod:selPayMethod,payDate,bonus:Math.round(finalActual*0.03),bonusPaid:false});
   save();renderTeachers();renderMgrList();closeAddOv();
-  ['nName','nPhone','nPayDate','nNote','nActualPayment','nPaperUsed'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+  ['nName','nPhone','nNote','nActualPayment','nPaperUsed'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});setDateSel('nPayDate',todayStr());
   const nInst=document.getElementById('nInstallment');if(nInst)nInst.checked=false;
   const nCP=document.getElementById('nCustomPlan');if(nCP)nCP.checked=false;
   const nCPD=document.getElementById('nCustomPlanDetail');if(nCPD)nCPD.style.display='none';
@@ -2700,21 +2723,23 @@ function renderNextBookingArea(sid, remain){
   el.innerHTML=`<div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
     <div style="font-size:13px;letter-spacing:1px;color:var(--ink2);margin-bottom:10px">預排下次上課時間</div>
     ${suggHTML}
-    <div style="display:flex;gap:7px;margin-top:4px">
-      <input type="text" id="customBookDate" placeholder="${fmt(new Date(today.getFullYear(),today.getMonth(),today.getDate()+7))}" style="flex:1;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none">
-      <input type="text" id="customBookTime" placeholder="10:00" style="width:80px;padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none">
-      <button onclick="confirmCustomBook('${sid}')" style="padding:8px 14px;background:var(--ink);color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">確定</button>
+    <div style="margin-top:4px">
+      ${mkDateSelects('customBookDate',fmt(new Date(today.getFullYear(),today.getMonth(),today.getDate()+7)),'margin-bottom:6px')}
+      <div style="display:flex;gap:7px;align-items:center">
+        ${mkTimeSelects('customBookTime','10:00','margin:0 auto 0 0')}
+        <button onclick="confirmCustomBook('${sid}')" style="padding:9px 14px;background:var(--ink);color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-family:'Noto Sans TC',sans-serif;flex-shrink:0">確定</button>
+      </div>
     </div>
-    <div style="font-size:11px;color:var(--ink3);margin-top:6px">或輸入自訂日期時間</div>
+    <div style="font-size:11px;color:var(--ink3);margin-top:6px">或選擇自訂日期時間</div>
   </div>`;
 }
 
 function confirmCustomBook(sid){
-  const date=document.getElementById('customBookDate')?.value.trim();
-  const time=document.getElementById('customBookTime')?.value.trim();
-  if(!date||!time){showToast('請填寫日期和時間','r');return}
+  const date=getDateSel('customBookDate');
+  const time=getTimeSel('customBookTime');
+  if(!date||!time){showToast('請選擇日期和時間','r');return}
   setNextBooking(sid,date,time);
-  renderNextBookingArea(sid,0); // hide after booking
+  renderNextBookingArea(sid,0);
 }
 
 // ── 固定排課設定（在學員管理）──
@@ -2733,7 +2758,7 @@ function renderRecurringEditor(sid,rec){
     <select onchange="updRec('${sid}',${i},'day',this.value)" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--white);outline:none">
       ${[1,2,3,4,5,6,0].map(d=>`<option value="${d}" ${r.day===d?'selected':''}>每週${WD_NAMES[d]}</option>`).join('')}
     </select>
-    <input type="text" value="${r.time}" placeholder="10:00" onchange="updRec('${sid}',${i},'time',this.value)" style="width:82px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none">
+    ${mkTimeSelects('recT-'+sid+'-'+i,r.time||'10:00','margin:0',`updRecTimeFromSel('${sid}',${i})`)}
     <button onclick="delRec('${sid}',${i})" style="padding:6px 12px;background:var(--red2);color:var(--red);border:1px solid #F7C1C1;border-radius:7px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">刪除</button>
   </div>`).join('')+
   `<button onclick="addRec('${sid}')" style="margin-top:10px;padding:9px;width:100%;background:var(--bg2);border:1px dashed var(--border);border-radius:8px;font-size:13px;cursor:pointer;color:var(--ink3);font-family:'Noto Sans TC',sans-serif">＋ 新增固定時段</button>`;
@@ -2753,6 +2778,7 @@ function updRec(sid,i,field,val){
   const s=S.find(x=>x.id===sid);if(!s||!s.recurring||!s.recurring[i])return;
   s.recurring[i][field]=field==='day'?parseInt(val):val;save();
 }
+function updRecTimeFromSel(sid,i){updRec(sid,i,'time',getTimeSel('recT-'+sid+'-'+i))}
 function closeRecurringOv(){document.getElementById('recurringOv').classList.remove('open')}
 
 // ── 編輯學員 ──
@@ -2785,7 +2811,7 @@ function openEditStu(sid){
   document.getElementById('eTotal').value=s.total||0;
   document.getElementById('eUsed').value=s.used||0;
   document.getElementById('ePrice').value=s.price||0;
-  document.getElementById('ePayDate').value=s.payDate||'';
+  setDateSel('ePayDate',s.payDate||todayStr());
   document.getElementById('eActualPayment').value=s.actualPayment||'';
   document.getElementById('eNote').value=s.note||'';
   const eInst=document.getElementById('eInstallment');if(eInst)eInst.checked=s.installment||false;
@@ -2846,7 +2872,7 @@ function saveEditStu(){
   s.used=parseInt(document.getElementById('eUsed').value)||0;
   s.price=parseInt(document.getElementById('ePrice').value)||s.price;
   s.payMethod=ePayMethod;
-  s.payDate=document.getElementById('ePayDate').value.trim();
+  s.payDate=getDateSel('ePayDate');
   s.actualPayment=parseInt(document.getElementById('eActualPayment').value)||0;
   s.note=document.getElementById('eNote').value.trim();
   s.installment=document.getElementById('eInstallment')?.checked||false;
@@ -2965,13 +2991,14 @@ function renderTeacherLeave(){
       <div id="tlRange" onclick="setLeaveMode('range')" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);text-align:center;cursor:pointer;font-size:13px;color:var(--ink3)">區間</div>
     </div>
     <div id="tlSingleMode">
-      <input type="date" id="tlDate" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none;margin-bottom:8px">
+      ${mkDateSelects('tlDate',todayStr(),'margin-bottom:8px')}
     </div>
     <div id="tlRangeMode" style="display:none">
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-        <input type="date" id="tlDateFrom" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none">
-        <span style="color:var(--ink3);flex-shrink:0">～</span>
-        <input type="date" id="tlDateTo" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none">
+      <div style="margin-bottom:8px">
+        <div style="font-size:11px;color:var(--ink3);margin-bottom:4px">開始日期</div>
+        ${mkDateSelects('tlDateFrom',todayStr(),'margin-bottom:6px')}
+        <div style="font-size:11px;color:var(--ink3);margin-bottom:4px">結束日期</div>
+        ${mkDateSelects('tlDateTo',todayStr(),'margin-bottom:0')}
       </div>
     </div>
     <input type="text" id="tlNote" placeholder="請假備註（選填）" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;background:var(--white);outline:none;margin-bottom:8px">
@@ -3007,20 +3034,14 @@ function addTeacherLeave(){
   if(!teacher){showToast('請選擇老師','r');return}
   let date='', dateTo='';
   if(tlModeVal==='single'){
-    const dateRaw=document.getElementById('tlDate')?.value;
-    if(!dateRaw){showToast('請選擇請假日期','r');return}
-    date=dateRaw.replace(/-/g,'/');
+    date=getDateSel('tlDate');
   } else {
-    const fromRaw=document.getElementById('tlDateFrom')?.value;
-    const toRaw=document.getElementById('tlDateTo')?.value;
-    if(!fromRaw||!toRaw){showToast('請選擇開始和結束日期','r');return}
-    date=fromRaw.replace(/-/g,'/');
-    dateTo=toRaw.replace(/-/g,'/');
+    date=getDateSel('tlDateFrom');
+    dateTo=getDateSel('tlDateTo');
   }
   TL.push({id:'tl'+Date.now(),teacher,date,dateTo,note});
   localStorage.setItem('qjf_tl',JSON.stringify(TL));
   db.ref('qingjing_tl').set(TL).catch(e=>{});
-  document.getElementById('tlDate').value='';
   document.getElementById('tlNote').value='';
   renderTeacherLeave();
   showToast('✓ '+teacher+' 請假已登記：'+date);
@@ -3149,7 +3170,7 @@ function openRenewStu(sid){
   document.getElementById('renewStuTitle').textContent=s.name+' 續課';
   document.getElementById('renewStuInfo').innerHTML='目前課程：'+s.course+'・已上 '+s.used+' 堂／共 '+s.total+' 堂<br>指導老師：'+s.teacher;
   document.getElementById('renewNote').value='';
-  document.getElementById('renewPayDate').value=todayStr().replace(/\//g,'-');
+  setDateSel('renewPayDate',todayStr());
   document.getElementById('renewSelDisp').classList.remove('show');
   document.getElementById('renewPaySummary').style.display='none';
   document.querySelectorAll('#renewPayMethods>div').forEach(p=>{p.style.borderColor='var(--border)';p.style.background='var(--white)'});
@@ -3212,8 +3233,7 @@ function confirmRenew(){
   if(!renewSelPlan||!renewSelN){showToast('請選擇課程方案','r');return}
   if(!renewPayMethod){showToast('請選擇繳款方式','r');return}
   const fee=parseInt(document.getElementById('renewFee').value)||getDefaultFee(s.teacher,renewSelPlan);
-  const payDateRaw=document.getElementById('renewPayDate').value.trim();
-  const payDate=payDateRaw?payDateRaw.replace(/-/g,'/'):'';
+  const payDate=getDateSel('renewPayDate');
   const note=document.getElementById('renewNote').value.trim();
   const pay=calcPayment(renewSelPrice,renewPayMethod);
   const bonus=Math.round(renewSelPrice*0.03);
@@ -3266,10 +3286,12 @@ function renderNextApptArea(sid){
   el.innerHTML=`<div style="background:var(--white);border:1.5px solid var(--gold2);border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(44,36,22,.1)">
     <div style="font-size:15px;letter-spacing:2px;color:var(--gold);margin-bottom:12px">📅 約下次上課</div>
     ${suggestions.map(sg=>`<button onclick="confirmNextAppt('${sid}','${sg.date}','${sg.time}')" style="display:block;width:100%;padding:10px 14px;margin-bottom:8px;background:var(--gold4);color:var(--gold);border:1.5px solid var(--gold2);border-radius:10px;font-size:14px;cursor:pointer;text-align:left">✓ ${sg.label}</button>`).join('')}
-    <div style="display:flex;gap:8px;margin-top:4px">
-      <input type="date" id="apptDate" style="flex:1;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;outline:none;background:var(--white)" value="${fmt(new Date(today.getFullYear(),today.getMonth(),today.getDate()+7)).replace(/\//g,'-')}">
-      <input type="time" id="apptTime" style="width:110px;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;outline:none;background:var(--white)" value="${s.recurring&&s.recurring.length?s.recurring[0].time:'10:00'}">
-      <button onclick="confirmNextApptCustom('${sid}')" style="padding:9px 14px;background:var(--gold);color:#fff;border:none;border-radius:9px;font-size:13px;cursor:pointer;font-weight:500">確定</button>
+    <div style="margin-top:4px">
+      ${mkDateSelects('apptDate',fmt(new Date(today.getFullYear(),today.getMonth(),today.getDate()+7)),'margin-bottom:6px')}
+      <div style="display:flex;gap:7px;align-items:center">
+        ${mkTimeSelects('apptTime',s.recurring&&s.recurring.length?s.recurring[0].time:'10:00','margin:0 auto 0 0')}
+        <button onclick="confirmNextApptCustom('${sid}')" style="padding:9px 14px;background:var(--gold);color:#fff;border:none;border-radius:9px;font-size:13px;cursor:pointer;font-weight:500;flex-shrink:0">確定</button>
+      </div>
     </div>
     <div id="apptConfirmed" style="display:none;margin-top:10px;background:var(--green2);border:1px solid #90D4B0;border-radius:9px;padding:10px 14px;font-size:13px;color:var(--green)"></div>
   </div>`;
@@ -3283,10 +3305,9 @@ function confirmNextAppt(sid,date,time){
 }
 
 function confirmNextApptCustom(sid){
-  const dateRaw=document.getElementById('apptDate')?.value;
-  const time=document.getElementById('apptTime')?.value;
-  if(!dateRaw||!time){showToast('請填寫日期和時間','r');return}
-  const date=dateRaw.replace(/-/g,'/');
+  const date=getDateSel('apptDate');
+  const time=getTimeSel('apptTime');
+  if(!date||!time){showToast('請選擇日期和時間','r');return}
   confirmNextAppt(sid,date,time);
 }
 
@@ -3473,7 +3494,7 @@ function openCalAddCourse(ds){
   const sel=document.getElementById('calAddTeacher');
   sel.innerHTML='<option value="">── 選擇老師 ──</option>'+ALL_TEACHERS.map(t=>'<option value="'+t+'">'+t+'</option>').join('');
   document.getElementById('calAddStudent').innerHTML='<option value="">── 先選老師 ──</option>';
-  document.getElementById('calAddTime').value='10:00';
+  setTimeSel('calAddTime','10:00');
   document.getElementById('calAddOv').classList.add('open');
 }
 
@@ -3489,10 +3510,10 @@ function calLoadStudents(){
 function confirmCalAddCourse(){
   const teacher=document.getElementById('calAddTeacher').value;
   const sid=document.getElementById('calAddStudent').value;
-  const time=document.getElementById('calAddTime').value;
+  const time=getTimeSel('calAddTime');
   if(!teacher){showToast('請選擇老師','r');return}
   if(!sid){showToast('請選擇學員','r');return}
-  if(!time){showToast('請填寫時間','r');return}
+  if(!time){showToast('請選擇時間','r');return}
   // 加入排課
   if(!SCH[calAddDate])SCH[calAddDate]={};
   if(!SCH[calAddDate][teacher])SCH[calAddDate][teacher]=[];
@@ -3585,6 +3606,24 @@ function showToast(msg,t='g'){
   const el=document.getElementById('toast');el.textContent=msg;el.style.background=t==='r'?'#C0392B':'#2E7D52';
   el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3000);
 }
+
+// ── 初始化靜態日期/時間選擇器 ──
+(function initStaticPickers(){
+  const today=new Date();
+  const y=today.getFullYear(),m=today.getMonth()+1,d=today.getDate();
+  ['nPayDate','ePayDate','renewPayDate'].forEach(pid=>{
+    const ey=document.getElementById(pid+'-y');
+    const em=document.getElementById(pid+'-m');
+    const ed=document.getElementById(pid+'-d');
+    if(!ey)return;
+    ey.innerHTML=mkYearOpts(y);
+    em.innerHTML=mkMonthOpts(m);
+    ed.innerHTML=mkDayOpts(d);
+  });
+  const ch=document.getElementById('calAddTime-h');
+  const cmin=document.getElementById('calAddTime-min');
+  if(ch){ch.innerHTML=mkHourOpts(10);cmin.innerHTML=mkMinOpts(0);}
+})();
 </script>
 
 </body></html>
