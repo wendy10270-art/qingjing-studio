@@ -692,6 +692,8 @@ const db={
     <div style="height:1px;background:var(--bg2);margin:4px 0 10px"></div>
     <label>姓名（找不到請直接輸入）</label>
     <input type="text" id="trialName" placeholder="例：陳小明">
+    <label>電話（選填，下次搜尋用）</label>
+    <input type="text" id="trialPhone" placeholder="0912-000-000" style="margin-bottom:10px">
     <label>課程類型</label>
     <div class="trial-plan-tags" id="trialPlanTags">
       <div class="tpt" onclick="pickTrialPlan(this,&#39;器械皮拉提斯&#39;)">器械皮拉提斯</div>
@@ -1071,7 +1073,7 @@ function save(){
   localStorage.setItem('qjf_l',JSON.stringify(L));
   // Firebase 雲端同步
   syncToFirebase();
-  renderDashboard();
+  try{renderDashboard();}catch(e){console.warn('dashboard render error:',e);}
 }
 
 let syncTimer=null, _lastSaveMs=0;
@@ -1758,6 +1760,7 @@ function openTrialModalForTeacher(teacher){
 function openTrialModal(){
   trialPlan='';trialRatio='';
   document.getElementById('trialName').value='';
+  const tp=document.getElementById('trialPhone');if(tp)tp.value='';
   document.getElementById('trialSearchInp').value='';
   document.getElementById('trialSearchResults').style.display='none';
   document.getElementById('trialSelectedInfo').style.display='none';
@@ -1866,7 +1869,8 @@ function clearTrialSelected(){
   document.getElementById('trialPrice').value='';
   document.getElementById('trialFee').value='';
 }
-function closeTrialOut(e){if(e.target===document.getElementById('trialOv'))document.getElementById('trialOv').classList.remove('open')}
+function closeTrialOv(){document.getElementById('trialOv').classList.remove('open')}
+function closeTrialOut(e){if(e.target===document.getElementById('trialOv'))closeTrialOv()}
 function pickTrialPlan(el,plan){
   document.querySelectorAll('.tpt').forEach(t=>t.classList.remove('sel'));el.classList.add('sel');trialPlan=plan;trialRatio='';
   const ratios=PLANS[plan]?.ratios||[];const trialPrices=PLANS[plan]?.trial||{};
@@ -1882,6 +1886,7 @@ function pickTrialRatio(el,plan,ratio){
 
 function addTrialStudent(){
   const name=document.getElementById('trialName').value.trim();
+  const phone=(document.getElementById('trialPhone')?.value||'').trim();
   const teacher=document.getElementById('trialTeacher').value;
   const price=parseInt(document.getElementById('trialPrice').value)||0;
   const fee=parseInt(document.getElementById('trialFee').value)||800;
@@ -1889,7 +1894,7 @@ function addTrialStudent(){
   if(!trialPlan||!trialRatio){showToast('請選擇課程類型與比例','r');return}
   if(!teacher){showToast('請選擇授課老師','r');return}
   const td=todayStr();
-  const newTrial={id:'t'+Date.now(),name,course:trialPlan,ratio:trialRatio,teacher,date:td,time:nowTime(),fee:price,teacherFee:fee,sig:null,manualFee:null,manualNote:''};
+  const newTrial={id:'t'+Date.now(),name,phone,course:trialPlan,ratio:trialRatio,teacher,date:td,time:nowTime(),fee:price,teacherFee:fee,sig:null,manualFee:null,manualNote:''};
   T.push(newTrial);save();
   closeTrialOv();renderStuList();renderTeachers();
   showToast('✓ '+name+' 體驗課已加入');
