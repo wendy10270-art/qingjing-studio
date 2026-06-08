@@ -1208,7 +1208,8 @@ function applyRemoteData(data){
   localStorage.setItem('qjf_t',JSON.stringify(T));
   localStorage.setItem('qjf_l',JSON.stringify(L));
   renderTeachers();
-  if(document.getElementById('ap-sch')?.classList.contains('active'))renderSchEditor();
+  // 用 false 保留使用者正在編輯的 tmpSch，避免同步蓋掉未儲存的新增
+  if(document.getElementById('ap-sch')?.classList.contains('active'))renderSchEditor(false);
   if(document.getElementById('ap-daily')?.classList.contains('active'))renderDaily();
   if(document.getElementById('ap-cal')?.classList.contains('active')){calMonthOffset=calMonthOffset;renderCalendar();}
   if(document.getElementById('ap-ledger')?.classList.contains('active'))renderLedger();
@@ -1271,7 +1272,7 @@ function startPeriodicSync(){
     // 若在管理後台，也更新當前頁面
     const adminActive=document.getElementById('sc-admin')?.classList.contains('active-admin');
     if(adminActive){
-      if(document.getElementById('ap-sch')?.classList.contains('active'))renderSchEditor();
+      if(document.getElementById('ap-sch')?.classList.contains('active'))renderSchEditor(false);
       if(document.getElementById('ap-daily')?.classList.contains('active'))renderDaily();
       if(document.getElementById('ap-cal')?.classList.contains('active'))renderCalendar();
     }
@@ -1289,7 +1290,7 @@ function startPeriodicSync(){
           try{renderDashboard();}catch(e){}
           const adminActive=document.getElementById('sc-admin')?.classList.contains('active-admin');
           if(adminActive){
-            if(document.getElementById('ap-sch')?.classList.contains('active'))renderSchEditor();
+            if(document.getElementById('ap-sch')?.classList.contains('active'))renderSchEditor(false);
             if(document.getElementById('ap-daily')?.classList.contains('active'))renderDaily();
           }
           // SSE 若斷線則重連
