@@ -1063,10 +1063,11 @@ function save(){
   syncToFirebase();
 }
 
-let syncTimer=null;
+let syncTimer=null, _lastSaveMs=0;
 function syncToFirebase(){
   clearTimeout(syncTimer);
   syncTimer=setTimeout(()=>{
+    _lastSaveMs=Date.now();
     // 同時同步 LEDGER
     db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync:',e));
     db.ref('qingjing').set({
@@ -1154,6 +1155,51 @@ function tick(){
 }
 tick();setInterval(tick,1000);
 
+// ── Firebase 即時監聽（SSE）──
+let _fbEs=null;
+function applyRemoteData(data){
+  if(!data||!data.s)return;
+  S=data.s;R=data.r||R;SCH=data.sch||SCH;T=data.t||T;L=data.l||L;
+  localStorage.setItem('qjf_s',JSON.stringify(S));
+  localStorage.setItem('qjf_r',JSON.stringify(R));
+  localStorage.setItem('qjf_sch',JSON.stringify(SCH));
+  localStorage.setItem('qjf_t',JSON.stringify(T));
+  localStorage.setItem('qjf_l',JSON.stringify(L));
+  renderTeachers();
+  if(document.getElementById('ap-sch')?.classList.contains('active'))renderSchEditor();
+  if(document.getElementById('ap-daily')?.classList.contains('active'))renderDaily();
+  if(document.getElementById('ap-cal')?.classList.contains('active')){calMonthOffset=calMonthOffset;renderCalendar();}
+  if(document.getElementById('ap-ledger')?.classList.contains('active'))renderLedger();
+  if(document.getElementById('ap-mgr')?.classList.contains('active'))renderMgrList();
+  showToast('🔄 資料已從其他裝置同步');
+}
+function startFbListener(){
+  try{
+    if(_fbEs){_fbEs.close();_fbEs=null;}
+    _fbEs=new EventSource(FB_URL+'/qingjing.json?auth='+FB_API_KEY);
+    let initDone=false;
+    _fbEs.addEventListener('put',e=>{
+      try{
+        const msg=JSON.parse(e.data);
+        if(!msg||!msg.data)return;
+        if(!initDone){initDone=true;return;} // 跳過首次連線的完整資料（已有最新資料）
+        if(Date.now()-_lastSaveMs<4000)return; // 跳過自己剛儲存的更新
+        applyRemoteData(msg.data);
+      }catch(err){}
+    });
+    _fbEs.addEventListener('patch',e=>{
+      try{
+        if(Date.now()-_lastSaveMs<4000)return;
+        // patch 是部分更新，重新拉完整資料
+        loadFromFirebase(()=>{renderTeachers();showToast('🔄 資料已從其他裝置同步');});
+      }catch(err){}
+    });
+    _fbEs.onerror=()=>{
+      setTimeout(()=>{if(!_fbEs||_fbEs.readyState===EventSource.CLOSED)startFbListener();},10000);
+    };
+  }catch(e){console.warn('SSE listener failed:',e);}
+}
+
 // 頁面載入時先從 Firebase 取最新資料
 window.addEventListener('load', ()=>{
   showSyncStatus('syncing');
@@ -1162,6 +1208,7 @@ window.addEventListener('load', ()=>{
     loadLedgerFromFB(()=>{
       renderTeachers();
       showSyncStatus('synced');
+      startFbListener(); // 啟動即時監聽
     });
   });
 });
@@ -1854,6 +1901,7 @@ function renderCalendar(){
     const sch=SCH[ds]||{};
     Object.entries(sch).forEach(([teacher,slots])=>{
       slots.forEach(sl=>{
+        if(sl.skip)return; // 跳過 skip 標記（用於取消固定課單次）
         const s=S.find(x=>x.id===sl.sid);if(!s)return;
         const rec=R.find(r=>r.sid===s.id&&r.date===ds);
         const lv=L.find(l=>l.sid===s.id&&l.date===ds);
@@ -1865,7 +1913,9 @@ function renderCalendar(){
       if(!s.recurring||!s.recurring.length)return;
       s.recurring.forEach(r=>{
         if(r.day!==dow)return;
-        if(!evs.find(e=>e.sid===s.id&&e.time===r.time)&&s.used<s.total)
+        // 若 SCH 中有 skip 標記，不顯示這次固定課
+        const skipped=Object.values(sch).some(slots=>slots.some(sl=>sl.sid===s.id&&sl.skip));
+        if(!skipped&&!evs.find(e=>e.sid===s.id&&e.time===r.time)&&s.used<s.total)
           evs.push({sid:s.id,stuName:s.name,course:s.course,teacher:s.teacher,time:r.time,type:'recurring'});
       });
     });
@@ -1960,7 +2010,7 @@ function renderCalendar(){
         </div>
         <div style="text-align:right;flex-shrink:0">
           <span style="font-size:11px;color:${typeColor};background:var(--white);border:1px solid ${typeBorder};border-radius:20px;padding:3px 10px;display:block;white-space:nowrap;margin-bottom:5px">${typeLabel}</span>
-          ${ev.type!=='signed'?`<button onclick="calDeleteSlot('${calSelectedDate}','${ev.teacher}','${ev.sid}')" style="padding:3px 8px;background:var(--red2);border:1px solid #F7C1C1;border-radius:5px;font-size:11px;cursor:pointer;color:var(--red)">刪除</button>`:''}
+          <button onclick="calDeleteSlot('${calSelectedDate}','${ev.teacher}','${ev.sid}','${ev.type}')" style="padding:3px 8px;background:var(--red2);border:1px solid #F7C1C1;border-radius:5px;font-size:11px;cursor:pointer;color:var(--red)">刪除</button>
         </div>
       </div>`;
     }).join(''):`<div style="text-align:center;color:var(--ink3);padding:28px 0;font-size:14px">今日無課程</div>`}
@@ -1980,12 +2030,36 @@ function renderCalendar(){
 }
 
 
-function calDeleteSlot(date, teacher, sid){
-  if(!confirm('確定要刪除這堂預排課程？'))return;
-  if(SCH[date]&&SCH[date][teacher]){
-    SCH[date][teacher]=SCH[date][teacher].filter(sl=>sl.sid!==sid);
-    if(SCH[date][teacher].length===0)delete SCH[date][teacher];
-    if(SCH[date]&&Object.keys(SCH[date]).length===0)delete SCH[date];
+function calDeleteSlot(date, teacher, sid, evType){
+  let confirmMsg='確定要刪除這堂課程？';
+  if(evType==='next')confirmMsg='確定要取消這堂「指定下堂」課程？（學員的預排紀錄也會一起清除）';
+  if(evType==='recurring')confirmMsg='這是每週固定課程，確定要跳過 '+date+' 這一次嗎？（不影響其他週）';
+  if(!confirm(confirmMsg))return;
+
+  if(evType==='next'){
+    // 清除學員的 nextBooking
+    const s=S.find(x=>x.id===sid);
+    if(s&&s.nextBooking&&s.nextBooking.date===date){s.nextBooking=null;}
+    // 也清除 SCH 中若有的對應紀錄
+    if(SCH[date]&&SCH[date][teacher]){
+      SCH[date][teacher]=SCH[date][teacher].filter(sl=>sl.sid!==sid);
+      if(!SCH[date][teacher].length)delete SCH[date][teacher];
+      if(SCH[date]&&!Object.keys(SCH[date]).length)delete SCH[date];
+    }
+  } else if(evType==='recurring'){
+    // 加入 SCH skip 標記，讓這天的固定課不顯示
+    if(!SCH[date])SCH[date]={};
+    if(!SCH[date][teacher])SCH[date][teacher]=[];
+    if(!SCH[date][teacher].find(sl=>sl.sid===sid)){
+      SCH[date][teacher].push({sid,time:'__skip__',skip:true});
+    }
+  } else {
+    // confirmed / signed：從 SCH 移除
+    if(SCH[date]&&SCH[date][teacher]){
+      SCH[date][teacher]=SCH[date][teacher].filter(sl=>sl.sid!==sid);
+      if(SCH[date][teacher].length===0)delete SCH[date][teacher];
+      if(SCH[date]&&Object.keys(SCH[date]).length===0)delete SCH[date];
+    }
   }
   save();renderCalendar();
   if(date===todayStr())renderTeachers();
