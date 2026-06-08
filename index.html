@@ -508,8 +508,9 @@ const db={
     <div><div class="hdr-brand">輕境</div><div class="hdr-sub">MOTIVATION STUDIO</div></div>
   </div>
   <div style="display:flex;align-items:center;gap:10px">
-  <div style="display:flex;align-items:center;gap:5px">
-    <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="已同步至雲端"></div>
+  <div style="display:flex;align-items:center;gap:5px" onclick="manualSync()" title="點擊同步最新資料" style="cursor:pointer">
+    <div id="syncDot" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); transition: 0.3s;" title="點擊同步最新資料"></div>
+    <span id="syncLbl" style="font-size:10px;color:rgba(255,255,255,.4);letter-spacing:.5px">同步</span>
   </div>
   <div><div class="hdr-time" id="clk">13:51</div><div class="hdr-date" id="dat">6月7日（日）</div></div>
 </div>
@@ -1097,15 +1098,32 @@ function syncToFirebase(){
 
 function showSyncStatus(status){
   const el=document.getElementById('syncDot');
+  const lbl=document.getElementById('syncLbl');
   if(!el)return;
   if(status==='synced'){
     el.style.background='#2E7D52';el.title='已同步至雲端';
-    setTimeout(()=>{el.style.background='rgba(255,255,255,.15)'},3000);
+    if(lbl){lbl.textContent='已同步';lbl.style.color='rgba(255,255,255,.6)';}
+    setTimeout(()=>{el.style.background='rgba(255,255,255,.15)';if(lbl){lbl.textContent='同步';lbl.style.color='rgba(255,255,255,.4)';}},3000);
   } else if(status==='error'){
-    el.style.background='#C0392B';el.title='雲端同步失敗';
+    el.style.background='#C0392B';el.title='同步失敗，點擊重試';
+    if(lbl){lbl.textContent='失敗';lbl.style.color='#FF8080';}
   } else if(status==='syncing'){
     el.style.background='#C4973A';el.title='同步中…';
+    if(lbl){lbl.textContent='同步中';lbl.style.color='#F0D89A';}
   }
+}
+
+function manualSync(){
+  showSyncStatus('syncing');
+  loadFromFirebase(()=>{
+    loadLedgerFromFB(()=>{
+      renderTeachers();
+      showSyncStatus('synced');
+      try{renderDashboard();}catch(e){}
+      showToast('✓ 資料已從雲端更新');
+      if(!_fbEs||_fbEs.readyState===EventSource.CLOSED)startFbListener();
+    });
+  });
 }
 
 function loadFromFirebase(callback){
@@ -1222,9 +1240,54 @@ window.addEventListener('load', ()=>{
       renderTeachers();
       showSyncStatus('synced');
       startFbListener(); // 啟動即時監聽
+      startPeriodicSync(); // 啟動定期同步（iOS Safari SSE 備援）
     });
   });
 });
+
+// ── 定期同步 + 前景偵測（iOS Safari SSE 備援）──
+let _periodicSyncTimer=null;
+function startPeriodicSync(){
+  // 每 30 秒從 Firebase 拉一次最新資料（保底）
+  _periodicSyncTimer=setInterval(()=>{
+    if(Date.now()-_lastSaveMs<5000)return; // 自己剛存的不拉
+    loadFromFirebase(data=>{
+      // loadFromFirebase 的 callback 沒有 data 參數，用全局 S/R 檢查
+    });
+    // 重新 render 前台
+    renderTeachers();
+    try{renderDashboard();}catch(e){}
+    // 若在管理後台，也更新當前頁面
+    const adminActive=document.getElementById('sc-admin')?.classList.contains('active-admin');
+    if(adminActive){
+      if(document.getElementById('ap-sch')?.classList.contains('active'))renderSchEditor();
+      if(document.getElementById('ap-daily')?.classList.contains('active'))renderDaily();
+      if(document.getElementById('ap-cal')?.classList.contains('active'))renderCalendar();
+    }
+  },30000);
+
+  // 手機/平板從背景回到前景時立刻同步
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'){
+      if(Date.now()-_lastSaveMs<3000)return;
+      showSyncStatus('syncing');
+      loadFromFirebase(()=>{
+        loadLedgerFromFB(()=>{
+          renderTeachers();
+          showSyncStatus('synced');
+          try{renderDashboard();}catch(e){}
+          const adminActive=document.getElementById('sc-admin')?.classList.contains('active-admin');
+          if(adminActive){
+            if(document.getElementById('ap-sch')?.classList.contains('active'))renderSchEditor();
+            if(document.getElementById('ap-daily')?.classList.contains('active'))renderDaily();
+          }
+          // SSE 若斷線則重連
+          if(!_fbEs||_fbEs.readyState===EventSource.CLOSED)startFbListener();
+        });
+      });
+    }
+  });
+}
 
 function todayStr(){const d=new Date();return fmt(d)}
 function fmt(d){return d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0')}
