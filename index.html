@@ -577,6 +577,7 @@ const db={
     <div id="cardTop"></div>
     <div id="gridCard"></div>
     <div class="sign-section" id="signArea"></div>
+    <div id="cardUpcomingArea" style="margin:14px 0 20px"></div>
   </div></div>
 
   <!-- 成功 -->
@@ -589,7 +590,8 @@ const db={
       <div class="success-n" id="successRemain"></div>
       <div class="success-lbl" id="successLbl">堂課程可用</div>
       <div id="nextBookingArea" style="margin-top:20px;max-width:320px;width:100%"></div>
-      <div id="lineMessageArea" style="margin-top:20px;width:100%;max-width:380px"></div>
+      <div id="successUpcomingArea" style="margin-top:14px;width:100%;max-width:380px"></div>
+      <div id="lineMessageArea" style="margin-top:14px;width:100%;max-width:380px"></div>
       <button class="btn btn-ink" style="margin-top:14px;max-width:260px" onclick="goScreen(&#39;sc-teachers&#39;)">完成，返回首頁</button>
     </div>
   </div></div>
@@ -1555,6 +1557,8 @@ function renderCard(sid){
     } else {cells+=`<div class="cell"><div class="cell-num">${i}</div></div>`}
   }
   document.getElementById('gridCard').innerHTML=`<div class="card"><div class="card-hd">課程進度</div><div class="grid-wrap"><div class="grid">${cells}</div><div class="grid-legend" style="margin-top:9px"><span><span class="leg-dot" style="background:var(--gold4);border:1px solid var(--gold2)"></span>已完成</span><span><span class="leg-dot" style="background:var(--blue2);border:1px solid var(--blue3)"></span>代課</span><span><span class="leg-dot" style="background:var(--orange2);border:1px solid var(--orange3)"></span>升級</span><span><span class="leg-dot" style="border:2px solid var(--gold)"></span>本次</span></div></div></div>`;
+  // 接下來的課程日期表（在 signArea 之前渲染，避免 early return 漏掉）
+  renderUpcomingArea(sid,'cardUpcomingArea');
 
   const already=R.find(r=>r.sid===sid&&r.date===todayStr());
   const sa=document.getElementById('signArea');
@@ -1807,6 +1811,7 @@ function confirmSig(){
   document.getElementById('successLbl').textContent='堂課程可用';
   curUpgradeRatio='';curUpgradeDiff=0;
   renderNextBookingArea(s.id, remain);
+  renderUpcomingArea(s.id, 'successUpcomingArea');
   renderLineMessage(s, remain, isUpgraded, curUpgradeRatio, isSub, subTeacher);
   goScreen('sc-success');
 }
@@ -2996,6 +3001,60 @@ function addStu(){
 }
 
 // ── 預排下次上課 ──
+// ── 接下來的課程日期表 ──
+function getUpcomingDates(s){
+  const remain=s.total-s.used;
+  if(remain<=0||!s.recurring||!s.recurring.length)return[];
+  const today=new Date();today.setHours(0,0,0,0);
+  const pool=[];
+  s.recurring.forEach(r=>{
+    let d=new Date(today);
+    d.setDate(d.getDate()+1); // 從明天開始
+    while(d.getDay()!==r.day)d.setDate(d.getDate()+1);
+    for(let i=0;i<remain+s.recurring.length;i++){
+      pool.push({dateStr:fmt(d),time:r.time,dow:d.getDay(),ts:d.getTime()});
+      const nd=new Date(d);nd.setDate(d.getDate()+7);d=nd;
+    }
+  });
+  pool.sort((a,b)=>a.ts-b.ts||(a.time||'').localeCompare(b.time||''));
+  return pool.slice(0,remain).map((item,i)=>({...item,sessionNum:s.used+i+1,isLast:i===remain-1}));
+}
+
+function renderUpcomingArea(sid, targetId){
+  const el=document.getElementById(targetId);if(!el)return;
+  const s=S.find(x=>x.id===sid);
+  if(!s){el.innerHTML='';return;}
+  const remain=s.total-s.used;
+  if(remain<=0){el.innerHTML='';return;}
+  const dates=getUpcomingDates(s);
+  if(!dates.length){
+    el.innerHTML=`<div style="background:var(--white);border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;text-align:center">
+      <div style="font-size:13px;color:var(--gold);margin-bottom:6px">📅 接下來的課程</div>
+      <div style="font-size:12px;color:var(--ink3);line-height:1.8">尚未設定每週固定時段<br>可到管理後台→學員管理→固定排課設定</div>
+    </div>`;
+    return;
+  }
+  const WDN=['日','一','二','三','四','五','六'];
+  const rows=dates.map(d=>{
+    const dm=d.dateStr.replace(/^\d{4}\//,'');
+    return`<div style="display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid var(--bg2);${d.isLast?'background:#FFF4EE;':''}">
+      <div style="font-size:12px;color:var(--ink3);min-width:46px;text-align:center;letter-spacing:.5px">堂 ${d.sessionNum}</div>
+      <div style="flex:1;font-size:15px;color:${d.isLast?'var(--orange)':'var(--ink)'}">
+        ${dm}<span style="font-size:12px;color:var(--ink3);margin-left:4px">（${WDN[d.dow]}）</span>
+      </div>
+      <div style="font-size:13px;color:var(--gold);font-weight:500">${d.time}</div>
+      ${d.isLast?`<span style="font-size:10px;background:var(--orange);color:#fff;border-radius:4px;padding:2px 6px;flex-shrink:0;white-space:nowrap">最後一堂</span>`:''}
+    </div>`;
+  }).join('');
+  el.innerHTML=`<div style="background:var(--white);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(44,36,22,.1)">
+    <div style="background:var(--ink);padding:11px 16px;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:13px;color:var(--gold3);letter-spacing:1px">📅 接下來的課程</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.4)">共 ${dates.length} 堂</div>
+    </div>
+    ${rows}
+  </div>`;
+}
+
 function renderNextBookingArea(sid, remain){
   const el=document.getElementById('nextBookingArea');
   if(!el)return;
