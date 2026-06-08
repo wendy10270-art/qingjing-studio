@@ -4003,9 +4003,24 @@ const GC={
   parseTitle(t){
     if(!t)return null;
     if(/^[\(（]取消/.test(t)||/^[\(（]老師出國/.test(t)||/^取消/.test(t))return null;
-    const m=t.match(/^(.+?)\s*[|｜]\s*(.+?)(\s+(\d{8,10}))?\s*$/);
+    const m=t.match(/^(.+?)\s*[|｜]\s*(.+)$/);
     if(!m)return null;
-    return{type:m[1].trim(),name:m[2].trim(),phone:(m[4]||'').trim()};
+    const type=m[1].trim();
+    let raw=m[2].trim();
+    // 去除括號備註：（木床區）（協助徵班友）（全場）（2位）等
+    let notes=[];
+    raw=raw.replace(/[\(（]([^)\)）]*)[\)）]/g,(_,n)=>{notes.push(n.trim());return''}).trim();
+    // 提取電話（台灣格式 09xx 10碼，或 8-10 位數）
+    let name=raw,phone='';
+    // 方式1：有空格分隔「姓名 0912345678」
+    const m1=raw.match(/^(.+?)\s+(\d{8,10})\s*$/);
+    if(m1){name=m1[1].trim();phone=m1[2];}
+    else{
+      // 方式2：緊貼在名字後面「姓名0912345678」
+      const m2=raw.match(/^([一-龥A-Za-z][一-龥A-Za-z\s\.\-]*?)(\d{8,10})$/);
+      if(m2){name=m2[1].trim();phone=m2[2];}
+    }
+    return{type,name,phone,notes,raw};
   },
   getTime(ev){
     if(!ev.start||ev.start.date)return'10:00';
@@ -4168,21 +4183,40 @@ async function gcSyncToday(ev){
         const parsed=GC.parseTitle(ev.summary||'');
         if(!parsed)continue;
         const time=GC.getTime(ev);
-        // 尋找學員：電話或姓名匹配
-        const stu=S.find(s=>s.teacher===teacher&&(
-          (parsed.phone&&s.phone&&s.phone.replace(/[\s-]/g,'')===parsed.phone.replace(/[\s-]/g,''))||
-          (s.name&&s.name===parsed.name)
-        ));
+        // 尋找學員：多層比對策略
+        const cleanParsedName=(parsed.name||'').replace(/\d+/g,'').replace(/[^一-龥a-zA-Z\s]/g,'').trim();
+        const parsedPhone=(parsed.phone||'').replace(/[\s\-]/g,'');
+        // 先從「此老師」找，找不到再從「所有老師」找（應對空中Amanda等別名情況）
+        let stu=null;
+        for(const scope of[true,false]){
+          stu=S.find(s=>{
+            if(scope&&s.teacher!==teacher)return false;
+            const sp=(s.phone||'').replace(/[\s\-]/g,'');
+            // 1. 電話完整比對
+            if(parsedPhone&&sp&&(sp===parsedPhone||sp.slice(-8)===parsedPhone.slice(-8)))return true;
+            // 2. 完整姓名比對
+            if(s.name&&s.name===parsed.name)return true;
+            // 3. 去除電話後的姓名比對
+            if(cleanParsedName&&s.name&&s.name===cleanParsedName)return true;
+            // 4. 包含比對（日曆名包含系統名，或系統名包含日曆名）
+            if(s.name&&parsed.name&&parsed.name.includes(s.name))return true;
+            if(s.name&&cleanParsedName&&cleanParsedName.includes(s.name))return true;
+            return false;
+          });
+          if(stu)break;
+        }
         if(stu){
+          // 決定使用哪位老師的課表（以系統資料為準）
+          const actualTeacher=stu.teacher||teacher;
           if(!SCH[td])SCH[td]={};
-          if(!SCH[td][teacher])SCH[td][teacher]=[];
-          if(!SCH[td][teacher].find(sl=>sl.sid===stu.id)){
-            SCH[td][teacher].push({sid:stu.id,time});
+          if(!SCH[td][actualTeacher])SCH[td][actualTeacher]=[];
+          if(!SCH[td][actualTeacher].find(sl=>sl.sid===stu.id)){
+            SCH[td][actualTeacher].push({sid:stu.id,time});
             added++;
-            log.push(`✓ ${teacher}・${stu.name}・${time}`);
+            log.push(`✓ ${actualTeacher}・${stu.name}・${time}`);
           }else{skipped++;}
         }else{
-          notFound.push({teacher,name:parsed.name,phone:parsed.phone,type:parsed.type,time});
+          notFound.push({teacher,name:parsed.name,phone:parsed.phone,calType:parsed.type,time,raw:parsed.raw});
           log.push(`⚠ 未找到學員：${teacher}・${parsed.name}${parsed.phone?' ('+parsed.phone+')':''}・${time}`);
         }
       }
@@ -4193,9 +4227,14 @@ async function gcSyncToday(ev){
       <div style="font-size:12px;color:var(--ink2);line-height:2">${log.map(l=>`${l}`).join('<br>')}</div>
     </div>`;
     if(notFound.length){
+      // 存到全局以便手動對應
+      window._gcNotFound=notFound;
       html+=`<div style="margin-top:10px;background:#FFF4EE;border:1px solid #F5C4A1;border-radius:9px;padding:12px 14px;font-size:12px;color:#C05A20">
-        <div style="font-weight:500;margin-bottom:5px">⚠ 以下課程未能匹配系統學員（建議手動確認）</div>
-        ${notFound.map(n=>`<div>・${n.teacher} / ${n.type} / ${n.name}${n.phone?' '+n.phone:''} / ${n.time}</div>`).join('')}
+        <div style="font-weight:500;margin-bottom:8px">⚠ 以下課程未能匹配系統學員</div>
+        ${notFound.map((n,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F5D4B0">
+          <div style="flex:1;font-size:11px">・${n.teacher} / ${n.calType} / ${n.name}${n.phone?' '+n.phone:''} / ${n.time}</div>
+          <button onclick="gcManualMatch(${i},'${td}')" style="flex-shrink:0;margin-left:8px;padding:4px 10px;background:#E87D3E;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">手動指定</button>
+        </div>`).join('')}
       </div>`;
     }
     if(resEl)resEl.innerHTML=html;
@@ -4205,6 +4244,50 @@ async function gcSyncToday(ev){
     showToast('同步失敗：'+e.message,'r');
   }finally{
     if(btn){btn.disabled=false;btn.textContent='📥 從 Google 日曆匯入今日課表';}
+  }
+}
+
+function gcManualMatch(idx, td){
+  const item=window._gcNotFound&&window._gcNotFound[idx];
+  if(!item)return;
+  // 優先顯示同老師的學員，再顯示所有學員
+  const stuList=S.filter(s=>s.teacher===item.teacher).concat(S.filter(s=>s.teacher!==item.teacher));
+  const opts=stuList.map(s=>`<option value="${s.id}">${s.name}（${s.teacher}・${s.course}）</option>`).join('');
+  const html=`<div style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:20px;max-width:400px;width:90%;max-height:80vh;overflow-y:auto">
+    <div style="font-size:15px;font-weight:500;margin-bottom:4px">手動指定學員</div>
+    <div style="font-size:12px;color:#888;margin-bottom:12px">日曆：${item.teacher} / ${item.name}${item.phone?' '+item.phone:''} / ${item.time}</div>
+    <select id="gcMatchSel" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:9px;font-size:14px;margin-bottom:12px;background:#fff">
+      <option value="">選擇學員…</option>${opts}
+    </select>
+    <div style="display:flex;gap:8px">
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="flex:1;padding:10px;background:#f0f0f0;border:none;border-radius:9px;font-size:14px;cursor:pointer">取消</button>
+      <button onclick="gcDoManualMatch(${idx},'${td}')" style="flex:1;padding:10px;background:#E87D3E;color:#fff;border:none;border-radius:9px;font-size:14px;cursor:pointer">加入課表</button>
+    </div>
+  </div></div>`;
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+function gcDoManualMatch(idx,td){
+  const item=window._gcNotFound&&window._gcNotFound[idx];
+  const sid=document.getElementById('gcMatchSel')?.value;
+  if(!item||!sid){showToast('請選擇學員','r');return;}
+  const stu=S.find(s=>s.id===sid);if(!stu)return;
+  const teacher=stu.teacher||item.teacher;
+  if(!SCH[td])SCH[td]={};
+  if(!SCH[td][teacher])SCH[td][teacher]=[];
+  if(SCH[td][teacher].find(sl=>sl.sid===stu.id)){showToast(stu.name+' 已在課表中');return;}
+  SCH[td][teacher].push({sid:stu.id,time:item.time});
+  save();
+  // 從未找到清單移除
+  if(window._gcNotFound)window._gcNotFound.splice(idx,1);
+  // 關閉 modal 並重新整理結果
+  document.querySelectorAll('div[style*="position:fixed"]').forEach(el=>{if(el.querySelector('#gcMatchSel'))el.remove();});
+  showToast(`✓ ${stu.name} 已加入 ${teacher} 今日課表`);
+  // 重整顯示
+  const resEl=document.getElementById('gcSyncResult');
+  if(resEl&&window._gcNotFound&&window._gcNotFound.length===0){
+    const box=resEl.querySelector('div[style*="#FFF4EE"]');
+    if(box)box.remove();
   }
 }
 
