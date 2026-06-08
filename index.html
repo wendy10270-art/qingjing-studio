@@ -1083,8 +1083,8 @@ function save(){
 let syncTimer=null, _lastSaveMs=0;
 function syncToFirebase(){
   clearTimeout(syncTimer);
+  _lastSaveMs=Date.now(); // 立即標記，防止 loadFromFirebase 在 800ms 內覆蓋
   syncTimer=setTimeout(()=>{
-    _lastSaveMs=Date.now();
     // 同時同步 LEDGER
     db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync:',e));
     db.ref('qingjing').set({
@@ -3008,9 +3008,12 @@ function getUpcomingDates(s){
   const today=new Date();today.setHours(0,0,0,0);
   const pool=[];
   s.recurring.forEach(r=>{
+    if(r.day===undefined||r.day===null||r.day<0||r.day>6)return; // 防止無效 day 造成無限迴圈
     let d=new Date(today);
     d.setDate(d.getDate()+1); // 從明天開始
-    while(d.getDay()!==r.day)d.setDate(d.getDate()+1);
+    let safety=0;
+    while(d.getDay()!==r.day&&safety<8){d.setDate(d.getDate()+1);safety++;}
+    if(safety>=8)return; // 防呆
     for(let i=0;i<remain+s.recurring.length;i++){
       pool.push({dateStr:fmt(d),time:r.time,dow:d.getDay(),ts:d.getTime()});
       const nd=new Date(d);nd.setDate(d.getDate()+7);d=nd;
