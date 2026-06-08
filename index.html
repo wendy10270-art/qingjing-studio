@@ -2500,6 +2500,7 @@ function renderDaily(){
               ${confirmed?
                 `<span style="font-size:11px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:2px 9px;cursor:pointer" onclick="toggleConfirm('${r.id}','regular')">已確認</span>`:
                 `<button onclick="toggleConfirm('${r.id}','regular')" style="background:var(--ink);color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">確認消課</button>`}
+              <span onclick="deleteRec('${r.id}','regular','${s.name}')" style="font-size:15px;cursor:pointer;opacity:0.4;padding:2px 4px" title="刪除此筆記錄">🗑</span>
             </div>
           </div>
         </div>`;
@@ -2511,9 +2512,12 @@ function renderDaily(){
           <div class="cr-info"><div class="cr-name">${tr.name}<span class="chip chip-trial" style="margin-left:6px;font-size:10px">體驗</span></div><div class="cr-course">${tr.course} ${tr.ratio}</div></div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
             <span style="font-size:13px;color:${tr.manualFee!=null?'var(--orange)':'var(--green)'};cursor:pointer" onclick="openEditOv('${tr.id}','trial')">$${fee.toLocaleString()} ✏️</span>
-            ${confirmed?
-              `<span style="font-size:11px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:2px 9px;cursor:pointer" onclick="toggleConfirm('${tr.id}','trial')">已確認</span>`:
-              `<button onclick="toggleConfirm('${tr.id}','trial')" style="background:var(--ink);color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">確認消課</button>`}
+            <div style="display:flex;align-items:center;gap:6px">
+              ${confirmed?
+                `<span style="font-size:11px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:2px 9px;cursor:pointer" onclick="toggleConfirm('${tr.id}','trial')">已確認</span>`:
+                `<button onclick="toggleConfirm('${tr.id}','trial')" style="background:var(--ink);color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">確認消課</button>`}
+              <span onclick="deleteRec('${tr.id}','trial','${tr.name}')" style="font-size:15px;cursor:pointer;opacity:0.4;padding:2px 4px" title="刪除此筆記錄">🗑</span>
+            </div>
           </div>
         </div>`;
       }
@@ -2535,6 +2539,29 @@ function toggleConfirm(id, type){
   }
   save();renderDaily();
   if(document.getElementById('ap-wage').classList.contains('active'))renderWage();
+}
+
+function deleteRec(id, type, name){
+  if(!confirm(`確定要刪除「${name}」這筆簽到記錄嗎？\n（此操作無法復原）`))return;
+  if(type==='regular'){
+    const idx=R.findIndex(x=>x.id===id);
+    if(idx===-1)return;
+    const r=R[idx];
+    const s=S.find(x=>x.id===r.sid);
+    // 還原 used 數（簽到時 s.used++，刪除時還原）
+    // 紙本簽到(note==='紙本簽到')不影響 used，升級不還原 used
+    if(s&&!r.isUpgraded&&r.note!=='紙本簽到'&&s.used>0){
+      s.used--;
+    }
+    R.splice(idx,1);
+  } else {
+    // trial：清除簽到狀態，保留體驗記錄
+    const idx=T.findIndex(x=>x.id===id);
+    if(idx===-1)return;
+    T[idx].sig=false;T[idx].confirmed=false;T[idx].date=null;
+  }
+  save();renderDaily();
+  showToast('🗑 已刪除簽到記錄');
 }
 
 function confirmAllToday(ds){
