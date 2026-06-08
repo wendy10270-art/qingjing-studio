@@ -1129,20 +1129,31 @@ function manualSync(){
 function loadFromFirebase(callback){
   db.ref('qingjing').once('value').then(snap=>{
     const data=snap.val();
-    if(data&&data.s&&data.s.length>0){
-      // 雲端有資料 → 用雲端的（比較新）
-      S=data.s||S;
-      R=data.r||R;
-      SCH=data.sch||SCH;
-      T=data.t||T;
-      L=data.l||L;
-      // 也更新本地快取
+    // 只要 Firebase 有 lastUpdated（代表曾從 App 存過），就使用雲端資料
+    // 這樣避免「空的 iPad 覆蓋掉有資料的 iPad」問題
+    if(data&&data.lastUpdated){
+      S=data.s||[];
+      R=data.r||[];
+      SCH=data.sch||{};
+      T=data.t||[];
+      L=data.l||[];
       localStorage.setItem('qjf_s',JSON.stringify(S));
       localStorage.setItem('qjf_r',JSON.stringify(R));
       localStorage.setItem('qjf_sch',JSON.stringify(SCH));
       localStorage.setItem('qjf_t',JSON.stringify(T));
       localStorage.setItem('qjf_l',JSON.stringify(L));
-      console.log('✓ 從 Firebase 載入資料');
+      console.log('✓ 從 Firebase 載入資料，更新時間:',new Date(data.lastUpdated).toLocaleTimeString());
+    } else if(data&&data.s&&Array.isArray(data.s)&&data.s.length>0){
+      // 相容舊格式（沒有 lastUpdated 的資料）
+      S=data.s;R=data.r||R;SCH=data.sch||SCH;T=data.t||T;L=data.l||L;
+      localStorage.setItem('qjf_s',JSON.stringify(S));
+      localStorage.setItem('qjf_r',JSON.stringify(R));
+      localStorage.setItem('qjf_sch',JSON.stringify(SCH));
+      localStorage.setItem('qjf_t',JSON.stringify(T));
+      localStorage.setItem('qjf_l',JSON.stringify(L));
+      console.log('✓ 從 Firebase 載入資料（舊格式）');
+    } else {
+      console.log('ℹ Firebase 無資料，使用本機資料');
     }
     if(callback)callback();
   }).catch(e=>{
@@ -1310,9 +1321,11 @@ function closeOvOut(id,e){if(e.target===document.getElementById(id))closeOvById(
 
 // ── 首頁 ──
 function renderTeachers(){
-  const td=todayStr();const sch=SCH[td]||{};const teachers=Object.keys(sch);
+  const td=todayStr();const sch=SCH[td]||{};
   const recs=R.filter(r=>r.date===td);
   const trialToday=T.filter(t=>t.date===td);
+  // 合併：有排課的老師 + 只有體驗的老師（兩者取聯集）
+  const teachers=[...new Set([...Object.keys(sch),...trialToday.map(tr=>tr.teacher||'其他')])];
   const el=document.getElementById('teacherArea');
   if(!teachers.length&&!trialToday.length){
     document.getElementById('heroHint').textContent='';
@@ -1338,7 +1351,7 @@ function renderTeachers(){
   document.getElementById('heroHint').textContent=`今日共 ${teachers.length} 位老師・${total} 正式${trialCount?' ・ '+trialCount+' 體驗':''}`;
 
   el.innerHTML=`<div style="display:flex;flex-direction:column;gap:10px">${teachers.map(t=>{
-    const slots=sch[t];
+    const slots=sch[t]||[];
     const sc=slots.filter(sl=>recs.find(r=>r.sid===sl.sid)).length;
     const trialForT=trialToday.filter(tr=>tr.teacher===t);
     const leaveForT=leaves.filter(l=>slots.find(sl=>sl.sid===l.sid));
