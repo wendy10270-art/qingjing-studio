@@ -3271,14 +3271,13 @@ function renderLineMessageTrial(tr){
 function copyAndOpenLine(){
   const el=document.getElementById('lineMsgText');if(!el)return;
   const text=el.innerHTML.replace(/<br>/g,'\n').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
-  const lineUrl='https://chat.line.biz/'; // LINE OA Manager 後台聊天列表
   const doOpen=()=>{
-    showToast('✓ 訊息已複製！搜尋學員名字後貼上');
+    showToast('✓ 訊息已複製！切換到 LINE OA 後搜尋學員名字貼上');
     el.style.background='#E8F5EE';
     setTimeout(()=>{el.style.background='#F0F0F0';},1500);
-    // 先開視窗避免 iOS 封鎖 popup
-    const win=window.open(lineUrl,'_blank');
-    if(!win)window.location.href=lineUrl; // popup blocked fallback
+    // 嘗試直接喚起 LINE OA Manager App（iOS Universal Link）
+    // 如果 App 已安裝，iOS 會直接開 App；未安裝則開 Safari
+    window.location.href='https://manager.line.biz/';
   };
   if(navigator.clipboard){
     navigator.clipboard.writeText(text).then(doOpen).catch(doOpen);
