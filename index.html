@@ -3271,9 +3271,9 @@ function renderLineMessageTrial(tr){
 function copyAndOpenLine(){
   const el=document.getElementById('lineMsgText');if(!el)return;
   const text=el.innerHTML.replace(/<br>/g,'\n').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
-  const lineUrl='https://line.me/R/ti/p/'+LINE_OA_ID;
+  const lineUrl='https://chat.line.biz/'; // LINE OA Manager 後台聊天列表
   const doOpen=()=>{
-    showToast('✓ 訊息已複製！正在開啟 LINE…');
+    showToast('✓ 訊息已複製！搜尋學員名字後貼上');
     el.style.background='#E8F5EE';
     setTimeout(()=>{el.style.background='#F0F0F0';},1500);
     // 先開視窗避免 iOS 封鎖 popup
