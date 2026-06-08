@@ -958,6 +958,7 @@ const db={
 
 <script>
 const ADMIN_PIN='0131';
+const LINE_OA_ID='@442edsvw'; // 輕境 LINE 官方帳號
 
 // ── 日期/時間下拉選擇輔助函式 ──
 function mkYearOpts(sel){const cy=new Date().getFullYear();return[cy-1,cy,cy+1,cy+2].map(y=>`<option value="${y}" ${y===sel?'selected':''}>${y}年</option>`).join('')}
@@ -3244,7 +3245,7 @@ function renderLineMessage(s, remain, isUpgraded, upgradedTo, isSub, subTeacher)
   parts.push('');
   parts.push('我們下週見唷～～');
   const msg=parts.join('\n');
-  el.innerHTML='<div class="line-msg-box"><div class="line-msg-label">LINE 課後訊息（點按鈕複製）</div><div class="line-msg-content" id="lineMsgText">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')+'</div><button class="line-msg-copy" onclick="copyLineMsgById()">複製訊息　貼給學員</button></div>';
+  el.innerHTML='<div class="line-msg-box"><div class="line-msg-label">LINE 課後訊息</div><div class="line-msg-content" id="lineMsgText">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')+'</div><button class="line-msg-copy" onclick="copyAndOpenLine()" style="background:#06C755;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px"><span style="font-size:20px;line-height:1">💬</span>複製訊息 ＆ 開啟 LINE</button><div style="text-align:center;margin-top:8px"><span onclick="copyLineMsgById()" style="font-size:12px;color:var(--ink3);cursor:pointer;text-decoration:underline">只複製訊息</span></div></div>';
   renderNextApptArea(s.id);
 }
 
@@ -3263,9 +3264,29 @@ function renderLineMessageTrial(tr){
   parts.push('');
   parts.push('輕境運動工作室');
   const msg=parts.join('\n');
-  el.innerHTML='<div class="line-msg-box"><div class="line-msg-label">LINE 體驗課訊息（點按鈕複製）</div><div class="line-msg-content" id="lineMsgText">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')+'</div><button class="line-msg-copy" onclick="copyLineMsgById()">複製訊息　貼給學員</button></div>';
+  el.innerHTML='<div class="line-msg-box"><div class="line-msg-label">LINE 體驗課訊息</div><div class="line-msg-content" id="lineMsgText">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')+'</div><button class="line-msg-copy" onclick="copyAndOpenLine()" style="background:#06C755;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px"><span style="font-size:20px;line-height:1">💬</span>複製訊息 ＆ 開啟 LINE</button><div style="text-align:center;margin-top:8px"><span onclick="copyLineMsgById()" style="font-size:12px;color:var(--ink3);cursor:pointer;text-decoration:underline">只複製訊息</span></div></div>';
 }
 
+
+function copyAndOpenLine(){
+  const el=document.getElementById('lineMsgText');if(!el)return;
+  const text=el.innerHTML.replace(/<br>/g,'\n').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+  const lineUrl='https://line.me/R/ti/p/'+LINE_OA_ID;
+  const doOpen=()=>{
+    showToast('✓ 訊息已複製！正在開啟 LINE…');
+    el.style.background='#E8F5EE';
+    setTimeout(()=>{el.style.background='#F0F0F0';},1500);
+    // 先開視窗避免 iOS 封鎖 popup
+    const win=window.open(lineUrl,'_blank');
+    if(!win)window.location.href=lineUrl; // popup blocked fallback
+  };
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(text).then(doOpen).catch(doOpen);
+  } else {
+    try{const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);}catch(e){}
+    doOpen();
+  }
+}
 
 function copyLineMsgById(){
   const el=document.getElementById('lineMsgText');if(!el)return;
