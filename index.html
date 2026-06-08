@@ -601,6 +601,7 @@ const db={
   </div>
   <div style="padding:10px 16px 0">
     <div id="backupBar" class="backup-bar warn"><div class="backup-bar-left"><div class="backup-bar-ttl">備份狀態</div></div><button class="backup-btn" onclick="doBackup()">備份</button></div>
+    <div id="dashBoard" style="margin-bottom:10px"></div>
     <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink3);cursor:pointer;padding:6px 2px 10px">
       <input type="file" accept=".json" onchange="importBackup(this.files[0])" style="display:none">
       <span style="color:var(--ink3)">↑ 從備份檔案還原資料</span>
@@ -634,6 +635,7 @@ const db={
         <select class="month-select" id="monthSelect" onchange="renderWage()"></select>
         <button class="export-btn btn-csv" onclick="exportCSV()">↓ CSV</button>
         <button class="export-btn btn-copy-all" onclick="copyAll()">複製全部薪資</button>
+        <button class="export-btn" onclick="showMonthReport()" style="background:var(--teal2);color:var(--teal);border:1px solid var(--teal3)">📊 月報表</button>
       </div>
       <div class="section-label" id="wageSectionLabel"></div>
       <div class="teacher-grid-admin" id="teacherWageGrid"></div>
@@ -783,6 +785,10 @@ const db={
     <div class="dt-sel-wrap" id="nPayDate-wrap"><select id="nPayDate-y" class="dt-sel-y"></select><span class="dt-sep">/</span><select id="nPayDate-m" class="dt-sel-m"></select><span class="dt-sep">/</span><select id="nPayDate-d" class="dt-sel-d"></select></div>
     </div>
     <label>備註（選填）</label><input type="text" id="nNote" placeholder="例：分期、折扣備注…">
+    <label>課程到期日（選填）</label>
+    <div class="dt-sel-wrap" id="nExpiry-wrap"><select id="nExpiry-y" class="dt-sel-y"></select><span class="dt-sep">/</span><select id="nExpiry-m" class="dt-sel-m"></select><span class="dt-sep">/</span><select id="nExpiry-d" class="dt-sel-d"></select></div>
+    <label>健康備註（受傷、禁忌動作等）</label>
+    <textarea id="nHealthNotes" placeholder="例：左膝不適、不做蹲跳…" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;color:var(--ink);outline:none;resize:vertical;min-height:70px;font-family:'Noto Sans TC',sans-serif;margin-bottom:12px"></textarea>
     <div style="background:var(--bg);border-radius:10px;padding:12px 14px;margin-bottom:12px">
       <label style="margin-bottom:6px;color:var(--ink2)">紙本已簽到堂數（選填）</label>
       <div style="display:flex;align-items:center;gap:10px">
@@ -858,6 +864,10 @@ const db={
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px"><div><label>續課獎金（自動 3%，可手動調整）</label><input type="number" id="eBonus" style="margin-bottom:0"></div><div><label>獎金備註</label><input type="text" id="eBonusNote" placeholder="例：特殊調整…" style="margin-bottom:0"></div></div>
     <label>備註</label><input type="text" id="eNote" placeholder="例：分期、折扣…">
+    <label>課程到期日（選填）</label>
+    <div class="dt-sel-wrap" id="eExpiry-wrap"><select id="eExpiry-y" class="dt-sel-y"></select><span class="dt-sep">/</span><select id="eExpiry-m" class="dt-sel-m"></select><span class="dt-sep">/</span><select id="eExpiry-d" class="dt-sel-d"></select></div>
+    <label>健康備註（受傷、禁忌動作等）</label>
+    <textarea id="eHealthNotes" placeholder="例：左膝不適、不做蹲跳…" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;color:var(--ink);outline:none;resize:vertical;min-height:70px;font-family:'Noto Sans TC',sans-serif;margin-bottom:12px"></textarea>
     <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border-radius:10px;margin-bottom:12px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;flex:1">
         <input type="checkbox" id="eInstallment" onchange="eToggleInstallment()" style="width:18px;height:18px;accent-color:var(--gold)">
@@ -1061,6 +1071,7 @@ function save(){
   localStorage.setItem('qjf_l',JSON.stringify(L));
   // Firebase 雲端同步
   syncToFirebase();
+  renderDashboard();
 }
 
 let syncTimer=null, _lastSaveMs=0;
@@ -1417,7 +1428,31 @@ function renderCard(sid){
       ${upcomingLeaves.map(l=>`<div style="font-size:12px;color:#8B4000;margin-top:3px">📅 ${l.dateTo?l.date+' ～ '+l.dateTo:l.date}${l.note?' ・ '+l.note:''}</div>`).join('')}
     </div>`
     :'';
-  document.getElementById('cardTop').innerHTML=leaveAlert+`<div class="stu-top">
+  const lowSessAlert=(remain<=2&&remain>0)?
+    `<div style="background:var(--orange2);border:2px solid var(--orange3);border-radius:12px;padding:12px 16px;margin-bottom:13px;text-align:center">
+      <div style="font-size:14px;font-weight:500;color:var(--orange);margin-bottom:4px">⚠️ 課程堂數即將用完</div>
+      <div style="font-size:12px;color:#8B4000">剩餘 ${remain} 堂，請提醒學員盡快續購！</div>
+    </div>`
+    :'';
+  // Health notes alert
+  const healthAlert=s.healthNotes?
+    `<div style="background:#FFF0F0;border:2px solid #F7C1C1;border-radius:12px;padding:12px 16px;margin-bottom:13px">
+      <div style="font-size:13px;font-weight:500;color:var(--red);margin-bottom:4px">🏥 健康注意事項</div>
+      <div style="font-size:12px;color:#8B0000;white-space:pre-wrap">${s.healthNotes}</div>
+    </div>`
+    :'';
+  // Expiry date alert
+  let expiryAlert='';
+  if(s.expiryDate){
+    const ed=parseDate(s.expiryDate);const now2=new Date();const diff=Math.ceil((ed-now2)/(864e5));
+    if(diff>=0&&diff<=14){
+      expiryAlert=`<div style="background:#FFF4EE;border:2px solid #F5C4A1;border-radius:12px;padding:12px 16px;margin-bottom:13px;text-align:center">
+        <div style="font-size:14px;font-weight:500;color:#C05A20;margin-bottom:4px">📅 課程即將到期</div>
+        <div style="font-size:12px;color:#7A3A10">到期日：${s.expiryDate}（剩 ${diff} 天）</div>
+      </div>`;
+    }
+  }
+  document.getElementById('cardTop').innerHTML=leaveAlert+lowSessAlert+healthAlert+expiryAlert+`<div class="stu-top">
     <div class="${ci.stripe} stripe"></div>
     <div class="stu-top-row">
       <div><div class="stu-name-big">${s.name}</div><div class="stu-meta">${s.phone}<br>指導老師：${s.teacher||'—'}　</div></div>
@@ -1553,7 +1588,23 @@ function confirmTrialSig(){
   document.getElementById('successRemain').textContent='';
   document.getElementById('successLbl').textContent='感謝體驗，歡迎加入輕境！';
   renderLineMessageTrial(tr);
+  const bArea=document.getElementById('nextBookingArea');
+  if(bArea){
+    bArea.innerHTML=`<button onclick="convertTrialToRegular('${tr.id}')" style="width:100%;padding:12px 16px;background:var(--teal);color:#fff;border:none;border-radius:10px;font-size:15px;cursor:pointer;font-weight:500;letter-spacing:1px">⭐ 轉為正式學員</button>`;
+  }
   goScreen('sc-success');
+}
+
+function convertTrialToRegular(tid){
+  const tr=T.find(x=>x.id===tid);if(!tr)return;
+  openAdd();
+  setTimeout(()=>{
+    document.getElementById('nName').value=tr.name||'';
+    document.getElementById('nPhone').value=tr.phone||'';
+    const tSel=document.getElementById('nTeacher');
+    if(tSel)tSel.value=tr.teacher||'';
+    showToast('已帶入體驗課學員資料，請選擇課程方案完成新增');
+  },300);
 }
 
 // ── 請假 ──
@@ -1667,7 +1718,10 @@ function confirmSig(){
   const installmentAlert=s.installment&&s.installEvery&&s.used>0&&s.used%s.installEvery===0?
     '<div style="background:var(--orange2);border:2px solid var(--orange3);border-radius:13px;padding:14px 17px;margin-bottom:16px;text-align:center"><div style="font-size:15px;color:var(--orange);letter-spacing:1px;margin-bottom:5px">💰 分期付款提醒</div><div style="font-size:13px;color:#8B4000">已完成第 '+s.used+' 堂<br>請提醒學員繳納下一期費用</div></div>'
     :'';
-  document.getElementById('supplementAlert').innerHTML=(document.getElementById('supplementAlert').innerHTML||'')+installmentAlert;
+  const lowSessAlertHtml=(remain<=2&&remain>0)?
+    '<div style="background:var(--orange2);border:2px solid var(--orange3);border-radius:13px;padding:14px 17px;margin-bottom:16px;text-align:center"><div style="font-size:15px;color:var(--orange);letter-spacing:1px;margin-bottom:5px">⚠️ 課程堂數即將用完</div><div style="font-size:13px;color:#8B4000">剩餘 '+remain+' 堂，請提醒學員盡快續購！</div></div>'
+    :'';
+  document.getElementById('supplementAlert').innerHTML=(document.getElementById('supplementAlert').innerHTML||'')+installmentAlert+lowSessAlertHtml;
   document.getElementById('successSub').textContent='第 '+s.used+' 堂完成簽到\n'+todayStr()+' '+nowTime()+(isUpgraded?'\n＋1人｜'+parts[1]+'→'+curUpgradeRatio:'')+(isSub?'\n代課老師：'+subTeacher:'');
   document.getElementById('successRemain').textContent=remain;
   document.getElementById('successLbl').textContent='堂課程可用';
@@ -1860,11 +1914,51 @@ function pConfirm(){
     closePinOv();
     document.getElementById('mainScroll').style.display='none';
     document.getElementById('sc-admin').classList.add('active-admin');
-    renderSchEditor();renderDaily();buildMonthSelect();renderWage();renderMgrList();renderBackupBar();
+    renderSchEditor();renderDaily();buildMonthSelect();renderWage();renderMgrList();renderBackupBar();renderDashboard();
   } else {document.getElementById('pinErr').textContent='密碼錯誤，請再試一次';pinStr='';updPinDots()}
 }
 
+function renderDashboard(){
+  const el=document.getElementById('dashBoard');if(!el)return;
+  const td=todayStr();
+  let todayCnt=0;
+  Object.values(SCH[td]||{}).forEach(slots=>todayCnt+=slots.filter(sl=>!sl.skip).length);
+  const mk=monthKey(td);
+  const monthIncome=LEDGER.filter(l=>l.type==='purchase'&&monthKey(l.createdAt||l.payDate||'')===mk).reduce((a,l)=>a+(l.actualPayment||0),0);
+  const monthNew=S.filter(s=>s.payDate&&monthKey(s.payDate)===mk).length;
+  const lowSess=S.filter(s=>s.used<s.total&&s.total-s.used<=2);
+  const now=new Date();const in14=new Date(now.getTime()+14*864e5);
+  const nearExpiry=S.filter(s=>{if(!s.expiryDate)return false;const ed=parseDate(s.expiryDate);return ed>=now&&ed<=in14;});
+  el.innerHTML=`
+<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:0">
+  <div style="font-size:12px;font-weight:500;color:var(--ink3);letter-spacing:1.5px;margin-bottom:10px">今日概況</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:${lowSess.length||nearExpiry.length?'12px':'0'}">
+    <div style="text-align:center;padding:10px 6px;background:var(--bg);border-radius:9px">
+      <div style="font-family:'Noto Serif TC',serif;font-size:22px;color:var(--gold)">${todayCnt}</div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:2px">今日課程</div>
+    </div>
+    <div style="text-align:center;padding:10px 6px;background:var(--bg);border-radius:9px">
+      <div style="font-family:'Noto Serif TC',serif;font-size:18px;color:var(--green)">$${(monthIncome/1000).toFixed(1)}k</div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:2px">本月收入</div>
+    </div>
+    <div style="text-align:center;padding:10px 6px;background:var(--bg);border-radius:9px">
+      <div style="font-family:'Noto Serif TC',serif;font-size:22px;color:var(--teal)">${monthNew}</div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:2px">本月新學員</div>
+    </div>
+  </div>
+  ${lowSess.length?`<div style="background:var(--orange2);border:1px solid var(--orange3);border-radius:9px;padding:10px 13px;margin-bottom:${nearExpiry.length?'8px':'0'}">
+    <div style="font-size:12px;font-weight:500;color:var(--orange);margin-bottom:5px">⚠️ 課程即將用完（≤2堂）</div>
+    ${lowSess.map(s=>`<div style="font-size:12px;color:var(--ink2);padding:2px 0">・${s.name}（${s.teacher}）剩 ${s.total-s.used} 堂</div>`).join('')}
+  </div>`:''}
+  ${nearExpiry.length?`<div style="background:#FFF4EE;border:1px solid #F5C4A1;border-radius:9px;padding:10px 13px">
+    <div style="font-size:12px;font-weight:500;color:#C05A20;margin-bottom:5px">📅 課程即將到期（14天內）</div>
+    ${nearExpiry.map(s=>`<div style="font-size:12px;color:var(--ink2);padding:2px 0">・${s.name} 到期日：${s.expiryDate}</div>`).join('')}
+  </div>`:''}
+</div>`;
+}
+
 function aTab(t){
+  renderDashboard();
   const ns=['sch','daily','cal','ledger','wage','mgr','tch','gcal'];
   document.querySelectorAll('.a-tab').forEach((el,i)=>el.classList.toggle('active',ns[i]===t));
   ns.forEach(n=>document.getElementById('ap-'+n).classList.toggle('active',n===t));
@@ -2586,6 +2680,8 @@ function renderMgrList(){
         (s.bonusNote?'<div style="font-size:11px;color:var(--ink3);margin-top:2px">'+s.bonusNote+'</div>':'')+
         '<span class="smc-pay-method '+pmCls+'">'+pmLabel+'</span>'+
         (s.note?'<div style="font-size:11px;color:var(--ink3);margin-top:4px">'+s.note+'</div>':'')+
+        (s.healthNotes?'<div style="font-size:11px;color:var(--red);margin-top:5px;padding:5px 9px;background:#FFF0F0;border:1px solid #F7C1C1;border-radius:7px">🏥 '+s.healthNotes+'</div>':'')+
+        (s.expiryDate?'<div style="font-size:11px;color:#C05A20;margin-top:4px">📅 到期日：'+s.expiryDate+'</div>':'')+
       '</div>'+
       (s.prevCourses&&s.prevCourses.length?'<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--bg2)"><div style="font-size:11px;color:var(--ink3);margin-bottom:5px">歷史購課記錄</div>'+s.prevCourses.map(p=>'<div style="font-size:11px;color:var(--ink3);padding:2px 0">第'+((p.period||1))+'期・'+p.course+'・'+p.total+'堂・$'+(p.actualPayment||p.price||0).toLocaleString()+'</div>').join('')+'</div>':'')+
       '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bg2);display:flex;align-items:center;justify-content:space-between">'+
@@ -2760,7 +2856,7 @@ function addStu(){
   const paperUsed=parseInt(document.getElementById('nPaperUsed')?.value)||0;
   const isInstallment=document.getElementById('nInstallment')?.checked||false;
   const installEvery=parseInt(document.getElementById('nInstallmentEvery')?.value)||5;
-  S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:paperUsed,price:selPrice,fee,payMethod:isPaid?selPayMethod:'',payDate:isPaid?payDate:'',actualPayment:finalActual,note,bonus:isPaid?Math.round(finalActual*0.03):0,bonusNote:'',paymentStatus:isPaid?'paid':'unpaid',installment:isInstallment,installEvery:isInstallment?installEvery:null});
+  S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:paperUsed,price:selPrice,fee,payMethod:isPaid?selPayMethod:'',payDate:isPaid?payDate:'',actualPayment:finalActual,note,bonus:isPaid?Math.round(finalActual*0.03):0,bonusNote:'',paymentStatus:isPaid?'paid':'unpaid',installment:isInstallment,installEvery:isInstallment?installEvery:null,expiryDate:getDateSel('nExpiry')||'',healthNotes:document.getElementById('nHealthNotes')?.value.trim()||''});
   // 產生紙本簽到記錄
   if(paperUsed>0){
     const newStu=S[S.length-1];
@@ -2770,7 +2866,7 @@ function addStu(){
   }
   if(isPaid)addLedgerEntry({type:'purchase',sid:S[S.length-1].id,name,teacher,course:selPlan,total:selN,price:selPrice,actualPayment:finalActual,payMethod:selPayMethod,payDate,bonus:Math.round(finalActual*0.03),bonusPaid:false});
   save();renderTeachers();renderMgrList();closeAddOv();
-  ['nName','nPhone','nNote','nActualPayment','nPaperUsed'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});setDateSel('nPayDate',todayStr());
+  ['nName','nPhone','nNote','nActualPayment','nPaperUsed','nHealthNotes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});setDateSel('nPayDate',todayStr());const nExY=document.getElementById('nExpiry-y');if(nExY)nExY.selectedIndex=0;const nExM=document.getElementById('nExpiry-m');if(nExM)nExM.selectedIndex=0;const nExD=document.getElementById('nExpiry-d');if(nExD)nExD.selectedIndex=0;
   const nInst=document.getElementById('nInstallment');if(nInst)nInst.checked=false;
   const nCP=document.getElementById('nCustomPlan');if(nCP)nCP.checked=false;
   const nCPD=document.getElementById('nCustomPlanDetail');if(nCPD)nCPD.style.display='none';
@@ -2932,6 +3028,8 @@ function openEditStu(sid){
   const eInstE=document.getElementById('eInstallmentEvery');if(eInstE)eInstE.value=s.installEvery||5;
   document.getElementById('eBonus').value=s.bonus!=null?s.bonus:Math.round((s.price||0)*0.03);
   document.getElementById('eBonusNote').value=s.bonusNote||'';
+  setDateSel('eExpiry',s.expiryDate||'');
+  const eHN=document.getElementById('eHealthNotes');if(eHN)eHN.value=s.healthNotes||'';
   // 填老師選單
   const sel=document.getElementById('eTeacher');
   sel.innerHTML='<option value="">── 選擇 ──</option>'+ALL_TEACHERS.map(t=>`<option value="${t}"${s.teacher===t?' selected':''}>${t}</option>`).join('');
@@ -2992,6 +3090,8 @@ function saveEditStu(){
   s.installEvery=parseInt(document.getElementById('eInstallmentEvery')?.value)||5;
   s.bonus=parseInt(document.getElementById('eBonus').value)||Math.round((s.price||0)*0.03);
   s.bonusNote=document.getElementById('eBonusNote').value.trim();
+  s.expiryDate=getDateSel('eExpiry')||'';
+  s.healthNotes=document.getElementById('eHealthNotes')?.value.trim()||'';
   save();renderMgrList();renderTeachers();
   closeOvById('editStuOv');
   showToast('✓ '+name+' 的資料已更新');
@@ -3012,6 +3112,7 @@ function renderLineMessage(s, remain, isUpgraded, upgradedTo, isSub, subTeacher)
   parts.push('日期：'+today);
   parts.push('堂數：已完成第 '+sessionNum+' 堂');
   parts.push('剩餘：還有 '+remain+' 堂可用');
+  if(remain<=2&&remain>0){parts.push('⚠️ 課程即將用完，請盡快聯繫續購！');}
   if(isUpgraded){
     parts.push('');
     parts.push('＊本堂加人 1on1→'+upgradedTo+'，已補收 $'+curUpgradeDiff.toLocaleString());
@@ -3724,7 +3825,7 @@ function showToast(msg,t='g'){
 (function initStaticPickers(){
   const today=new Date();
   const y=today.getFullYear(),m=today.getMonth()+1,d=today.getDate();
-  ['nPayDate','ePayDate','renewPayDate'].forEach(pid=>{
+  ['nPayDate','ePayDate','renewPayDate','nExpiry','eExpiry'].forEach(pid=>{
     const ey=document.getElementById(pid+'-y');
     const em=document.getElementById(pid+'-m');
     const ed=document.getElementById(pid+'-d');
@@ -3997,6 +4098,64 @@ async function gcSyncToday(ev){
   }finally{
     if(btn){btn.disabled=false;btn.textContent='📥 從 Google 日曆匯入今日課表';}
   }
+}
+
+function showMonthReport(){
+  const mk=document.getElementById('monthSelect').value;if(!mk)return;
+  const[y,mo]=mk.split('/');
+  const monthR=R.filter(r=>monthKey(r.date)===mk&&r.confirmed!==false);
+  const monthT=T.filter(t=>monthKey(t.date)===mk&&t.confirmed===true);
+  const totalFee=monthR.reduce((a,r)=>{const s=S.find(x=>x.id===r.sid);return a+(getRecFee(r,s)||0)},0)+monthT.reduce((a,t)=>a+(t.manualFee!=null?t.manualFee:t.teacherFee),0);
+  const monthIncome=LEDGER.filter(l=>l.type==='purchase'&&monthKey(l.createdAt||l.payDate||'')===mk).reduce((a,l)=>a+(l.actualPayment||0),0);
+  const monthNew=S.filter(s=>s.payDate&&monthKey(s.payDate)===mk);
+  const sessionsByTeacher={};
+  monthR.forEach(r=>{const s=S.find(x=>x.id===r.sid);const t=r.isSub?r.subTeacher:(s?.teacher||'其他');if(!sessionsByTeacher[t])sessionsByTeacher[t]=0;sessionsByTeacher[t]++;});
+  monthT.forEach(t=>{if(!sessionsByTeacher[t.teacher])sessionsByTeacher[t.teacher]=0;sessionsByTeacher[t.teacher]++;});
+  const win=window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${y}年${parseInt(mo)}月 月報表</title>
+<style>
+body{font-family:'Noto Sans TC',sans-serif;max-width:700px;margin:40px auto;padding:20px;color:#1A1510}
+h1{font-family:'Noto Serif TC',serif;font-size:24px;margin-bottom:5px}
+.sub{color:#888;font-size:14px;margin-bottom:30px}
+.section{margin-bottom:24px}
+.section-title{font-size:13px;font-weight:500;color:#888;letter-spacing:2px;border-bottom:1px solid #eee;padding-bottom:6px;margin-bottom:12px}
+.row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5;font-size:15px}
+.amount{font-family:'Noto Serif TC',serif;font-size:18px}
+.big{font-size:22px;font-weight:600;color:#2E7D52}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:24px}
+.stat{text-align:center;padding:16px;background:#f9f9f9;border-radius:10px}
+.stat-n{font-size:28px;font-family:'Noto Serif TC',serif;color:#C4973A}
+.stat-l{font-size:12px;color:#888;margin-top:4px}
+@media print{button{display:none}}
+</style></head><body>
+<button onclick="window.print()" style="float:right;padding:8px 16px;background:#1A1510;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">🖨️ 列印</button>
+<h1>${y} 年 ${parseInt(mo)} 月　月報表</h1>
+<div class="sub">輕境運動工作室・產生時間：${new Date().toLocaleString('zh-TW')}</div>
+<div class="stat-grid">
+  <div class="stat"><div class="stat-n">${monthR.length+monthT.length}</div><div class="stat-l">總課堂數</div></div>
+  <div class="stat"><div class="stat-n" style="color:#2E7D52">$${(monthIncome/1000).toFixed(1)}k</div><div class="stat-l">總收入</div></div>
+  <div class="stat"><div class="stat-n" style="color:#C05A20">${monthNew.length}</div><div class="stat-l">新增學員</div></div>
+</div>
+<div class="section">
+  <div class="section-title">收入明細</div>
+  <div class="row"><span>課程收入</span><span class="amount big">$${monthIncome.toLocaleString()}</span></div>
+  <div class="row"><span>師資費用支出</span><span class="amount" style="color:#C05A20">$${totalFee.toLocaleString()}</span></div>
+  <div class="row" style="font-weight:500"><span>毛利（收入 - 師資費）</span><span class="amount" style="color:#2E7D52">$${(monthIncome-totalFee).toLocaleString()}</span></div>
+</div>
+<div class="section">
+  <div class="section-title">各老師課堂數</div>
+  ${Object.entries(sessionsByTeacher).map(([t,n])=>`<div class="row"><span>${t}</span><span>${n} 堂</span></div>`).join('')}
+</div>
+${monthNew.length?`<div class="section">
+  <div class="section-title">本月新增學員（${monthNew.length} 位）</div>
+  ${monthNew.map(s=>`<div class="row"><span>${s.name}</span><span>${s.course}・${s.total}堂・$${(s.actualPayment||0).toLocaleString()}</span></div>`).join('')}
+</div>`:''}
+<div class="section">
+  <div class="section-title">體驗課（${monthT.length} 堂）</div>
+  ${monthT.length?monthT.map(t=>`<div class="row"><span>${t.name}</span><span>${t.course} ${t.ratio}・${t.teacher}</span></div>`).join(''):'<div style="color:#aaa;font-size:14px;padding:8px 0">本月無體驗課</div>'}
+</div>
+</body></html>`);
+  win.document.close();
 }
 </script>
 
