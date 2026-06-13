@@ -517,7 +517,10 @@ function renderGame(){
     </div>
     <div class="vs">
       <button class="mb" id="micBtn" onclick="toggleVoice()">🎙</button>
-      <div class="mh" id="micHint">點擊麥克風開始語音記錄</div>
+      <div style="margin-top:10px">
+        <button id="autoBtn" onclick="toggleAuto()" style="padding:7px 18px;border-radius:16px;background:var(--bg3);border:1px solid var(--border);color:var(--t2);font-size:12px;cursor:pointer;font-weight:600">🔁 連續模式</button>
+      </div>
+      <div class="mh" id="micHint">點擊麥克風 或 開啟連續模式</div>
       <div class="mr" id="micRes"></div>
     </div>
     <div class="sec">
@@ -543,6 +546,7 @@ function renderGame(){
       <div class="ll" id="logEl"></div>
     </div>`;
   renderLog();
+  setTimeout(updAutoBtn,0);
 }
 
 function setQ(q,btn){if(!A.cur)return;A.cur.quarter=q;document.querySelectorAll('.qb').forEach(b=>b.classList.remove('active'));btn.classList.add('active');save();}
@@ -948,14 +952,25 @@ function checkSV(){
 // ═══════════════════════════════════════════════════
 // VOICE
 // ═══════════════════════════════════════════════════
-let recog=null,listening=false;
+let recog=null,listening=false,autoRestart=false;
 function initRecog(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){const h=document.getElementById('micHint');if(h)h.textContent='請用 Safari 開啟以使用語音';return;}
   recog=new SR();recog.lang='zh-TW';recog.interimResults=true;recog.continuous=false;recog.maxAlternatives=3;
   recog.onstart=()=>{listening=true;const b=document.getElementById('micBtn');if(b){b.classList.add('on');b.textContent='🔴';}const h=document.getElementById('micHint');if(h)h.textContent='正在聆聽…說出指令';const r=document.getElementById('micRes');if(r)r.innerHTML='';};
   recog.onresult=(ev)=>{const res=ev.results[ev.results.length-1];const tx=res[0].transcript;const r=document.getElementById('micRes');if(r)r.innerHTML=`<span class="rc">"${tx}"</span>`;if(res.isFinal)parseV(tx);};
-  recog.onend=()=>{listening=false;const b=document.getElementById('micBtn');if(b){b.classList.remove('on');b.textContent='🎙';}const h=document.getElementById('micHint');if(h)h.textContent='點擊麥克風開始語音記錄';};
+  recog.onend=()=>{
+    listening=false;
+    const b=document.getElementById('micBtn');if(b){b.classList.remove('on');b.textContent='🎙';}
+    if(autoRestart&&A.cur){
+      const h=document.getElementById('micHint');if(h)h.textContent='連續聆聽中…';
+      setTimeout(()=>{
+        if(autoRestart&&A.cur){try{recog.start();}catch(e){initRecog();setTimeout(()=>recog&&recog.start(),150);}}
+      },700);
+    }else{
+      const h=document.getElementById('micHint');if(h)h.textContent='點擊麥克風 或 開啟連續模式';
+    }
+  };
   recog.onerror=(ev)=>{listening=false;const b=document.getElementById('micBtn');if(b){b.classList.remove('on');b.textContent='🎙';}const m=ev.error==='not-allowed'?'請允許麥克風權限':ev.error==='no-speech'?'沒偵測到聲音':'語音識別錯誤';const h=document.getElementById('micHint');if(h)h.textContent=m;toast(m,'err');};
 }
 function toggleVoice(){
@@ -963,6 +978,23 @@ function toggleVoice(){
   if(!recog)initRecog();if(!recog)return;
   if(listening){recog.stop();return;}
   try{recog.start();}catch(e){initRecog();setTimeout(()=>recog&&recog.start(),150);}
+}
+function toggleAuto(){
+  if(!A.cur){toast('請先開始一場比賽','warn');return;}
+  autoRestart=!autoRestart;
+  updAutoBtn();
+  if(autoRestart){
+    toast('連續模式開啟 — 說完自動繼續聆聽');
+    if(!listening)toggleVoice();
+  }else{
+    toast('連續模式已關閉');
+    if(listening&&recog)recog.stop();
+  }
+}
+function updAutoBtn(){
+  const btn=document.getElementById('autoBtn');if(!btn)return;
+  if(autoRestart){btn.style.background='var(--red)';btn.style.color='#fff';btn.style.borderColor='var(--red)';btn.textContent='⏹ 停止連續';}
+  else{btn.style.background='var(--bg3)';btn.style.color='var(--t2)';btn.style.borderColor='var(--border)';btn.textContent='🔁 連續模式';}
 }
 
 const CH={'零':0,'一':1,'二':2,'兩':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9};
@@ -1032,6 +1064,7 @@ function parseV(raw){
 function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
 
 function go(tab){
+  if(tab!=='game'&&autoRestart){autoRestart=false;if(listening&&recog)recog.stop();}
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
   if(tab==='game'){
     renderGame();showScreen('gameScreen');
