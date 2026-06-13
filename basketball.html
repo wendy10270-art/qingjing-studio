@@ -1031,8 +1031,8 @@ function parseV(raw){
       else{
         const ms=/不進|沒進|未進|未命中|沒中|打鐵|偏了/.test(text);
         let aid=null;
-        if(text.includes('三分'))aid=ms?'3miss':'3pt';
-        else if(/兩分|二分|進了|得分|進球|命中/.test(text))aid=ms?'2miss':'2pt';
+        if(/三分|3分/.test(text))aid=ms?'3miss':'3pt';
+        else if(/兩分|二分|2分|進了|得分|進球|命中|進$/.test(text))aid=ms?'2miss':'2pt';
         else if(/罰球|罰進/.test(text))aid=ms?'ftm':'ft';
         else if(/進攻籃板|進攻板/.test(text))aid='oreb';
         else if(/籃板|搶板|防守板|防守籃板/.test(text))aid='reb';
