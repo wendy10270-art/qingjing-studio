@@ -1516,7 +1516,16 @@ function onSearch(val){
   document.getElementById('searchResultArea').style.display='block';
   const lbl=document.getElementById('searchResultLbl');
   const list=document.getElementById('searchResultList');
-  if(!results.length){lbl.textContent='找不到符合的學員';list.innerHTML='<div class="empty" style="padding:14px 0">請確認姓名或電話</div>';return}
+  if(!results.length){
+    lbl.textContent='找不到符合的學員';
+    _pendingAddName=v;
+    list.innerHTML=`<div class="empty" style="padding:10px 0 4px">查無「${v}」的學員資料</div>
+      <div onclick="openAddWithName()" style="margin-top:10px;padding:14px 16px;background:var(--gold4);border:1.5px dashed var(--gold2);border-radius:12px;text-align:center;cursor:pointer">
+        <div style="font-size:15px;font-weight:500;color:var(--gold);margin-bottom:3px">＋ 新增「${v}」為學員</div>
+        <div style="font-size:12px;color:var(--ink3)">點此開啟新增視窗，姓名已帶入</div>
+      </div>`;
+    return;
+  }
   lbl.textContent=`搜尋結果（${results.length} 位）`;
   list.innerHTML=results.map(s=>{
     const rem=s.total-s.used;const st=R.find(r=>r.sid===s.id&&r.date===td);
@@ -3094,6 +3103,14 @@ function openAddSimple(){
     document.getElementById('addOv').dataset.simple='1';
   },50);
 }
+let _pendingAddName='';
+function openAddWithName(){
+  openAdd();
+  setTimeout(()=>{
+    const el=document.getElementById('nName');
+    if(el&&_pendingAddName){el.value=_pendingAddName;el.focus();}
+  },80);
+}
 
 
 function selectPM(el,method){
@@ -3185,6 +3202,19 @@ function addStu(){
   }
   if(isPaid)addLedgerEntry({type:'purchase',sid:S[S.length-1].id,name,teacher,course:selPlan,total:selN,price:selPrice,actualPayment:finalActual,payMethod:selPayMethod,payDate,bonus:Math.round(finalActual*0.03),bonusPaid:false});
   save();renderTeachers();renderMgrList();closeAddOv();
+  // 若由 GC 未匹配觸發，新增後自動排入今日課表
+  if(_gcAfterAdd){
+    const newStu=S[S.length-1];
+    const{td,item}=_gcAfterAdd;_gcAfterAdd=null;
+    const teacher=newStu.teacher||item.teacher;
+    if(!SCH[td])SCH[td]={};
+    if(!SCH[td][teacher])SCH[td][teacher]=[];
+    if(!SCH[td][teacher].find(sl=>sl.sid===newStu.id)){
+      SCH[td][teacher].push({sid:newStu.id,time:item.time});
+      markSchChanged();save();
+      showToast('✓ '+newStu.name+' 已新增並排入今日 '+teacher+' 課表');
+    }
+  }
   ['nName','nPhone','nNote','nActualPayment','nPaperUsed','nHealthNotes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});setDateSel('nPayDate',todayStr());const nExpEl=document.getElementById('nExpiry');if(nExpEl)nExpEl.value='';
   const nInst=document.getElementById('nInstallment');if(nInst)nInst.checked=false;
   const nCP=document.getElementById('nCustomPlan');if(nCP)nCP.checked=false;
@@ -4676,7 +4706,10 @@ async function gcSyncToday(ev){
         <div style="font-weight:500;margin-bottom:8px">⚠ 以下課程未能匹配系統學員</div>
         ${notFound.map((n,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F5D4B0">
           <div style="flex:1;font-size:11px">・${n.teacher} / ${n.calType} / ${n.name}${n.phone?' '+n.phone:''} / ${n.time}</div>
-          <button onclick="gcManualMatch(${i},'${td}')" style="flex-shrink:0;margin-left:8px;padding:4px 10px;background:#E87D3E;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">手動指定</button>
+          <div style="display:flex;gap:5px;flex-shrink:0;margin-left:8px">
+            <button onclick="gcManualMatch(${i},'${td}')" style="padding:4px 10px;background:#E87D3E;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">指定學員</button>
+            <button onclick="gcAddNewStu(${i},'${td}')" style="padding:4px 10px;background:var(--ink);color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">＋新增</button>
+          </div>
         </div>`).join('')}
       </div>`;
     }
@@ -4709,6 +4742,25 @@ function gcManualMatch(idx, td){
     </div>
   </div></div>`;
   document.body.insertAdjacentHTML('beforeend',html);
+}
+let _gcAfterAdd=null;
+function gcAddNewStu(idx,td){
+  const item=window._gcNotFound&&window._gcNotFound[idx];
+  if(!item)return;
+  _gcAfterAdd={idx,td,item};
+  openAdd();
+  setTimeout(()=>{
+    const nName=document.getElementById('nName');
+    if(nName)nName.value=item.name||'';
+    const nPhone=document.getElementById('nPhone');
+    if(nPhone)nPhone.value=item.phone||'';
+    const nTeacher=document.getElementById('nTeacher');
+    if(nTeacher){
+      for(let i=0;i<nTeacher.options.length;i++){
+        if(nTeacher.options[i].value===item.teacher){nTeacher.selectedIndex=i;autoFee();break;}
+      }
+    }
+  },80);
 }
 function gcDoManualMatch(idx,td){
   const item=window._gcNotFound&&window._gcNotFound[idx];

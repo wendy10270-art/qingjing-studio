@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>🏀 籃球比賽統計表</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;--bg2:#1a1d2e;--bg3:#232740;
+  --green:#2e7d32;--gl:#4caf50;
+  --blue:#4dabf7;--red:#ef5350;--yellow:#ffa726;
+  --text:#fff;--t2:#9e9e9e;--border:#2d3250;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;max-width:480px;margin:0 auto;}
+.screen{display:none}.screen.active{display:block}
+.btn{padding:11px 16px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:transform .12s}
+.btn:active{transform:scale(.96)}
+.btn-g{background:var(--gl);color:#fff}.btn-dim{background:var(--bg3);color:var(--text);border:1px solid var(--border)}
+.btn-red{background:var(--red);color:#fff}.btn-full{width:100%}
+.sec-ttl{font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
+.pg{padding-bottom:68px}
+
+/* setup */
+.sw{padding:22px 18px}
+.big-ttl{text-align:center;font-size:28px;margin-bottom:2px}
+.big-sub{text-align:center;font-size:11px;color:var(--t2);margin-bottom:18px}
+.ig{margin-bottom:12px}
+.ig label{display:block;font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.ig input,.di input{width:100%;padding:11px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px}
+.ig input:focus,.di input:focus{outline:none;border-color:var(--gl)}
+.add-row{display:flex;gap:7px}
+.add-row input:first-child{width:70px;flex-shrink:0}
+.pl{margin:9px 0}
+.pi{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;display:flex;align-items:center;margin-bottom:5px}
+.pb{background:var(--gl);color:#fff;width:27px;height:27px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;margin-right:9px;flex-shrink:0}
+.pn{flex:1;font-size:14px}
+.xb{background:none;border:none;color:var(--t2);font-size:16px;cursor:pointer;padding:4px 6px}
+
+/* scoreboard */
+.sb{background:var(--bg2);padding:12px 16px;border-bottom:1px solid var(--border)}
+.qr{display:flex;gap:5px;justify-content:center;margin-bottom:11px}
+.qb{padding:5px 11px;border-radius:14px;border:1px solid var(--border);background:var(--bg3);color:var(--t2);font-size:12px;cursor:pointer}
+.qb.active{background:var(--gl);color:#fff;border-color:var(--gl)}
+.sr{display:flex;align-items:center;justify-content:center;gap:10px}
+.st{text-align:center;min-width:95px}
+.sl{font-size:10px;color:var(--t2);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sn{font-size:58px;font-weight:900;line-height:1}
+.our{color:var(--gl)}.opp{color:var(--blue)}.svs{font-size:20px;color:var(--t2)}
+
+/* voice */
+.vs{padding:16px 16px 10px;text-align:center}
+.mb{width:86px;height:86px;border-radius:50%;background:var(--gl);border:none;font-size:34px;cursor:pointer;box-shadow:0 4px 18px rgba(76,175,80,.4);display:inline-flex;align-items:center;justify-content:center;color:#fff}
+.mb.on{background:var(--red);animation:pulse 1s infinite;box-shadow:0 4px 24px rgba(239,83,80,.5)}
+.mb:active{transform:scale(.91)!important}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+.mh{margin-top:8px;color:var(--t2);font-size:11px}
+.mr{margin-top:7px;min-height:28px;font-size:13px}
+.rc{background:var(--bg3);border-radius:14px;padding:5px 12px;display:inline-block}
+.ok{color:var(--gl);font-weight:600}.fail{color:var(--red)}
+
+/* grid */
+.sec{padding:0 14px 12px}
+.pg-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.pc{background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:7px 3px;text-align:center;cursor:pointer}
+.pc:active{background:var(--gl);border-color:var(--gl)}
+.cn{font-size:15px;font-weight:700;color:var(--gl)}
+.cm{font-size:10px;color:var(--t2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ob{display:flex;gap:6px;margin-top:7px}
+.obtn{flex:1;padding:8px 3px;background:var(--bg2);border:1px solid var(--blue);border-radius:7px;color:var(--blue);font-size:11px;cursor:pointer;text-align:center}
+.obtn:active{background:var(--blue);color:#fff}
+
+/* log */
+.lh{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+.ubtn{background:none;border:1px solid var(--border);border-radius:5px;padding:3px 9px;color:var(--t2);font-size:11px;cursor:pointer}
+.ll{max-height:120px;overflow-y:auto}
+.li{display:flex;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px;gap:5px}
+.lic{font-size:12px}.lit{flex:1}.lip{font-weight:700}
+.pos{color:var(--gl)}.neg{color:var(--red)}.neu{color:var(--t2)}
+
+/* stats table */
+.sh{padding:13px 14px 7px}
+.ss{font-size:28px;font-weight:900;color:var(--gl);margin-bottom:2px}
+.ts{overflow-x:auto;border-radius:8px;border:1px solid var(--border);margin:0 14px}
+table{width:100%;border-collapse:collapse;font-size:11px}
+.ts table{min-width:810px}
+th{background:var(--green);padding:5px 4px;text-align:center;color:#fff;font-size:10px;white-space:nowrap;border:1px solid rgba(255,255,255,.1)}
+th.sc{position:sticky;left:0;background:var(--green);z-index:2}
+th.grp{background:#1b5e20;font-size:9px;letter-spacing:.3px}
+td{padding:5px 4px;text-align:center;border-bottom:1px solid var(--border);border-right:1px solid var(--border)}
+td:last-child{border-right:none}
+td.sc{position:sticky;left:0;background:var(--bg);z-index:1;font-weight:600;white-space:nowrap;text-align:left;min-width:80px}
+tr.tr td{background:var(--bg2);font-weight:700;border-top:2px solid var(--green)}
+tr.tr td.sc{background:var(--bg2)}
+.ptc{color:var(--gl);font-weight:700}.pcc{color:var(--yellow);font-size:10px;font-weight:600}
+
+/* share panel */
+.sp{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;margin:12px 14px}
+.sp-ttl{font-size:11px;color:var(--t2);margin-bottom:8px}
+.sb-row{display:flex;gap:7px}
+.sb-btn{flex:1;padding:9px 5px;border-radius:8px;border:none;cursor:pointer;font-size:12px;font-weight:600}
+.sb-btn:active{opacity:.8}
+.sb-line{background:#06c755;color:#fff}
+.sb-link{background:var(--blue);color:#000}
+
+/* history */
+.hh{padding:13px 14px 8px;display:flex;align-items:center;justify-content:space-between}
+.hl{padding:0 14px}
+.gi{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:7px;cursor:pointer;display:flex;align-items:center;gap:10px}
+.gi:active{background:var(--bg3)}
+.gd{font-size:11px;color:var(--t2);margin-bottom:2px}
+.gm{font-size:14px;font-weight:600}
+.gs{font-size:20px;font-weight:900;margin-left:auto;white-space:nowrap}
+.gs.win{color:var(--gl)}.gs.loss{color:var(--red)}.gs.draw{color:var(--yellow)}
+.gdel{background:none;border:none;color:var(--t2);font-size:17px;cursor:pointer;padding:4px;margin-left:4px}
+.es{text-align:center;padding:36px 20px;color:var(--t2);font-size:13px}
+.ei{font-size:38px;margin-bottom:8px}
+
+/* bottom nav */
+.bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--bg2);border-top:1px solid var(--border);display:flex;z-index:50}
+.nb{flex:1;padding:9px 6px 13px;text-align:center;cursor:pointer;background:none;border:none;color:var(--t2);font-size:10px}
+.ni{font-size:18px;display:block}
+.nb.active{color:var(--gl)}
+
+/* modal */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:flex-end;z-index:200}
+.ov.show{display:flex}
+.mo{background:var(--bg2);border-radius:14px 14px 0 0;padding:18px 14px 28px;width:100%}
+.mo-ttl{font-size:16px;font-weight:700;text-align:center;margin-bottom:12px}
+.mo-sec{margin-bottom:10px}
+.mo-lbl{font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.ag{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.ai{background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:10px 5px;text-align:center;cursor:pointer}
+.ai:active{opacity:.8}
+.ai.made{border-color:var(--gl)}.ai.made:active{background:var(--gl)}
+.ai.miss:active{background:var(--red);opacity:1}
+.ai.other:active{background:#ff6b35}
+.aic{font-size:20px;display:block;margin-bottom:2px}
+.ail{font-size:10px;color:var(--t2)}
+.ai.made .ail{color:var(--gl)}
+
+/* dialog */
+.dov{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:250}
+.dov.show{display:flex}
+.di{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px;width:calc(100% - 40px);max-width:340px}
+.di-ttl{font-size:16px;font-weight:700;margin-bottom:14px}
+.di input{margin-bottom:12px}
+.di-btns{display:flex;gap:8px}
+.di-btns .btn{flex:1}
+
+/* share view */
+.svh{background:var(--bg2);padding:14px 16px;border-bottom:1px solid var(--border);text-align:center}
+.svt{font-size:12px;color:var(--t2);margin-bottom:2px}
+.svm{font-size:24px;font-weight:900}
+
+/* toast */
+.toast{position:fixed;top:66px;left:50%;transform:translateX(-50%) translateY(-8px);background:var(--gl);color:#fff;padding:8px 18px;border-radius:16px;font-size:12px;font-weight:600;z-index:300;opacity:0;transition:all .25s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{background:var(--red)}.toast.warn{background:var(--yellow);color:#000}
+/* firebase */
+.fb-guide{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:11px;color:var(--t2);line-height:1.9;margin-bottom:10px}
+.fb-guide strong{color:var(--text)}
+.fb-guide a{color:var(--blue);text-decoration:none}
+textarea{width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:11px;font-family:monospace;resize:vertical;box-sizing:border-box}
+textarea:focus{outline:none;border-color:var(--gl)}
+.live-dot{display:inline-block;width:8px;height:8px;background:var(--red);border-radius:50%;margin-right:5px;animation:pulse 1.2s infinite}
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<!-- Action modal -->
+<div class="ov" id="ov">
+  <div class="mo">
+    <div class="mo-ttl" id="mo-ttl">選擇動作</div>
+    <div class="mo-sec"><div class="mo-lbl">得分記錄</div><div class="ag" id="sg"></div></div>
+    <div class="mo-sec"><div class="mo-lbl">其他記錄</div><div class="ag" id="og" style="grid-template-columns:repeat(4,1fr)"></div></div>
+    <button class="btn btn-dim btn-full" style="margin-top:10px" onclick="closeModal()">取消</button>
+  </div>
+</div>
+
+<!-- New game dialog -->
+<div class="dov" id="ngd">
+  <div class="di">
+    <div class="di-ttl">🏀 開始新比賽</div>
+    <input type="text" id="nopp" placeholder="對手隊名（例：雄鷹隊）">
+    <div class="di-btns">
+      <button class="btn btn-dim" onclick="closeNGD()">取消</button>
+      <button class="btn btn-g" onclick="confirmNG()">開始</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── SETUP ── -->
+<div class="screen active" id="setupScreen">
+  <div class="sw">
+    <div class="big-ttl">🏀 籃球比賽統計表</div>
+    <div class="big-sub">語音記錄 · 多場存檔 · 一鍵分享</div>
+    <div class="ig"><label>我方隊名</label><input type="text" id="teamName" placeholder="例：小虎隊"></div>
+    <div class="ig">
+      <label>新增球員名單</label>
+      <div class="add-row">
+        <input type="number" id="inpNum" placeholder="#" min="0" max="99">
+        <input type="text" id="inpName" placeholder="姓名" style="flex:1">
+        <button class="btn btn-g" onclick="addRoster()" style="padding:11px 14px">＋</button>
+      </div>
+    </div>
+    <div class="pl" id="rList"></div>
+    <button class="btn btn-g btn-full" style="padding:14px;font-size:16px;margin-top:4px" onclick="saveSetup()">儲存並開始 →</button>
+    <div style="padding:11px;background:var(--bg2);border-radius:10px;font-size:11px;color:var(--t2);line-height:1.9;margin-top:12px">
+      <strong style="color:var(--text)">語音指令</strong><br>
+      「<span style="color:var(--gl)">三號兩分</span>」「<span style="color:var(--gl)">五號三分不進</span>」<br>
+      「<span style="color:var(--gl)">七號籃板</span>」「<span style="color:var(--gl)">八號助攻</span>」「<span style="color:var(--gl)">對方三分</span>」
+    </div>
+  </div>
+</div>
+
+<!-- ── GAME ── -->
+<div class="screen" id="gameScreen">
+  <div class="pg" id="gameContent"></div>
+  <div class="bnav">
+    <button class="nb active" id="nG" onclick="go('game')"><span class="ni">🏀</span>比賽</button>
+    <button class="nb" id="nS" onclick="go('stats')"><span class="ni">📊</span>統計</button>
+    <button class="nb" id="nH" onclick="go('hist')"><span class="ni">📅</span>歷史</button>
+    <button class="nb" id="nT" onclick="go('team')"><span class="ni">⚙️</span>球隊</button>
+  </div>
+</div>
+
+<!-- ── STATS ── -->
+<div class="screen" id="statsScreen">
+  <div class="pg">
+    <div class="sh">
+      <div id="statsMeta" style="font-size:11px;color:var(--t2);margin-bottom:2px"></div>
+      <div class="ss" id="statsScore"></div>
+    </div>
+    <div class="ts"><div id="statsTbl"></div></div>
+    <div class="sp">
+      <div class="sp-ttl">📤 分享統計給其他家長</div>
+      <div class="sb-row">
+        <button class="sb-btn sb-line" onclick="doShareLine()">📋 複製 LINE 文字</button>
+        <button class="sb-btn sb-link" onclick="doShareLink()">🔗 分享連結</button>
+      </div>
+      <div id="fbShareDiv1" style="display:none;margin-top:7px">
+        <button class="btn btn-full" style="background:#673ab7;color:#fff;padding:9px;font-size:12px" onclick="doShareFB()">📡 即時連結（家長可看到即時比分和統計）</button>
+      </div>
+    </div>
+    <div style="padding:0 14px 14px">
+      <button class="btn btn-full" style="background:#ff6b35;color:#fff" onclick="openNGD()">💾 完成本場 · 開始下一場</button>
+    </div>
+  </div>
+  <div class="bnav">
+    <button class="nb" id="nG2" onclick="go('game')"><span class="ni">🏀</span>比賽</button>
+    <button class="nb active" id="nS2" onclick="go('stats')"><span class="ni">📊</span>統計</button>
+    <button class="nb" id="nH2" onclick="go('hist')"><span class="ni">📅</span>歷史</button>
+    <button class="nb" id="nT2" onclick="go('team')"><span class="ni">⚙️</span>球隊</button>
+  </div>
+</div>
+
+<!-- ── HISTORY LIST ── -->
+<div class="screen" id="histScreen">
+  <div class="pg">
+    <div class="hh">
+      <div style="font-size:16px;font-weight:700">📅 歷史賽事</div>
+      <button class="btn btn-g" style="padding:7px 13px;font-size:13px" onclick="openNGD()">＋ 新比賽</button>
+    </div>
+    <div class="hl" id="histList"></div>
+  </div>
+  <div class="bnav">
+    <button class="nb" id="nG3" onclick="go('game')"><span class="ni">🏀</span>比賽</button>
+    <button class="nb" id="nS3" onclick="go('stats')"><span class="ni">📊</span>統計</button>
+    <button class="nb active" id="nH3" onclick="go('hist')"><span class="ni">📅</span>歷史</button>
+    <button class="nb" id="nT3" onclick="go('team')"><span class="ni">⚙️</span>球隊</button>
+  </div>
+</div>
+
+<!-- ── HISTORY DETAIL ── -->
+<div class="screen" id="hdScreen">
+  <div class="pg">
+    <div class="sh">
+      <button onclick="go('hist')" style="background:none;border:none;color:var(--t2);font-size:13px;cursor:pointer;margin-bottom:8px;padding:0">← 返回歷史</button>
+      <div id="hdMeta" style="font-size:11px;color:var(--t2);margin-bottom:2px"></div>
+      <div class="ss" id="hdScore"></div>
+    </div>
+    <div class="ts"><div id="hdTbl"></div></div>
+    <div class="sp">
+      <div class="sp-ttl">📤 分享這場統計</div>
+      <div class="sb-row">
+        <button class="sb-btn sb-line" onclick="hdShareLine()">📋 複製 LINE 文字</button>
+        <button class="sb-btn sb-link" onclick="hdShareLink()">🔗 分享連結</button>
+      </div>
+      <div id="fbShareDiv2" style="display:none;margin-top:7px">
+        <button class="btn btn-full" style="background:#673ab7;color:#fff;padding:9px;font-size:12px" onclick="doShareFB()">📡 即時連結</button>
+      </div>
+    </div>
+  </div>
+  <div class="bnav">
+    <button class="nb" onclick="go('game')"><span class="ni">🏀</span>比賽</button>
+    <button class="nb" onclick="go('stats')"><span class="ni">📊</span>統計</button>
+    <button class="nb active" onclick="go('hist')"><span class="ni">📅</span>歷史</button>
+    <button class="nb" onclick="go('team')"><span class="ni">⚙️</span>球隊</button>
+  </div>
+</div>
+
+<!-- ── TEAM SETTINGS ── -->
+<div class="screen" id="teamScreen">
+  <div class="pg">
+    <div class="hh"><div style="font-size:16px;font-weight:700">⚙️ 球隊管理</div></div>
+    <div style="padding:0 14px">
+      <div class="ig"><label>隊名</label><input type="text" id="teamEdit" placeholder="我方隊名"></div>
+      <button class="btn btn-g" style="margin-bottom:16px" onclick="saveTeam()">儲存隊名</button>
+      <div class="sec-ttl">球員名單</div>
+      <div class="add-row" style="margin-bottom:8px">
+        <input type="number" id="eNum" placeholder="#" min="0" max="99" style="width:70px;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px">
+        <input type="text" id="eName" placeholder="姓名" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px">
+        <button class="btn btn-g" onclick="addRosterEdit()" style="padding:10px 14px">＋</button>
+      </div>
+      <div class="pl" id="rListEdit"></div>
+      <div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--border)">
+        <div class="sec-ttl">資料管理</div>
+        <button class="btn btn-red btn-full" onclick="clearAll()">🗑 清除所有資料</button>
+      </div>
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+        <div class="sec-ttl">☁️ 雲端同步（Firebase）</div>
+        <div id="fbStatus" style="font-size:12px;color:var(--t2);margin-bottom:10px">✗ 未連接雲端</div>
+        <div class="fb-guide">
+          <strong>設定步驟：</strong><br>
+          1. 前往 <a href="#" onclick="return false" style="color:var(--blue)">console.firebase.google.com</a> 建立免費專案<br>
+          2. 選「Realtime Database」→「建立資料庫」→「測試模式」<br>
+          3. 專案設定 ⚙️ → 「您的應用程式」→ 複製設定物件 JSON<br>
+          4. 貼到下方並按「連接雲端」
+        </div>
+        <div class="ig" style="margin-bottom:10px">
+          <label>Firebase 設定 JSON</label>
+          <textarea id="fbCfgTx" rows="4" placeholder='{"apiKey":"AIza...","databaseURL":"https://xxx-rtdb.firebaseio.com","projectId":"..."}'></textarea>
+        </div>
+        <div class="ig">
+          <label>隊伍代碼（其他家長用此代碼看即時統計）</label>
+          <div style="display:flex;gap:7px">
+            <input type="text" id="fbTcIn" placeholder="例：tigers7" style="flex:1">
+            <button class="btn btn-dim" onclick="genTC()" style="padding:11px 12px">🎲</button>
+          </div>
+        </div>
+        <button class="btn btn-g btn-full" onclick="saveFBConfig()">☁️ 連接雲端</button>
+        <div id="fbLinkRow" style="display:none;margin-top:8px">
+          <button class="btn btn-full" style="background:#673ab7;color:#fff" onclick="copyFBLink()">📡 複製即時連結（分享給其他家長）</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="bnav">
+    <button class="nb" onclick="go('game')"><span class="ni">🏀</span>比賽</button>
+    <button class="nb" onclick="go('stats')"><span class="ni">📊</span>統計</button>
+    <button class="nb" onclick="go('hist')"><span class="ni">📅</span>歷史</button>
+    <button class="nb active" onclick="go('team')"><span class="ni">⚙️</span>球隊</button>
+  </div>
+</div>
+
+<!-- ── SHARE VIEW (read-only, URL #v=... or #fb=...) ── -->
+<div class="screen" id="svScreen">
+  <div class="svh">
+    <div class="svt" id="svT"></div>
+    <div class="svm" id="svM"></div>
+    <div style="font-size:11px;color:var(--t2);margin-top:3px" id="svD"></div>
+    <div id="svLive" style="display:none;margin-top:6px;font-size:11px;color:var(--red);font-weight:700">
+      <span class="live-dot"></span>LIVE 即時更新
+    </div>
+  </div>
+  <div style="padding:14px">
+    <div class="ts"><div id="svTbl"></div></div>
+    <div style="text-align:center;margin-top:14px;color:var(--t2);font-size:11px">由「籃球比賽統計表」產生</div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════
+let A={teamName:'我方',roster:[],cur:null,hist:[]};
+// cur = {id,date,opp,ourPts,oppPts,quarter,players:[{n,name,s}],log:[]}
+
+function load(){
+  try{
+    const s=localStorage.getItem('bball2');
+    if(s){A=JSON.parse(s);return;}
+    // migrate old format
+    const old=localStorage.getItem('bball');
+    if(old){
+      const g=JSON.parse(old);
+      A.teamName=g.team||'我方';
+      A.roster=(g.players||[]).map(p=>({n:p.n,name:p.name}));
+      if(g.ourPts||g.oppPts||(g.log&&g.log.length)){
+        A.cur={id:''+Date.now(),date:fmt(),opp:g.opp||'對手',
+          ourPts:g.ourPts||0,oppPts:g.oppPts||0,quarter:g.quarter||1,
+          players:g.players||[],log:g.log||[]};
+      }
+    }
+  }catch(e){}
+}
+function save(){try{localStorage.setItem('bball2',JSON.stringify(A));}catch(e){}fbSave();}
+function newS(){return{pts:0,twoM:0,twoA:0,threeM:0,threeA:0,ftM:0,ftA:0,reb:0,oreb:0,ast:0,stl:0,blk:0,foul:0,to:0};}
+function fmt(){
+  const d=new Date();
+  const wd=['日','一','二','三','四','五','六'][d.getDay()];
+  const h=String(d.getHours()).padStart(2,'0');
+  const min=String(d.getMinutes()).padStart(2,'0');
+  return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}（${wd}）${h}:${min}`;
+}
+
+// ═══════════════════════════════════════════════════
+// ACTIONS
+// ═══════════════════════════════════════════════════
+const SA=[
+  {id:'2pt',  l:'兩分命中',i:'🏀',p:2,m:false},
+  {id:'2miss',l:'兩分不進',i:'⭕',p:0,m:true},
+  {id:'3pt',  l:'三分命中',i:'🎯',p:3,m:false},
+  {id:'3miss',l:'三分不進',i:'⭕',p:0,m:true},
+  {id:'ft',   l:'罰球命中',i:'✅',p:1,m:false},
+  {id:'ftm',  l:'罰球不進',i:'⭕',p:0,m:true},
+];
+const OA=[
+  {id:'oreb',l:'進攻板',i:'🔥'},{id:'reb', l:'防守板',i:'💪'},
+  {id:'ast', l:'助攻',  i:'🤝'},{id:'stl', l:'搶斷',  i:'⚡'},
+  {id:'blk', l:'蓋帽',  i:'🚫'},{id:'foul',l:'犯規',  i:'✋'},
+  {id:'to',  l:'失誤',  i:'💫'},
+];
+const ALL=[...SA,...OA];
+const fa=id=>ALL.find(a=>a.id===id);
+
+// ═══════════════════════════════════════════════════
+// ROSTER
+// ═══════════════════════════════════════════════════
+function addRoster(){
+  const n=document.getElementById('inpNum').value.trim();
+  const nm=document.getElementById('inpName').value.trim();
+  if(!n||!nm){toast('請輸入號碼和姓名','err');return;}
+  if(A.roster.find(p=>p.n==+n)){toast('號碼重複','err');return;}
+  A.roster.push({n:+n,name:nm});A.roster.sort((a,b)=>a.n-b.n);
+  document.getElementById('inpNum').value='';document.getElementById('inpName').value='';
+  document.getElementById('inpNum').focus();renderRL('rList');
+}
+function addRosterEdit(){
+  const n=document.getElementById('eNum').value.trim();
+  const nm=document.getElementById('eName').value.trim();
+  if(!n||!nm){toast('請輸入號碼和姓名','err');return;}
+  if(A.roster.find(p=>p.n==+n)){toast('號碼重複','err');return;}
+  A.roster.push({n:+n,name:nm});A.roster.sort((a,b)=>a.n-b.n);
+  document.getElementById('eNum').value='';document.getElementById('eName').value='';
+  save();renderRL('rList');renderRL('rListEdit');
+}
+function delR(n){A.roster=A.roster.filter(p=>p.n!==n);save();renderRL('rList');renderRL('rListEdit');}
+function renderRL(id){
+  const el=document.getElementById(id);if(!el)return;
+  el.innerHTML=A.roster.map(p=>`
+    <div class="pi"><div class="pb">${p.n}</div><div class="pn">${p.name}</div>
+    <button class="xb" onclick="delR(${p.n})">✕</button></div>`).join('')
+    ||'<div style="color:var(--t2);font-size:12px;padding:6px 0">尚無球員</div>';
+}
+
+function saveSetup(){
+  const nm=document.getElementById('teamName').value.trim();
+  if(!A.roster.length){toast('請先新增球員','err');return;}
+  A.teamName=nm||'我方';save();
+  if(!A.cur){openNGD();}else{initUI();go('game');}
+}
+function saveTeam(){
+  const nm=document.getElementById('teamEdit').value.trim();
+  if(nm)A.teamName=nm;save();toast('已儲存');
+}
+function clearAll(){
+  if(confirm('確定清除所有資料？')){
+    localStorage.removeItem('bball2');localStorage.removeItem('bball');
+    A={teamName:'我方',roster:[],cur:null,hist:[]};
+    showScreen('setupScreen');renderRL('rList');toast('已清除');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// NEW GAME DIALOG
+// ═══════════════════════════════════════════════════
+function openNGD(){document.getElementById('nopp').value='';document.getElementById('ngd').classList.add('show');setTimeout(()=>document.getElementById('nopp').focus(),200);}
+function closeNGD(){document.getElementById('ngd').classList.remove('show');}
+function confirmNG(){
+  const opp=document.getElementById('nopp').value.trim()||'對手';
+  if(A.cur&&(A.cur.ourPts||A.cur.oppPts||A.cur.log.length)){
+    A.hist.unshift({...A.cur,status:'done'});
+    if(A.hist.length>60)A.hist.pop();
+  }
+  A.cur={id:''+Date.now(),date:fmt(),opp,ourPts:0,oppPts:0,quarter:1,
+    players:A.roster.map(r=>({n:r.n,name:r.name,s:newS()})),log:[]};
+  save();closeNGD();initUI();go('game');toast(`新比賽：vs ${opp}`);
+}
+
+// ═══════════════════════════════════════════════════
+// GAME SCREEN
+// ═══════════════════════════════════════════════════
+function initUI(){renderGame();renderStats();renderHist();}
+
+function renderGame(){
+  const el=document.getElementById('gameContent');
+  if(!A.cur){
+    el.innerHTML=`<div class="es" style="padding-top:60px"><div class="ei">🏀</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px">尚無進行中的比賽</div>
+      <button class="btn btn-g" style="padding:13px 22px;font-size:15px" onclick="openNGD()">＋ 新比賽</button></div>`;
+    return;
+  }
+  const g=A.cur;
+  el.innerHTML=`
+    <div class="sb">
+      <div class="qr">${['Q1','Q2','Q3','Q4','OT'].map((q,i)=>
+        `<button class="qb${g.quarter===i+1?' active':''}" onclick="setQ(${i+1},this)">${q}</button>`).join('')}</div>
+      <div class="sr">
+        <div class="st"><div class="sl">${A.teamName}</div><div class="sn our" id="ourS">${g.ourPts}</div></div>
+        <div class="svs">VS</div>
+        <div class="st"><div class="sl">${g.opp}</div><div class="sn opp" id="oppS">${g.oppPts}</div></div>
+      </div>
+    </div>
+    <div class="vs">
+      <button class="mb" id="micBtn" onclick="toggleVoice()">🎙</button>
+      <div class="mh" id="micHint">點擊麥克風開始語音記錄</div>
+      <div class="mr" id="micRes"></div>
+    </div>
+    <div class="sec">
+      <div class="sec-ttl">點選球員快速記錄</div>
+      <div class="pg-grid">${g.players.map(p=>`
+        <div class="pc" onclick="openModal(${p.n})">
+          <div class="cn">#${p.n}</div><div class="cm">${p.name}</div>
+        </div>`).join('')}</div>
+      <div style="margin-top:10px">
+        <div class="sec-ttl">對手得分</div>
+        <div class="ob">
+          <div class="obtn" onclick="oppScore(1)">+1 罰球</div>
+          <div class="obtn" onclick="oppScore(2)">+2 兩分</div>
+          <div class="obtn" onclick="oppScore(3)">+3 三分</div>
+        </div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="lh">
+        <div class="sec-ttl" style="margin:0">最近記錄</div>
+        <button class="ubtn" onclick="undo()">↩ 撤銷</button>
+      </div>
+      <div class="ll" id="logEl"></div>
+    </div>`;
+  renderLog();
+}
+
+function setQ(q,btn){if(!A.cur)return;A.cur.quarter=q;document.querySelectorAll('.qb').forEach(b=>b.classList.remove('active'));btn.classList.add('active');save();}
+
+function updScore(){
+  const e1=document.getElementById('ourS'),e2=document.getElementById('oppS');
+  if(A.cur&&e1&&e2){e1.textContent=A.cur.ourPts;e2.textContent=A.cur.oppPts;}
+}
+
+// ═══════════════════════════════════════════════════
+// APPLY ACTION
+// ═══════════════════════════════════════════════════
+function act(pn,aid,silent=false){
+  const g=A.cur;if(!g)return false;
+  const p=g.players.find(x=>x.n===pn);if(!p)return false;
+  const a=fa(aid);if(!a)return false;
+  switch(aid){
+    case '2pt':  p.s.pts+=2;p.s.twoM++;p.s.twoA++;g.ourPts+=2;break;
+    case '2miss':p.s.twoA++;break;
+    case '3pt':  p.s.pts+=3;p.s.threeM++;p.s.threeA++;g.ourPts+=3;break;
+    case '3miss':p.s.threeA++;break;
+    case 'ft':   p.s.pts+=1;p.s.ftM++;p.s.ftA++;g.ourPts+=1;break;
+    case 'ftm':  p.s.ftA++;break;
+    case 'oreb': p.s.reb++;p.s.oreb++;break;
+    case 'reb':  p.s.reb++;break;case 'ast':p.s.ast++;break;
+    case 'stl':  p.s.stl++;break;case 'blk':p.s.blk++;break;
+    case 'foul': p.s.foul++;break;case 'to':p.s.to++;break;
+  }
+  g.log.unshift({q:g.quarter,ic:a.i,tx:`#${pn} ${p.name} ${a.l}`,pt:a.p>0?`+${a.p}`:'',ms:a.m||false,our:true,pn,aid});
+  if(g.log.length>80)g.log.pop();
+  updScore();renderLog();closeModal();save();
+  if(!silent)toast(`#${pn} ${p.name} ${a.l}${a.p>0?' +'+a.p:''}`);
+  return true;
+}
+
+function oppScore(pts){
+  const g=A.cur;if(!g)return;
+  g.oppPts+=pts;
+  const lb={1:'罰球',2:'兩分',3:'三分'}[pts];
+  g.log.unshift({q:g.quarter,ic:'🔵',tx:`${g.opp} ${lb}`,pt:`-${pts}`,ms:false,our:false,pn:-1,aid:'opp',oppts:pts});
+  updScore();renderLog();save();toast(`對手 ${lb}`);
+}
+
+function undo(){
+  const g=A.cur;if(!g){toast('無進行中比賽','warn');return;}
+  if(!g.log.length){toast('沒有可撤銷的動作','err');return;}
+  const l=g.log.shift();
+  if(!l.our){g.oppPts-=(l.oppts||0);}
+  else{
+    const p=g.players.find(x=>x.n===l.pn);
+    if(p)switch(l.aid){
+      case '2pt':  p.s.pts-=2;p.s.twoM--;p.s.twoA--;g.ourPts-=2;break;
+      case '2miss':p.s.twoA--;break;
+      case '3pt':  p.s.pts-=3;p.s.threeM--;p.s.threeA--;g.ourPts-=3;break;
+      case '3miss':p.s.threeA--;break;
+      case 'ft':   p.s.pts-=1;p.s.ftM--;p.s.ftA--;g.ourPts-=1;break;
+      case 'ftm':  p.s.ftA--;break;
+      case 'oreb': p.s.reb--;p.s.oreb--;break;
+      case 'reb':  p.s.reb--;break;case 'ast':p.s.ast--;break;
+      case 'stl':  p.s.stl--;break;case 'blk':p.s.blk--;break;
+      case 'foul': p.s.foul--;break;case 'to':p.s.to--;break;
+    }
+  }
+  updScore();renderLog();save();toast('已撤銷');
+}
+
+function renderLog(){
+  const el=document.getElementById('logEl');if(!el)return;
+  const g=A.cur;
+  if(!g||!g.log.length){el.innerHTML='<div style="color:var(--t2);font-size:11px;padding:6px 0">尚無記錄</div>';return;}
+  el.innerHTML=g.log.slice(0,10).map(e=>`
+    <div class="li">
+      <span class="lic">${e.ic}</span>
+      <span class="lit">Q${e.q} ${e.tx}</span>
+      ${e.pt?`<span class="lip ${e.our&&!e.ms?'pos':e.our&&e.ms?'neu':'neg'}">${e.pt}</span>`:''}
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════════
+function openModal(pn){
+  const g=A.cur;if(!g)return;
+  const p=g.players.find(x=>x.n===pn);if(!p)return;
+  document.getElementById('mo-ttl').textContent=`#${pn} ${p.name}`;
+  document.getElementById('sg').innerHTML=SA.map(a=>`
+    <div class="ai ${a.m?'miss':'made'}" onclick="act(${pn},'${a.id}')">
+      <span class="aic">${a.i}</span><span class="ail">${a.l}</span></div>`).join('');
+  document.getElementById('og').innerHTML=OA.map(a=>`
+    <div class="ai other" onclick="act(${pn},'${a.id}')">
+      <span class="aic">${a.i}</span><span class="ail">${a.l}</span></div>`).join('');
+  document.getElementById('ov').classList.add('show');
+}
+function closeModal(){document.getElementById('ov').classList.remove('show');}
+document.getElementById('ov').addEventListener('click',e=>{if(e.target===document.getElementById('ov'))closeModal();});
+
+// ═══════════════════════════════════════════════════
+// STATS TABLE
+// ═══════════════════════════════════════════════════
+function pc(m,a){return a>0?Math.round(m/a*100)+'%':'-';}
+
+function buildTbl(players){
+  if(!players||!players.length)return'<div style="color:var(--t2);padding:12px;text-align:center">無球員資料</div>';
+  const t=players.reduce((acc,p)=>{
+    ['pts','twoM','twoA','threeM','threeA','ftM','ftA','reb','oreb','ast','stl','blk','foul','to']
+      .forEach(k=>acc[k]+=(p.s[k]||0));return acc;
+  },{pts:0,twoM:0,twoA:0,threeM:0,threeA:0,ftM:0,ftA:0,reb:0,oreb:0,ast:0,stl:0,blk:0,foul:0,to:0});
+  const rows=players.map(p=>{
+    const or=p.s.oreb||0,dr=(p.s.reb||0)-or;
+    return`<tr>
+    <td class="sc">#${p.n} ${p.name}</td>
+    <td>${p.s.twoA}</td><td>${p.s.twoM}</td><td class="pcc">${pc(p.s.twoM,p.s.twoA)}</td>
+    <td>${p.s.threeA}</td><td>${p.s.threeM}</td><td class="pcc">${pc(p.s.threeM,p.s.threeA)}</td>
+    <td>${p.s.ftA}</td><td>${p.s.ftM}</td><td class="pcc">${pc(p.s.ftM,p.s.ftA)}</td>
+    <td>${or}</td><td>${dr}</td><td>${p.s.reb||0}</td>
+    <td>${p.s.ast}</td><td>${p.s.stl}</td><td>${p.s.blk}</td>
+    <td>${p.s.to}</td><td>${p.s.foul}</td><td class="ptc">${p.s.pts}</td>
+  </tr>`;}).join('');
+  const tor=t.oreb,tdr=t.reb-t.oreb;
+  return`<table><thead>
+    <tr><th class="sc" rowspan="2">球員</th>
+      <th colspan="3" class="grp">2分球</th><th colspan="3" class="grp">3分球</th><th colspan="3" class="grp">罰球</th>
+      <th colspan="3" class="grp">籃板</th>
+      <th rowspan="2">助攻</th><th rowspan="2">搶斷</th><th rowspan="2">蓋帽</th>
+      <th rowspan="2">失誤</th><th rowspan="2">犯規</th><th rowspan="2">得分</th></tr>
+    <tr><th>出手</th><th>命中</th><th style="color:var(--yellow)">%</th>
+        <th>出手</th><th>命中</th><th style="color:var(--yellow)">%</th>
+        <th>出手</th><th>命中</th><th style="color:var(--yellow)">%</th>
+        <th>進攻</th><th>防守</th><th>合計</th></tr>
+  </thead><tbody>${rows}
+    <tr class="tr">
+      <td class="sc">合計</td>
+      <td>${t.twoA}</td><td>${t.twoM}</td><td class="pcc">${pc(t.twoM,t.twoA)}</td>
+      <td>${t.threeA}</td><td>${t.threeM}</td><td class="pcc">${pc(t.threeM,t.threeA)}</td>
+      <td>${t.ftA}</td><td>${t.ftM}</td><td class="pcc">${pc(t.ftM,t.ftA)}</td>
+      <td>${tor}</td><td>${tdr}</td><td>${t.reb}</td>
+      <td>${t.ast}</td><td>${t.stl}</td><td>${t.blk}</td>
+      <td>${t.to}</td><td>${t.foul}</td><td class="ptc">${t.pts}</td>
+    </tr>
+  </tbody></table>`;
+}
+
+function renderStats(){
+  const g=A.cur;
+  if(!g){
+    document.getElementById('statsMeta').textContent='目前無進行中比賽';
+    document.getElementById('statsScore').textContent='';
+    document.getElementById('statsTbl').innerHTML='<div style="color:var(--t2);padding:14px;text-align:center;font-size:13px">請先開始一場比賽</div>';
+    return;
+  }
+  document.getElementById('statsMeta').textContent=`${A.teamName} vs ${g.opp} · ${g.date}`;
+  const w=g.ourPts>g.oppPts?'✅':g.ourPts<g.oppPts?'❌':'';
+  document.getElementById('statsScore').innerHTML=`${g.ourPts}<span style="color:var(--t2);font-size:22px"> : </span>${g.oppPts} ${w}`;
+  document.getElementById('statsTbl').innerHTML=buildTbl(g.players);
+}
+
+// ═══════════════════════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════════════════════
+function renderHist(){
+  const el=document.getElementById('histList');
+  if(!A.hist.length){
+    el.innerHTML=`<div class="es"><div class="ei">📅</div><div>尚無歷史賽事</div><div style="font-size:11px;margin-top:4px">完成比賽後自動存入</div></div>`;
+    return;
+  }
+  el.innerHTML=A.hist.map((g,i)=>{
+    const w=g.ourPts>g.oppPts,l=g.ourPts<g.oppPts;
+    return`<div class="gi" onclick="viewGame(${i})">
+      <div style="flex:1"><div class="gd">${g.date}</div><div class="gm">${A.teamName} vs ${g.opp}</div></div>
+      <div class="gs ${w?'win':l?'loss':'draw'}">${g.ourPts}:${g.oppPts}</div>
+      <button class="gdel" onclick="event.stopPropagation();delGame(${i})">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+let _hg=null;
+function viewGame(i){
+  const g=A.hist[i];if(!g)return;_hg=g;
+  document.getElementById('hdMeta').textContent=`${A.teamName} vs ${g.opp} · ${g.date}`;
+  const w=g.ourPts>g.oppPts?'✅':g.ourPts<g.oppPts?'❌':'';
+  document.getElementById('hdScore').innerHTML=`${g.ourPts}<span style="color:var(--t2);font-size:22px"> : </span>${g.oppPts} ${w}`;
+  document.getElementById('hdTbl').innerHTML=buildTbl(g.players);
+  showScreen('hdScreen');
+}
+function delGame(i){
+  if(confirm('確定刪除這場紀錄？')){A.hist.splice(i,1);save();renderHist();toast('已刪除');}
+}
+function hdShareLine(){if(_hg)shareLineText(_hg);}
+function hdShareLink(){if(_hg)shareLinkURL(_hg);}
+
+// ═══════════════════════════════════════════════════
+// SHARE
+// ═══════════════════════════════════════════════════
+function fmtLine(g){
+  const w=g.ourPts>g.oppPts?'🏆 勝':g.ourPts<g.oppPts?'❌ 敗':'🤝 平';
+  let t=`🏀 ${A.teamName} vs ${g.opp}\n比分：${g.ourPts} - ${g.oppPts}  ${w}\n📅 ${g.date}\n──────────────────\n`;
+  g.players.forEach(p=>{
+    const s=p.s;
+    if(!s.pts&&!s.reb&&!s.ast&&!s.stl&&!s.blk&&!s.foul&&!s.to)return;
+    t+=`\n#${p.n} ${p.name}`;
+    if(s.pts)t+=`  🏀${s.pts}分`;
+    if(s.reb){const or=s.oreb||0,dr=(s.reb||0)-or;t+=`  板${s.reb}(攻${or}/守${dr})`;}
+    if(s.ast)t+=`  助${s.ast}`;
+    if(s.stl)t+=`  斷${s.stl}`;if(s.blk)t+=`  帽${s.blk}`;
+    if(s.foul)t+=`  規${s.foul}`;if(s.to)t+=`  誤${s.to}`;
+    t+='\n';
+    const sl=[];
+    if(s.twoA)sl.push(`2分 ${pc(s.twoM,s.twoA)}`);
+    if(s.threeA)sl.push(`3分 ${pc(s.threeM,s.threeA)}`);
+    if(s.ftA)sl.push(`罰球 ${pc(s.ftM,s.ftA)}`);
+    if(sl.length)t+=`  ${sl.join('｜')}\n`;
+  });
+  const tot=g.players.reduce((a,p)=>{
+    ['pts','twoM','twoA','threeM','threeA','ftM','ftA','reb','oreb','ast','stl','blk','foul','to'].forEach(k=>a[k]+=(p.s[k]||0));return a;
+  },{pts:0,twoM:0,twoA:0,threeM:0,threeA:0,ftM:0,ftA:0,reb:0,oreb:0,ast:0,stl:0,blk:0,foul:0,to:0});
+  t+=`──────────────────\n全隊 ${tot.pts}分  籃板${tot.reb}(攻${tot.oreb}/守${tot.reb-tot.oreb})  助攻${tot.ast}  搶斷${tot.stl}  蓋帽${tot.blk}\n`;
+  t+=`2分${pc(tot.twoM,tot.twoA)}｜3分${pc(tot.threeM,tot.threeA)}｜罰球${pc(tot.ftM,tot.ftA)}\n失誤${tot.to}  犯規${tot.foul}`;
+  return t;
+}
+
+function genURL(g){
+  try{
+    const d={team:A.teamName,date:g.date,opp:g.opp,our:g.ourPts,opp2:g.oppPts,
+      players:g.players.map(p=>({n:p.n,name:p.name,s:p.s}))};
+    return window.location.href.split('#')[0]+'#v='+btoa(unescape(encodeURIComponent(JSON.stringify(d))));
+  }catch(e){return null;}
+}
+
+function shareLineText(g){
+  const t=fmtLine(g);
+  if(navigator.clipboard)navigator.clipboard.writeText(t).then(()=>toast('已複製！貼到 LINE 群組即可'));
+  else toast('請手動複製','err');
+}
+function shareLinkURL(g){
+  const url=genURL(g);
+  if(!url){toast('產生連結失敗','err');return;}
+  if(navigator.clipboard)navigator.clipboard.writeText(url).then(()=>toast('連結已複製！分享給其他家長'));
+  else toast('請手動複製','err');
+}
+
+function doShareLine(){if(A.cur)shareLineText(A.cur);}
+function doShareLink(){if(A.cur)shareLinkURL(A.cur);}
+
+// ═══════════════════════════════════════════════════
+// FIREBASE CLOUD SYNC
+// ═══════════════════════════════════════════════════
+let fbDb=null,fbConnected=false,FB_TC=null;
+
+function genTC(){
+  const tc='team-'+Math.random().toString(36).slice(2,7);
+  const el=document.getElementById('fbTcIn');if(el)el.value=tc;return tc;
+}
+
+function loadFirebaseSDK(){
+  return new Promise((resolve,reject)=>{
+    if(typeof firebase!=='undefined'){resolve();return;}
+    const s1=document.createElement('script');
+    s1.src='https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js';
+    s1.onload=()=>{
+      const s2=document.createElement('script');
+      s2.src='https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js';
+      s2.onload=resolve;s2.onerror=reject;document.head.appendChild(s2);
+    };
+    s1.onerror=reject;document.head.appendChild(s1);
+  });
+}
+
+async function loadFBConfig(){
+  try{
+    const cfg=localStorage.getItem('bball_fb_cfg');
+    const tc=localStorage.getItem('bball_fb_tc');
+    if(cfg&&tc){await loadFirebaseSDK();FB_TC=tc;initFirebase(JSON.parse(cfg),tc);}
+  }catch(e){console.warn('loadFBConfig:',e);}
+}
+
+function initFirebase(cfg,tc){
+  try{
+    const app=firebase.apps.length?firebase.app():firebase.initializeApp(cfg);
+    fbDb=firebase.database(app);
+    FB_TC=tc;fbConnected=true;
+    updFBUI();
+    // Push local data to cloud on connect
+    fbDb.ref('teams/'+tc).set(A).catch(()=>{});
+    toast('☁️ 雲端已連接');
+  }catch(e){
+    fbConnected=false;updFBUI();
+    toast('雲端連線失敗：請檢查設定','err');
+    console.error('Firebase init:',e);
+  }
+}
+
+async function saveFBConfig(){
+  const raw=(document.getElementById('fbCfgTx').value||'').trim();
+  let tc=(document.getElementById('fbTcIn').value||'').trim();
+  if(!raw){toast('請貼上 Firebase 設定 JSON','err');return;}
+  if(!tc)tc=genTC();
+  let cfg;
+  try{cfg=JSON.parse(raw);}catch(e){toast('JSON 格式錯誤，請重新複製','err');return;}
+  if(!cfg.databaseURL){toast('設定中缺少 databaseURL 欄位','err');return;}
+  localStorage.setItem('bball_fb_cfg',JSON.stringify(cfg));
+  localStorage.setItem('bball_fb_tc',tc);
+  FB_TC=tc;
+  toast('載入雲端SDK中…');
+  try{await loadFirebaseSDK();initFirebase(cfg,tc);}
+  catch(e){toast('載入 Firebase SDK 失敗，請檢查網路','err');}
+}
+
+function fbSave(){
+  if(!fbDb||!FB_TC||!fbConnected)return;
+  fbDb.ref('teams/'+FB_TC).set(A).catch(e=>console.warn('fb save:',e));
+}
+
+function updFBUI(){
+  const st=document.getElementById('fbStatus');
+  if(st){st.textContent=fbConnected?`✓ 已連接 · 代碼：${FB_TC}`:'✗ 未連接雲端';st.style.color=fbConnected?'var(--gl)':'var(--t2)';}
+  const tc=localStorage.getItem('bball_fb_tc');
+  const tcEl=document.getElementById('fbTcIn');if(tcEl&&tc)tcEl.value=tc;
+  const show=fbConnected?'block':'none';
+  ['fbLinkRow','fbShareDiv1','fbShareDiv2'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=show;});
+}
+
+function genFBURL(){
+  const cfg=localStorage.getItem('bball_fb_cfg');
+  if(!cfg||!FB_TC)return null;
+  try{
+    const c=JSON.parse(cfg);
+    const d={databaseURL:c.databaseURL,teamCode:FB_TC};
+    return window.location.href.split('#')[0]+'#fb='+btoa(unescape(encodeURIComponent(JSON.stringify(d))));
+  }catch(e){return null;}
+}
+
+function copyFBLink(){
+  const url=genFBURL();
+  if(!url){toast('請先連接雲端','err');return;}
+  if(navigator.clipboard)navigator.clipboard.writeText(url).then(()=>toast('📡 即時連結已複製！其他家長開啟即可看到即時統計'));
+  else{prompt('複製此連結：',url);}
+}
+function doShareFB(){copyFBLink();}
+function hdShareFB(){copyFBLink();}
+
+// Live view via Firebase REST SSE (no SDK needed for viewers)
+function checkFBView(){
+  const h=window.location.hash;
+  if(!h.startsWith('#fb='))return false;
+  try{
+    const d=JSON.parse(decodeURIComponent(escape(atob(h.slice(4)))));
+    if(!d.databaseURL||!d.teamCode)return false;
+    showScreen('svScreen');
+    const liveEl=document.getElementById('svLive');if(liveEl)liveEl.style.display='block';
+    document.getElementById('svT').textContent='📡 即時比賽統計';
+    document.getElementById('svM').textContent='連接中…';
+    document.getElementById('svD').textContent='';
+    document.getElementById('svTbl').innerHTML='';
+    const url=d.databaseURL.replace(/\/$/,'')+'/teams/'+d.teamCode+'.json';
+    const es=new EventSource(url);
+    es.addEventListener('put',ev=>{
+      try{const parsed=JSON.parse(ev.data);if(parsed.data)renderFBLive(parsed.data);}catch(e){}
+    });
+    es.addEventListener('patch',ev=>{
+      try{const parsed=JSON.parse(ev.data);if(parsed.data)renderFBLive(parsed.data);}catch(e){}
+    });
+    es.onerror=()=>{
+      const m=document.getElementById('svM');if(m)m.style.color='var(--yellow)';
+      const d2=document.getElementById('svD');if(d2)d2.textContent='連線中斷，嘗試重新連接…';
+    };
+    return true;
+  }catch(e){return false;}
+}
+
+function renderFBLive(data){
+  const g=data.cur;
+  document.getElementById('svT').textContent=(data.teamName||'球隊')+(g?` vs ${g.opp}`:'');
+  if(!g){
+    document.getElementById('svM').textContent='比賽尚未開始';
+    document.getElementById('svD').textContent='';
+    document.getElementById('svTbl').innerHTML='';
+    return;
+  }
+  const w=g.ourPts>g.oppPts?'✅':g.ourPts<g.oppPts?'❌':'';
+  document.getElementById('svM').innerHTML=`${g.ourPts} : ${g.oppPts} ${w}`;
+  document.getElementById('svM').style.color='';
+  document.getElementById('svD').textContent=`Q${g.quarter||1} · ${g.date||''}`;
+  document.getElementById('svTbl').innerHTML=buildTbl(g.players||[]);
+}
+
+// ═══════════════════════════════════════════════════
+// SHARE VIEW (URL #v=...)
+// ═══════════════════════════════════════════════════
+function checkSV(){
+  const h=window.location.hash;
+  if(!h.startsWith('#v='))return false;
+  try{
+    const d=JSON.parse(decodeURIComponent(escape(atob(h.slice(3)))));
+    const w=d.our>d.opp2?'✅':d.our<d.opp2?'❌':'';
+    document.getElementById('svT').textContent=`${d.team} vs ${d.opp}`;
+    document.getElementById('svM').textContent=`${d.our} : ${d.opp2} ${w}`;
+    document.getElementById('svD').textContent=d.date;
+    document.getElementById('svTbl').innerHTML=buildTbl(d.players);
+    showScreen('svScreen');return true;
+  }catch(e){return false;}
+}
+
+// ═══════════════════════════════════════════════════
+// VOICE
+// ═══════════════════════════════════════════════════
+let recog=null,listening=false;
+function initRecog(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){const h=document.getElementById('micHint');if(h)h.textContent='請用 Safari 開啟以使用語音';return;}
+  recog=new SR();recog.lang='zh-TW';recog.interimResults=true;recog.continuous=false;recog.maxAlternatives=3;
+  recog.onstart=()=>{listening=true;const b=document.getElementById('micBtn');if(b){b.classList.add('on');b.textContent='🔴';}const h=document.getElementById('micHint');if(h)h.textContent='正在聆聽…說出指令';const r=document.getElementById('micRes');if(r)r.innerHTML='';};
+  recog.onresult=(ev)=>{const res=ev.results[ev.results.length-1];const tx=res[0].transcript;const r=document.getElementById('micRes');if(r)r.innerHTML=`<span class="rc">"${tx}"</span>`;if(res.isFinal)parseV(tx);};
+  recog.onend=()=>{listening=false;const b=document.getElementById('micBtn');if(b){b.classList.remove('on');b.textContent='🎙';}const h=document.getElementById('micHint');if(h)h.textContent='點擊麥克風開始語音記錄';};
+  recog.onerror=(ev)=>{listening=false;const b=document.getElementById('micBtn');if(b){b.classList.remove('on');b.textContent='🎙';}const m=ev.error==='not-allowed'?'請允許麥克風權限':ev.error==='no-speech'?'沒偵測到聲音':'語音識別錯誤';const h=document.getElementById('micHint');if(h)h.textContent=m;toast(m,'err');};
+}
+function toggleVoice(){
+  if(!A.cur){toast('請先開始一場比賽','warn');return;}
+  if(!recog)initRecog();if(!recog)return;
+  if(listening){recog.stop();return;}
+  try{recog.start();}catch(e){initRecog();setTimeout(()=>recog&&recog.start(),150);}
+}
+
+const CH={'零':0,'一':1,'二':2,'兩':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9};
+function cn2n(s){
+  if(/^\d+$/.test(s))return+s;if(s==='十')return 10;
+  if(s.startsWith('十')&&s.length===2)return 10+(CH[s[1]]??0);
+  if(s.endsWith('十')&&s.length===2)return(CH[s[0]]??0)*10;
+  if(s.includes('十')&&s.length===3){const p=s.split('十');return(CH[p[0]]??0)*10+(CH[p[1]]??0);}
+  return CH[s]??NaN;
+}
+function exNum(t){
+  const m1=t.match(/(\d{1,2})\s*號?/);if(m1){const n=+m1[1];if(n>=0&&n<=99)return n;}
+  const m2=t.match(/([零一二兩三四五六七八九十]+)\s*號/);if(m2){const n=cn2n(m2[1]);if(!isNaN(n)&&n>=0&&n<=99)return n;}
+  const m3=t.match(/^([零一二兩三四五六七八九十]+)/);if(m3){const n=cn2n(m3[1]);if(!isNaN(n)&&n>=0&&n<=99)return n;}
+  return null;
+}
+
+function parseV(raw){
+  if(!A.cur)return;
+  const text=raw.replace(/\s+/g,'');
+  let html='',ok=false;
+  const g=A.cur;
+
+  if(/對方|對手|敵隊|他們|他方/.test(text)){
+    let pts=2;
+    if(text.includes('三分'))pts=3;else if(/罰球|一分/.test(text))pts=1;
+    oppScore(pts);html=`<span class="ok">✓ ${g.opp}得${pts}分</span>`;ok=true;
+  } else {
+    const num=exNum(text);
+    if(num===null){html=`<span class="fail">✗ 未識別球員號碼</span>`;}
+    else{
+      const p=g.players.find(x=>x.n===num);
+      if(!p){html=`<span class="fail">✗ 找不到${num}號球員</span>`;}
+      else{
+        const ms=/不進|沒進|未進|未命中|沒中|打鐵|偏了/.test(text);
+        let aid=null;
+        if(text.includes('三分'))aid=ms?'3miss':'3pt';
+        else if(/兩分|二分|進了|得分|進球|命中/.test(text))aid=ms?'2miss':'2pt';
+        else if(/罰球|罰進/.test(text))aid=ms?'ftm':'ft';
+        else if(/進攻籃板|進攻板/.test(text))aid='oreb';
+        else if(/籃板|搶板|防守板|防守籃板/.test(text))aid='reb';
+        else if(text.includes('助攻'))aid='ast';
+        else if(/搶斷|抄截|偷球|抄球/.test(text))aid='stl';
+        else if(/蓋帽|火鍋|阻攻|封阻/.test(text))aid='blk';
+        else if(text.includes('犯規'))aid='foul';
+        else if(/失誤|掉球|出界/.test(text))aid='to';
+
+        if(aid&&aid!=='_'){
+          if(act(num,aid,true)){
+            const a=fa(aid);html=`<span class="ok">✓ #${num} ${p.name} ${a.l}${a.p>0?' +'+a.p:''}</span>`;ok=true;
+            toast(`#${num} ${p.name} ${a.l}`);
+          }
+        }else if(!aid){
+          html=`<span style="color:var(--yellow)">找到 #${num}，請選擇動作</span>`;
+          setTimeout(()=>openModal(num),300);
+        }
+      }
+    }
+  }
+  const r=document.getElementById('micRes');if(r)r.innerHTML=html;
+  if(ok&&navigator.vibrate)navigator.vibrate(50);
+}
+
+// ═══════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
+
+function go(tab){
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
+  if(tab==='game'){
+    renderGame();showScreen('gameScreen');
+    ['nG','nG2','nG3'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('active');});
+  }else if(tab==='stats'){
+    renderStats();showScreen('statsScreen');
+    ['nS','nS2','nS3'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('active');});
+  }else if(tab==='hist'){
+    renderHist();showScreen('histScreen');
+    ['nH','nH2','nH3'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('active');});
+  }else if(tab==='team'){
+    document.getElementById('teamEdit').value=A.teamName==='我方'?'':A.teamName;
+    renderRL('rListEdit');
+    const savedCfg=localStorage.getItem('bball_fb_cfg');
+    const cfgEl=document.getElementById('fbCfgTx');if(cfgEl&&savedCfg)cfgEl.value=savedCfg;
+    updFBUI();
+    showScreen('teamScreen');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════
+let _tt;
+function toast(msg,type=''){
+  clearTimeout(_tt);const el=document.getElementById('toast');
+  el.textContent=msg;el.className=`toast show${type==='err'?' err':type==='warn'?' warn':''}`;
+  _tt=setTimeout(()=>el.classList.remove('show'),2400);
+}
+
+// ═══════════════════════════════════════════════════
+// KEY LISTENERS
+// ═══════════════════════════════════════════════════
+document.getElementById('inpNum').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('inpName').focus();});
+document.getElementById('inpName').addEventListener('keydown',e=>{if(e.key==='Enter')addRoster();});
+document.getElementById('eNum').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('eName').focus();});
+document.getElementById('eName').addEventListener('keydown',e=>{if(e.key==='Enter')addRosterEdit();});
+document.getElementById('nopp').addEventListener('keydown',e=>{if(e.key==='Enter')confirmNG();});
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+load();
+loadFBConfig(); // async — syncs in background after local data is ready
+if(!checkSV()&&!checkFBView()){
+  if(!A.roster.length){showScreen('setupScreen');renderRL('rList');}
+  else{initUI();showScreen('gameScreen');}
+}
+</script>
+</body>
+</html>
