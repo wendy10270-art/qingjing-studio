@@ -169,6 +169,10 @@ body{background:var(--bg);color:var(--ink);font-size:15px;display:flex;flex-dire
 .cell-sub-tag{font-size:7px;background:var(--blue2);color:var(--blue);padding:1px 5px;margin:0 6px 4px;border-radius:3px;text-align:center}
 .cell-paper-tag{font-size:7px;background:var(--bg2);color:var(--ink3);padding:1px 5px;margin:0 6px 4px;border-radius:3px;text-align:center;border:1px dashed var(--border)}
 .cell-up-tag{font-size:7px;background:var(--orange2);color:var(--orange);padding:1px 5px;margin:0 6px 4px;border-radius:3px;text-align:center}
+.cell.has-note{background:var(--gold4);border-color:var(--gold3);cursor:pointer}
+.cell.memo-empty{cursor:pointer}
+.cell-note{font-size:7px;color:var(--gold);padding:1px 5px 3px;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;margin:0 2px;word-break:break-all;flex:1}
+.cell.has-note .cell-num{color:var(--gold2)}
 .grid-legend{display:flex;gap:13px;font-size:11px;color:var(--ink3);margin-top:9px;flex-wrap:wrap}
 .leg-dot{width:11px;height:11px;border-radius:2px;display:inline-block;margin-right:3px;vertical-align:middle}
 
@@ -1678,7 +1682,11 @@ function renderCard(sid){
         ${isPaper?`<div class="cell-paper-tag">紙本</div>`:rec.isUpgraded?`<div class="cell-up-tag">↑${rec.upgradedTo}</div>`:rec.isSub?`<div class="cell-sub-tag">代課</div>`:''}</div>`;
     } else if(isNext){
       cells+=`<div class="cell next-up"><div class="cell-num">${i}</div><div class="cell-img" style="padding-top:7px"><svg width="24" height="13" viewBox="0 0 38 20"><path d="M3 10 Q11 3 19 10 Q27 17 35 10" stroke="#C4973A" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg></div><div class="cell-tap">本次</div></div>`;
-    } else {cells+=`<div class="cell"><div class="cell-num">${i}</div></div>`}
+    } else {
+      const cn=s.cellNotes?.[i]||'';
+      if(cn){cells+=`<div class="cell has-note" onclick="editCellNote(${i})"><div class="cell-num">${i}</div><div class="cell-note">${cn.replace(/</g,'&lt;')}</div></div>`;}
+      else{cells+=`<div class="cell memo-empty" onclick="editCellNote(${i})"><div class="cell-num">${i}</div></div>`;}
+    }
   }
   document.getElementById('gridCard').innerHTML=`<div class="card"><div class="card-hd">課程進度</div><div class="grid-wrap"><div class="grid">${cells}</div><div class="grid-legend" style="margin-top:9px"><span><span class="leg-dot" style="background:var(--gold4);border:1px solid var(--gold2)"></span>已完成</span><span><span class="leg-dot" style="background:var(--blue2);border:1px solid var(--blue3)"></span>代課</span><span><span class="leg-dot" style="background:var(--orange2);border:1px solid var(--orange3)"></span>升級</span><span><span class="leg-dot" style="border:2px solid var(--gold)"></span>本次</span></div></div></div>`;
   // 接下來的課程日期表（在 signArea 之前渲染，避免 early return 漏掉）
@@ -4743,6 +4751,37 @@ function gcManualMatch(idx, td){
   </div></div>`;
   document.body.insertAdjacentHTML('beforeend',html);
 }
+// ── 格子備忘 ──
+function editCellNote(session){
+  const s=S.find(x=>x.id===curSid);if(!s)return;
+  if(!s.cellNotes)s.cellNotes={};
+  const current=s.cellNotes[session]||'';
+  document.getElementById('cellNoteOv')?.remove();
+  const html=`<div id="cellNoteOv" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:flex-end;justify-content:center;padding-bottom:24px" onclick="if(event.target===this)this.remove()">
+    <div style="background:var(--white);border-radius:18px 18px 14px 14px;padding:20px;width:92%;max-width:380px">
+      <div style="font-size:14px;font-weight:500;color:var(--ink);margin-bottom:3px">第 ${session} 堂　備忘</div>
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:12px">課程日期、請假預告、注意事項等</div>
+      <textarea id="cellNoteInp" placeholder="例：6/20 預約上課&#10;6/25 補課（老師請假）" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;color:var(--ink);outline:none;resize:none;height:88px;font-family:'Noto Sans TC',sans-serif;margin-bottom:12px;background:var(--bg)">${current}</textarea>
+      <div style="display:flex;gap:8px">
+        <button onclick="saveCellNote(${session},'')" style="padding:11px;flex:1;background:var(--bg2);border:none;border-radius:10px;font-size:13px;cursor:pointer;color:var(--ink3);font-family:'Noto Sans TC',sans-serif">清除</button>
+        <button onclick="saveCellNote(${session},document.getElementById('cellNoteInp').value)" style="padding:11px;flex:2;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;font-weight:500;font-family:'Noto Sans TC',sans-serif">儲存</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend',html);
+  setTimeout(()=>{const inp=document.getElementById('cellNoteInp');if(inp){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);}},80);
+}
+function saveCellNote(session,note){
+  const s=S.find(x=>x.id===curSid);if(!s)return;
+  if(!s.cellNotes)s.cellNotes={};
+  const trimmed=(note||'').trim();
+  if(trimmed)s.cellNotes[session]=trimmed;
+  else delete s.cellNotes[session];
+  document.getElementById('cellNoteOv')?.remove();
+  save();renderCard(curSid);
+  showToast(trimmed?'✓ 備忘已儲存':'✓ 備忘已清除');
+}
+
 let _gcAfterAdd=null;
 function gcAddNewStu(idx,td){
   const item=window._gcNotFound&&window._gcNotFound[idx];
