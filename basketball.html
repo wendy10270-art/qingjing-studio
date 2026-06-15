@@ -61,14 +61,19 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 
 /* grid */
 .sec{padding:0 14px 12px}
-.pg-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.pc{background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:7px 3px;text-align:center;cursor:pointer}
-.pc:active{background:var(--gl);border-color:var(--gl)}
-.cn{font-size:15px;font-weight:700;color:var(--gl)}
-.cm{font-size:10px;color:var(--t2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ob{display:flex;gap:6px;margin-top:7px}
 .obtn{flex:1;padding:8px 3px;background:var(--bg2);border:1px solid var(--blue);border-radius:7px;color:var(--blue);font-size:11px;cursor:pointer;text-align:center}
 .obtn:active{background:var(--blue);color:#fff}
+/* quick action rows */
+.qk-row{display:grid;grid-template-columns:66px repeat(4,1fr) 36px;gap:4px;margin-bottom:5px;align-items:stretch}
+.qk-nm{font-size:13px;font-weight:700;color:var(--gl);line-height:1.35;cursor:pointer;display:flex;flex-direction:column;justify-content:center;padding:2px 0}
+.qk-nm span{font-size:10px;color:var(--t2);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qkb{padding:14px 1px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;color:#fff;text-align:center;line-height:1}
+.qkb:active{transform:scale(.90);opacity:.8}
+.qk2{background:var(--gl)}.qk3{background:#1565c0}
+.qkx{background:#6d1f1f;color:#ffcdd2;border:1px solid #b71c1c}
+.qkrb{background:#bf360c}
+.qkm{background:var(--bg3);border:1px solid var(--border);color:var(--t2);font-size:17px}
 
 /* log */
 .lh{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
@@ -525,10 +530,15 @@ function renderGame(){
       <div class="mr" id="micRes"></div>
     </div>
     <div class="sec">
-      <div class="sec-ttl">點選球員快速記錄</div>
-      <div class="pg-grid">${g.players.map(p=>`
-        <div class="pc" onclick="openModal(${p.n})">
-          <div class="cn">#${p.n}</div><div class="cm">${p.name}</div>
+      <div class="sec-ttl">快速記錄（點名字開完整選單）</div>
+      <div>${g.players.map(p=>`
+        <div class="qk-row">
+          <div class="qk-nm" onclick="openModal(${p.n})">#${p.n}<span>${p.name}</span></div>
+          <button class="qkb qk2" onclick="act(${p.n},'2pt')">2分</button>
+          <button class="qkb qk3" onclick="act(${p.n},'3pt')">3分</button>
+          <button class="qkb qkx" onclick="act(${p.n},'2miss')">沒進</button>
+          <button class="qkb qkrb" onclick="act(${p.n},'reb')">籃板</button>
+          <button class="qkb qkm" onclick="openModal(${p.n})">•••</button>
         </div>`).join('')}</div>
       <div style="margin-top:10px">
         <div class="sec-ttl">對手得分</div>
