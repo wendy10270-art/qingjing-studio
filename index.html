@@ -1154,6 +1154,8 @@ let SCH=JSON.parse(localStorage.getItem('qjf_sch')||'{}');
 // T: 體驗課紀錄 {id, name, course, ratio, teacher, date, time, fee, teacherFee, sig}
 let T=JSON.parse(localStorage.getItem('qjf_t')||'[]');
 let L=JSON.parse(localStorage.getItem('qjf_l')||'[]');
+let LEDGER=JSON.parse(localStorage.getItem('qjf_ledger')||'[]');
+let TL=JSON.parse(localStorage.getItem('qjf_tl')||'[]');
 function save(){
   // 本地備份
   localStorage.setItem('qjf_s',JSON.stringify(S));
@@ -1581,7 +1583,7 @@ function renderTeachers(){
   }).join('')}
   </div>`;
 }
-renderTeachers();
+try{renderTeachers();}catch(e){console.error('renderTeachers init:',e);}
 
 // ── 底部 Tab 導航 ──
 let _currentTab='home';
@@ -4445,8 +4447,6 @@ function updateLineMsgWithAppt(date,time){
 
 
 // ── 流水帳 ──
-let LEDGER=JSON.parse(localStorage.getItem('qjf_ledger')||'[]');
-let TL=JSON.parse(localStorage.getItem('qjf_tl')||'[]');
 
 function addLedgerEntry(entry){
   entry.id='led'+Date.now();
