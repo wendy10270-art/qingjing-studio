@@ -1559,6 +1559,39 @@ function onHomeSearch(val){
 function homeSearchSelect(sid){
   document.getElementById('homeSearchInp').value='';
   document.getElementById('homeSearchResults').style.display='none';
+  const s=S.find(x=>x.id===sid);
+  if(s){
+    const td=todayStr();
+    const inSch=((SCH[td]||{})[s.teacher]||[]).find(sl=>sl.sid===sid);
+    if(!inSch){
+      document.getElementById('addSchPromptOv')?.remove();
+      const html=`<div id="addSchPromptOv" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3000;display:flex;align-items:flex-end">
+        <div style="background:var(--white);border-radius:18px 18px 0 0;width:100%;padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px))">
+          <div style="font-size:15px;font-weight:500;color:var(--ink);margin-bottom:3px">${s.name} 今日不在課表</div>
+          <div style="font-size:13px;color:var(--ink3);margin-bottom:18px">指導老師：${s.teacher}・${s.course}</div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <button onclick="addToSchAndSelect('${sid}')" style="width:100%;padding:14px;background:var(--gold);color:#fff;border:none;border-radius:12px;font-size:15px;cursor:pointer;font-family:'Noto Sans TC',sans-serif;font-weight:500">＋ 加入今日課表並進入課卡</button>
+            <button onclick="document.getElementById('addSchPromptOv').remove();selectStu('${sid}')" style="width:100%;padding:14px;background:var(--bg2);color:var(--ink2);border:none;border-radius:12px;font-size:14px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">直接進入課卡（不加入課表）</button>
+          </div>
+        </div>
+      </div>`;
+      document.body.insertAdjacentHTML('beforeend',html);
+      return;
+    }
+  }
+  selectStu(sid);
+}
+function addToSchAndSelect(sid){
+  document.getElementById('addSchPromptOv')?.remove();
+  const s=S.find(x=>x.id===sid);if(!s){selectStu(sid);return;}
+  const td=todayStr();
+  if(!SCH[td])SCH[td]={};
+  if(!SCH[td][s.teacher])SCH[td][s.teacher]=[];
+  if(!SCH[td][s.teacher].find(sl=>sl.sid===sid)){
+    SCH[td][s.teacher].push({sid,time:''});
+    markSchChanged();save();
+    showToast('✓ 已加入今日 '+s.teacher+' 課表');
+  }
   selectStu(sid);
 }
 // 點搜尋框外就關閉結果
