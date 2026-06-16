@@ -540,6 +540,11 @@ const db={
       <div class="day-week" id="heroWeek">星期日</div>
       <div class="day-hint" id="heroHint"></div>
     </div>
+    <!-- 首頁快速查學員 -->
+    <div style="position:relative;margin-bottom:12px">
+      <input id="homeSearchInp" type="text" placeholder="🔍 快速找學員課卡…" oninput="onHomeSearch(this.value)" onfocus="onHomeSearch(this.value)" style="width:100%;padding:11px 16px;border:1.5px solid var(--border);border-radius:12px;background:var(--white);font-family:'Noto Sans TC',sans-serif;font-size:14px;color:var(--ink);outline:none">
+      <div id="homeSearchResults" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--white);border:1.5px solid var(--border);border-radius:12px;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,.10);max-height:260px;overflow-y:auto"></div>
+    </div>
     <div id="teacherArea"><div class="no-sch-box"><div style="font-size:28px;margin-bottom:12px">📋</div><div style="font-size:17px;letter-spacing:2px;color:var(--ink2);margin:12px 0 8px">今日尚未設定課程</div><div style="font-size:13px;color:var(--ink3);line-height:1.9">請小幫手點右上角小圓點<br>輸入密碼進入管理後台設定</div></div>
     <div class="trial-add-btn" onclick="openTrialModal()" style="margin-top:12px">
       <div class="trial-add-icon">＋</div>
@@ -1508,6 +1513,45 @@ function selectTeacher(t){
   renderStuList();
   goScreen('sc-students');
 }
+
+// ── 首頁快速查學員 ──
+function onHomeSearch(val){
+  const res=document.getElementById('homeSearchResults');if(!res)return;
+  const v=val.trim();
+  if(!v){res.style.display='none';return;}
+  const hits=S.filter(s=>s.name.includes(v)||s.phone.includes(v));
+  if(!hits.length){
+    res.style.display='block';
+    res.innerHTML='<div style="padding:14px 16px;font-size:13px;color:var(--ink3)">找不到符合的學員</div>';
+    return;
+  }
+  res.style.display='block';
+  res.innerHTML=hits.map(s=>{
+    const remain=s.total-s.used;
+    const rc=remain<=0?'var(--red)':remain<=3?'#B8860B':remain<=6?'var(--gold2)':'var(--gold)';
+    return`<div onclick="homeSearchSelect('${s.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--bg2);cursor:pointer;active:background:var(--bg)">
+      <div>
+        <div style="font-size:14px;font-weight:500;color:var(--ink)">${s.name}</div>
+        <div style="font-size:11px;color:var(--ink3);margin-top:2px">${s.course}・${s.teacher}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:18px;font-weight:600;color:${rc}">${remain}</div>
+        <div style="font-size:10px;color:var(--ink3)">堂可用</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function homeSearchSelect(sid){
+  document.getElementById('homeSearchInp').value='';
+  document.getElementById('homeSearchResults').style.display='none';
+  selectStu(sid);
+}
+// 點搜尋框外就關閉結果
+document.addEventListener('click',e=>{
+  const inp=document.getElementById('homeSearchInp');
+  const res=document.getElementById('homeSearchResults');
+  if(res&&inp&&!inp.contains(e.target)&&!res.contains(e.target))res.style.display='none';
+});
 
 // ── 搜尋 ──
 function onSearch(val){
