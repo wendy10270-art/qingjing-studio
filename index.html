@@ -1582,17 +1582,23 @@ function homeSearchSelect(sid){
   selectStu(sid);
 }
 function addToSchAndSelect(sid){
-  document.getElementById('addSchPromptOv')?.remove();
-  const s=S.find(x=>x.id===sid);if(!s){selectStu(sid);return;}
-  const td=todayStr();
-  if(!SCH[td])SCH[td]={};
-  if(!SCH[td][s.teacher])SCH[td][s.teacher]=[];
-  if(!SCH[td][s.teacher].find(sl=>sl.sid===sid)){
-    SCH[td][s.teacher].push({sid,time:''});
-    markSchChanged();save();
-    showToast('✓ 已加入今日 '+s.teacher+' 課表');
+  try{
+    document.getElementById('addSchPromptOv')?.remove();
+    const s=S.find(x=>x.id===sid);if(!s){selectStu(sid);return;}
+    const td=todayStr();
+    if(!SCH[td])SCH[td]={};
+    if(!SCH[td][s.teacher])SCH[td][s.teacher]=[];
+    if(!SCH[td][s.teacher].find(sl=>sl.sid===sid)){
+      SCH[td][s.teacher].push({sid,time:''});
+      markSchChanged();save();
+      showToast('✓ 已加入今日 '+s.teacher+' 課表');
+    }
+    curTeacher=s.teacher;
+    setTimeout(()=>{try{selectStu(sid);}catch(e2){console.error('selectStu error:',e2);showToast('錯誤：'+e2.message,'r');}},50);
+  }catch(e){
+    console.error('addToSchAndSelect error:',e);
+    showToast('錯誤：'+e.message,'r');
   }
-  selectStu(sid);
 }
 // 點搜尋框外就關閉結果
 document.addEventListener('click',e=>{
