@@ -1487,32 +1487,13 @@ function renderTeachers(){
           <div style="font-size:13px;color:var(--ink3)">點選進入 ›</div>
         </div>
       </div>
-      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bg2)" onclick="event.stopPropagation()">
-        ${slots.map(sl=>{
-          const s=S.find(x=>x.id===sl.sid);if(!s)return'';
-          const signed=recs.find(r=>r.sid===sl.sid);
-          const remain=s.total-s.used;
-          return`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--bg)">
-            <div style="display:flex;align-items:center;gap:8px">
-              ${signed?`<span style="font-size:10px;color:var(--green)">✓</span>`:`<span style="font-size:10px;color:var(--border)">○</span>`}
-              <span style="font-size:13px;color:var(--ink)">${s.name}</span>
-              <span style="font-size:11px;color:${remain<=3?'var(--red)':'var(--ink3)'}">${remain}堂</span>
-            </div>
-            <button onclick="selectStu('${sl.sid}')" style="padding:3px 10px;background:var(--gold4);border:1px solid var(--gold2);border-radius:6px;font-size:11px;cursor:pointer;color:var(--gold);font-family:'Noto Sans TC',sans-serif">課卡</button>
-          </div>`;
-        }).join('')}
-        ${trialForT.map(tr=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--bg)">
-          <div style="display:flex;align-items:center;gap:8px">
-            ${tr.sig?`<span style="font-size:10px;color:var(--teal)">✓</span>`:`<span style="font-size:10px;color:var(--border)">○</span>`}
-            <span style="font-size:13px;color:var(--ink)">${tr.name}</span>
-            <span style="font-size:10px;color:var(--teal);background:var(--teal2);border:1px solid var(--teal3);border-radius:4px;padding:1px 5px">體驗</span>
-          </div>
-        </div>`).join('')}
-        <div style="display:flex;justify-content:flex-end;margin-top:8px">
-          <button onclick="openTrialModalForTeacher('${t}')" style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:var(--teal2);border:1.5px solid var(--teal3);border-radius:20px;font-size:13px;cursor:pointer;color:var(--teal);font-family:'Noto Sans TC',sans-serif">
-            ＋ 新增體驗學員
-          </button>
-        </div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bg2);display:flex;justify-content:space-between;gap:8px" onclick="event.stopPropagation()">
+        <button onclick="openTrialModalForTeacher('${t}')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 10px;background:var(--teal2);border:1.5px solid var(--teal3);border-radius:20px;font-size:13px;cursor:pointer;color:var(--teal);font-family:'Noto Sans TC',sans-serif">
+          ＋ 新增體驗學員
+        </button>
+        <button onclick="openTeacherCardPicker('${t}')" style="display:flex;align-items:center;justify-content:center;gap:5px;padding:7px 14px;background:var(--gold4);border:1.5px solid var(--gold2);border-radius:20px;font-size:13px;cursor:pointer;color:var(--gold);font-family:'Noto Sans TC',sans-serif">
+          🔍 查課卡
+        </button>
       </div>
     </div>`;
   }).join('')}
@@ -1578,6 +1559,48 @@ document.addEventListener('click',e=>{
   const res=document.getElementById('homeSearchResults');
   if(res&&inp&&!inp.contains(e.target)&&!res.contains(e.target))res.style.display='none';
 });
+
+function openTeacherCardPicker(teacher){
+  document.getElementById('tcpOv')?.remove();
+  const td=todayStr();
+  const slots=(SCH[td]||{})[teacher]||[];
+  const trials=T.filter(tr=>tr.date===td&&tr.teacher===teacher);
+  const recs=R.filter(r=>r.date===td);
+  let rows='';
+  slots.forEach(sl=>{
+    const s=S.find(x=>x.id===sl.sid);if(!s)return;
+    const signed=recs.find(r=>r.sid===sl.sid);
+    const remain=s.total-s.used;
+    const rc=remain<=0?'var(--red)':remain<=3?'#B8860B':'var(--gold2)';
+    rows+=`<div onclick="document.getElementById('tcpOv').remove();selectStu('${sl.sid}')" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--bg2);cursor:pointer;active:background:var(--bg)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:12px;color:${signed?'var(--green)':'var(--border)'}">${signed?'✓':'○'}</span>
+        <span style="font-size:15px;color:var(--ink)">${s.name}</span>
+      </div>
+      <span style="font-size:12px;color:${rc};font-weight:500">${remain}堂</span>
+    </div>`;
+  });
+  trials.forEach(tr=>{
+    rows+=`<div onclick="document.getElementById('tcpOv').remove();selectTrialStu('${tr.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--bg2);cursor:pointer">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:12px;color:${tr.sig?'var(--teal)':'var(--border)'}">${tr.sig?'✓':'○'}</span>
+        <span style="font-size:15px;color:var(--ink)">${tr.name}</span>
+        <span style="font-size:10px;color:var(--teal);background:var(--teal2);border:1px solid var(--teal3);border-radius:4px;padding:1px 6px">體驗</span>
+      </div>
+    </div>`;
+  });
+  if(!rows)rows=`<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">今日無排課學員</div>`;
+  const html=`<div id="tcpOv" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3000;display:flex;align-items:flex-end">
+    <div style="background:var(--white);border-radius:18px 18px 0 0;width:100%;max-height:70vh;overflow-y:auto;padding-bottom:env(safe-area-inset-bottom,16px)">
+      <div style="padding:16px 18px 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--bg2)">
+        <div style="font-size:16px;font-weight:500;color:var(--ink);letter-spacing:1px">${teacher} 今日學員課卡</div>
+        <button onclick="document.getElementById('tcpOv').remove()" style="background:var(--bg2);border:none;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;color:var(--ink3)">✕</button>
+      </div>
+      ${rows}
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend',html);
+}
 
 // ── 搜尋 ──
 function onSearch(val){
