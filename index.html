@@ -4593,15 +4593,22 @@ const GC={
     // 去除括號備註：（木床區）（協助徵班友）（全場）（2位）等
     let notes=[];
     raw=raw.replace(/[\(（]([^)\)）]*)[\)）]/g,(_,n)=>{notes.push(n.trim());return''}).trim();
-    // 提取電話（台灣格式 09xx 10碼，或 8-10 位數）
     let name=raw,phone='';
-    // 方式1：有空格分隔「姓名 0912345678」
-    const m1=raw.match(/^(.+?)\s+(\d{8,10})\s*$/);
-    if(m1){name=m1[1].trim();phone=m1[2];}
-    else{
-      // 方式2：緊貼在名字後面「姓名0912345678」
-      const m2=raw.match(/^([一-龥A-Za-z][一-龥A-Za-z\s\.\-]*?)(\d{8,10})$/);
-      if(m2){name=m2[1].trim();phone=m2[2];}
+    // 多位學員（含兩個以上電話，如 1on2|王意蕾 09xx 林宛萱 09xx）→ 只取第一位
+    const allPhones=[...raw.matchAll(/\d{8,10}/g)];
+    if(allPhones.length>=2){
+      const first=allPhones[0];
+      phone=first[0];
+      name=raw.slice(0,first.index).trim();
+    } else {
+      // 方式1：空格分隔「姓名 0912345678」
+      const m1=raw.match(/^(.+?)\s+(\d{8,10})\s*$/);
+      if(m1){name=m1[1].trim();phone=m1[2];}
+      else{
+        // 方式2：緊貼「姓名0912345678」
+        const m2=raw.match(/^([一-龥A-Za-z][一-龥A-Za-z\s\.\-]*?)(\d{8,10})$/);
+        if(m2){name=m2[1].trim();phone=m2[2];}
+      }
     }
     return{type,name,phone,notes,raw};
   },
