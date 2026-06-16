@@ -1247,12 +1247,12 @@ function loadFromFirebase(callback){
 }
 
 function loadLedgerFromFB(callback){
-  db.ref('qingjing_ledger').once('value').then(snap=>{
+  const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000));
+  Promise.race([db.ref('qingjing_ledger').once('value'),timeout]).then(snap=>{
     const d=snap.val();
     if(d&&Array.isArray(d)&&d.length>0){
       LEDGER=d;
       localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
-      console.log('✓ 從 Firebase 載入流水帳，共',LEDGER.length,'筆');
     }
     if(callback)callback();
   }).catch(e=>{console.warn('Ledger load error:',e);if(callback)callback();});
@@ -1366,12 +1366,16 @@ function startPeriodicSync(){
   },30000);
 
   // 手機/平板從背景回到前景時立刻同步
+  let _syncing=false;
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState==='visible'){
+      if(_syncing)return; // 防止並發
       if(Date.now()-_lastSaveMs<3000)return;
+      _syncing=true;
       showSyncStatus('syncing');
       loadFromFirebase(()=>{
         loadLedgerFromFB(()=>{
+          _syncing=false;
           try{renderTeachers();}catch(e){console.warn('renderTeachers error:',e);}
           showSyncStatus('synced');
           try{renderDashboard();}catch(e){}
@@ -1401,6 +1405,11 @@ function goScreen(id){
   document.querySelectorAll('#mainScroll .screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   try{ms.scrollTop=0}catch(e){}
+  // 清除任何殘留的 overlay，防止卡住畫面
+  document.getElementById('cellNoteOv')?.remove();
+  document.getElementById('tcpOv')?.remove();
+  document.getElementById('homeSearchResults').style.display='none';
+  document.getElementById('homeSearchInp').value='';
 }
 function leaveAdmin(){goScreen('sc-teachers')}
 function closeOvById(id){const el=document.getElementById(id);if(el)el.classList.remove('open')}
