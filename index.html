@@ -25,18 +25,21 @@
   --orange:#C05C00;--orange2:#FFF0E0;--orange3:#FFD8A0;
   --teal:#0F6E56;--teal2:#E1F5EE;--teal3:#9FE1CB;
   --shadow:0 2px 8px rgba(44,36,22,.1);
+  --brown:#3E2009;--brown2:#6B3E1A;--brown3:#A07855;--brown4:#D4BFA0;--cream:#F5EDE0;--cream2:#EDE0CE;
 }
+.bot-tab.active{color:var(--brown) !important}
+.bot-tab.active svg{stroke:var(--brown)}
 html,body{height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--ink);font-size:15px;display:flex;flex-direction:column}
 
 /* Header */
-.hdr{background:var(--ink);padding:0 18px;display:flex;align-items:center;justify-content:space-between;height:62px;flex-shrink:0;position:relative}
+.hdr{background:var(--brown);padding:0 18px;display:flex;align-items:center;justify-content:space-between;height:62px;flex-shrink:0;position:relative}
 .hdr-logo{display:flex;align-items:center;gap:12px}
 .hdr-div{width:1px;height:28px;background:#3A3028}
 .hdr-brand{font-size:18px;color:var(--white);letter-spacing:4px}
-.hdr-sub{font-size:9px;color:#6A5E50;letter-spacing:2px;margin-top:3px}
+.hdr-sub{font-size:9px;color:rgba(245,237,224,.5);letter-spacing:2px;margin-top:3px}
 .hdr-time{font-size:21px;color:var(--gold3);letter-spacing:2px;text-align:right}
-.hdr-date{font-size:11px;color:#6A5E50;margin-top:2px;text-align:right}
+.hdr-date{font-size:11px;color:rgba(245,237,224,.45);margin-top:2px;text-align:right}
 .admin-dot{position:absolute;top:12px;right:14px;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,.08);cursor:pointer;border:1px solid rgba(255,255,255,.12);z-index:20}
 
 .scroll-wrap{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
@@ -534,33 +537,27 @@ const db={
 
 <!-- ══ 學生端：選老師 ══ -->
 <div class="scroll-wrap" id="mainScroll">
-  <div class="screen active" id="sc-teachers"><div class="sc-pad">
-    <div class="day-hero">
-      <div class="day-date" id="heroDate">2026年6月7日</div>
-      <div class="day-week" id="heroWeek">星期日</div>
-      <div class="day-hint" id="heroHint"></div>
-    </div>
-    <!-- 首頁快速查學員 -->
-    <div style="position:relative;margin-bottom:12px">
-      <input id="homeSearchInp" type="text" placeholder="🔍 快速找學員課卡…" oninput="onHomeSearch(this.value)" onfocus="onHomeSearch(this.value)" style="width:100%;padding:11px 16px;border:1.5px solid var(--border);border-radius:12px;background:var(--white);font-family:'Noto Sans TC',sans-serif;font-size:14px;color:var(--ink);outline:none">
-      <div id="homeSearchResults" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--white);border:1.5px solid var(--border);border-radius:12px;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,.10);max-height:260px;overflow-y:auto"></div>
-    </div>
-    <div id="teacherArea"><div class="no-sch-box"><div style="font-size:28px;margin-bottom:12px">📋</div><div style="font-size:17px;letter-spacing:2px;color:var(--ink2);margin:12px 0 8px">今日尚未設定課程</div><div style="font-size:13px;color:var(--ink3);line-height:1.9">請小幫手點右上角小圓點<br>輸入密碼進入管理後台設定</div></div>
-    <div class="trial-add-btn" onclick="openTrialModal()" style="margin-top:12px">
-      <div class="trial-add-icon">＋</div>
-      <div class="trial-add-text">
-        <div class="trial-add-ttl">新增體驗學員</div>
-        <div class="trial-add-sub">快速記錄今日體驗同學</div>
+  <div class="screen active" id="sc-teachers">
+    <div id="homeHero" style="background:var(--brown);padding:14px 18px 16px;flex-shrink:0">
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;color:rgba(245,237,224,.6);letter-spacing:1px;margin-bottom:6px">學員簽到</div>
+        <div style="position:relative">
+          <div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);border-radius:11px;padding:10px 14px;border:1px solid rgba(255,255,255,.2)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F5C882" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input id="homeSearchInp" type="text" placeholder="輸入學員姓名或電話…" oninput="onHomeSearch(this.value)" onfocus="onHomeSearch(this.value)" style="background:transparent;border:none;outline:none;color:rgba(245,237,224,.9);font-size:14px;flex:1;font-family:'Noto Sans TC',sans-serif">
+            <span style="background:var(--gold2);border-radius:7px;padding:4px 10px;font-size:11px;color:#fff;font-weight:500;white-space:nowrap;flex-shrink:0">快速找</span>
+          </div>
+          <div id="homeSearchResults" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--white);border:1px solid var(--brown4);border-radius:12px;z-index:200;box-shadow:0 4px 20px rgba(62,32,9,.2);max-height:260px;overflow-y:auto"></div>
+        </div>
       </div>
-</div>
-    <div class="trial-add-btn" onclick="openAddSimple()" style="margin-top:10px;background:var(--gold4);border-color:var(--gold2)">
-      <div class="trial-add-icon" style="background:var(--gold)">＋</div>
-      <div class="trial-add-text">
-        <div class="trial-add-ttl" style="color:var(--gold)">新增學員</div>
-        <div class="trial-add-sub" style="color:var(--gold2)">登記新同學基本資料</div>
-      </div>
-    </div></div>
-  </div></div>
+      <div id="homeTodayStats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px"></div>
+    </div>
+    <div class="sc-pad" style="padding-top:14px">
+      <div id="homeQuickActions" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px"></div>
+      <div id="homeGcSync" style="display:none;margin-bottom:12px"></div>
+      <div id="teacherArea"></div>
+    </div>
+  </div>
 
   <!-- 學生清單 -->
   <div class="screen" id="sc-students"><div class="sc-pad">
@@ -613,6 +610,7 @@ const db={
       <div class="success-lbl" id="successLbl">堂課程可用</div>
       <div id="nextBookingArea" style="margin-top:20px;max-width:320px;width:100%"></div>
       <div id="successUpcomingArea" style="margin-top:14px;width:100%;max-width:380px"></div>
+      <div id="gcBookNextArea" style="width:100%;max-width:320px;margin-top:10px"></div>
       <div id="lineMessageArea" style="margin-top:14px;width:100%;max-width:380px"></div>
       <div style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:14px;width:100%;max-width:320px">
         <button class="btn btn-ink" style="width:100%;font-size:16px;padding:14px" onclick="document.getElementById('searchInp').value='';document.getElementById('searchResultArea').style.display='none';document.getElementById('searchClear').classList.remove('show');renderStuList();goScreen('sc-students')">← 繼續下一位</button>
@@ -621,6 +619,46 @@ const db={
       </div>
     </div>
   </div></div>
+
+  <!-- 學員專區 -->
+  <div class="screen" id="sc-students-all"><div style="display:flex;flex-direction:column;height:100%">
+    <div id="stuZoneHeader" style="background:var(--brown);padding:14px 18px 16px;flex-shrink:0">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:16px;font-weight:500;color:var(--cream)">學員專區</div>
+        <div id="stuZoneCount" style="font-size:11px;color:rgba(245,237,224,.45)"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);border-radius:11px;padding:10px 14px;border:1px solid rgba(255,255,255,.2);margin-bottom:10px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F5C882" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input id="stuZoneSearch" type="text" placeholder="搜尋姓名或電話…" oninput="renderStudentZone()" style="background:transparent;border:none;outline:none;color:rgba(245,237,224,.9);font-size:13px;flex:1;font-family:'Noto Sans TC',sans-serif">
+      </div>
+      <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:2px" id="stuZoneFilters">
+        <div class="sz-filter active" data-filter="all" onclick="setStuFilter('all')" style="background:var(--gold2);border-color:var(--gold2);color:#fff;font-weight:500;border-radius:99px;padding:4px 12px;font-size:11px;cursor:pointer;white-space:nowrap;border:0.5px solid transparent">全部</div>
+        <div class="sz-filter" data-filter="today" onclick="setStuFilter('today')" style="background:rgba(255,255,255,.1);border:0.5px solid rgba(255,255,255,.2);border-radius:99px;padding:4px 12px;font-size:11px;color:rgba(245,237,224,.7);cursor:pointer;white-space:nowrap">今日排課</div>
+        <div class="sz-filter" data-filter="warn" onclick="setStuFilter('warn')" style="background:rgba(255,255,255,.1);border:0.5px solid rgba(255,255,255,.2);border-radius:99px;padding:4px 12px;font-size:11px;color:rgba(245,237,224,.7);cursor:pointer;white-space:nowrap">堂數警告</div>
+        <div class="sz-filter" data-filter="notes" onclick="setStuFilter('notes')" style="background:rgba(255,255,255,.1);border:0.5px solid rgba(255,255,255,.2);border-radius:99px;padding:4px 12px;font-size:11px;color:rgba(245,237,224,.7);cursor:pointer;white-space:nowrap">有備註</div>
+      </div>
+    </div>
+    <div id="stuZoneList" style="overflow-y:auto;flex:1;padding:12px"></div>
+  </div></div>
+</div>
+
+<div id="bottomNav" style="background:#fff;border-top:0.5px solid var(--brown4);display:flex;justify-content:space-around;padding:10px 0 max(14px,env(safe-area-inset-bottom,14px));flex-shrink:0;z-index:100">
+  <div class="bot-tab active" id="btab-home" onclick="goTab('home')" style="display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;color:var(--brown3);cursor:pointer;padding:0 12px">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
+    <span>首頁</span>
+  </div>
+  <div class="bot-tab" id="btab-students" onclick="goTab('students')" style="display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;color:var(--brown3);cursor:pointer;padding:0 12px">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><path d="M16 3.13a4 4 0 010 7.75"/><path d="M21 21v-2a4 4 0 00-3-3.87"/></svg>
+    <span>學員</span>
+  </div>
+  <div class="bot-tab" id="btab-admin" onclick="goTab('admin')" style="display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;color:var(--brown3);cursor:pointer;padding:0 12px">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+    <span>後台</span>
+  </div>
+  <div class="bot-tab" id="btab-sch" onclick="goTab('sch')" style="display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;color:var(--brown3);cursor:pointer;padding:0 12px">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+    <span>課表</span>
+  </div>
 </div>
 
 <!-- ══ 管理後台 ══ -->
@@ -1276,8 +1314,8 @@ function tick(){
   const d=new Date();
   document.getElementById('clk').textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
   document.getElementById('dat').textContent=(d.getMonth()+1)+'月'+d.getDate()+'日（'+WD[d.getDay()]+'）';
-  document.getElementById('heroDate').textContent=d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日';
-  document.getElementById('heroWeek').textContent='星期'+WD[d.getDay()];
+  const hd=document.getElementById('heroDate');if(hd)hd.textContent=d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日';
+  const hw=document.getElementById('heroWeek');if(hw)hw.textContent='星期'+WD[d.getDay()];
 }
 tick();setInterval(tick,1000);
 
@@ -1343,6 +1381,7 @@ window.addEventListener('load', ()=>{
       showSyncStatus('synced');
       startFbListener(); // 啟動即時監聽
       startPeriodicSync(); // 啟動定期同步（iOS Safari SSE 備援）
+      try{autoGcSyncOnLoad();}catch(e){} // Auto GC sync first load of day
     });
   });
 });
@@ -1391,6 +1430,19 @@ function startPeriodicSync(){
   });
 }
 
+function autoGcSyncOnLoad(){
+  if(typeof GC==='undefined'||!GC.ok())return;
+  const todayKey='gcAutoSync_'+todayStr();
+  if(localStorage.getItem(todayKey))return;
+  localStorage.setItem(todayKey,'1');
+  setTimeout(()=>{
+    const mockBtn={disabled:false,textContent:''};
+    gcSyncToday({target:mockBtn,preventDefault:()=>{}})
+      .then(()=>{try{renderTeachers();}catch(e){}})
+      .catch(e=>console.warn('Auto GC sync failed:',e));
+  },1500);
+}
+
 function todayStr(){const d=new Date();return fmt(d)}
 function fmt(d){return d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0')}
 function nowTime(){const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}
@@ -1410,8 +1462,21 @@ function goScreen(id){
   document.getElementById('tcpOv')?.remove();
   document.getElementById('homeSearchResults').style.display='none';
   document.getElementById('homeSearchInp').value='';
+  // Show/hide bottom nav based on screen
+  const bn=document.getElementById('bottomNav');
+  if(bn){
+    const hideForScreens=['sc-card','sc-success','sc-students'];
+    bn.style.display=hideForScreens.includes(id)?'none':'';
+  }
+  // Update tab active state based on screen
+  if(id==='sc-teachers'){['home','students','admin','sch'].forEach(t=>document.getElementById('btab-'+t)?.classList.toggle('active',t==='home'));}
+  else if(id==='sc-students-all'){['home','students','admin','sch'].forEach(t=>document.getElementById('btab-'+t)?.classList.toggle('active',t==='students'));}
 }
-function leaveAdmin(){goScreen('sc-teachers')}
+function leaveAdmin(){
+  const bn=document.getElementById('bottomNav');if(bn)bn.style.display='';
+  goScreen('sc-teachers');
+  ['home','students','admin','sch'].forEach(t=>document.getElementById('btab-'+t)?.classList.toggle('active',t==='home'));
+}
 function closeOvById(id){const el=document.getElementById(id);if(el)el.classList.remove('open')}
 function closeOvOut(id,e){if(e.target===document.getElementById(id))closeOvById(id)}
 
@@ -1420,104 +1485,242 @@ function renderTeachers(){
   const td=todayStr();const sch=SCH[td]||{};
   const recs=R.filter(r=>r.date===td);
   const trialToday=T.filter(t=>t.date===td);
-  // 合併：有排課的老師 + 只有體驗的老師（兩者取聯集）
   const teachers=[...new Set([...Object.keys(sch),...trialToday.map(tr=>tr.teacher||'其他')])];
   const el=document.getElementById('teacherArea');
+
+  // ── Today stats ──
+  const totalSigned=recs.length;
+  const totalSlotCount=Object.values(sch).reduce((a,v)=>a+v.length,0);
+  const totalPending=totalSlotCount-totalSigned;
+  const statsEl=document.getElementById('homeTodayStats');
+  if(statsEl){
+    statsEl.innerHTML=`
+      <div style="background:rgba(255,255,255,.12);border-radius:10px;padding:8px 6px;text-align:center">
+        <div style="font-size:20px;font-weight:500;color:#F5EDE0">${totalSigned}</div>
+        <div style="font-size:10px;color:rgba(245,237,224,.6);margin-top:2px">已簽到</div>
+      </div>
+      <div style="background:rgba(255,255,255,.12);border-radius:10px;padding:8px 6px;text-align:center">
+        <div style="font-size:20px;font-weight:500;color:#F5C882">${totalPending>0?totalPending:0}</div>
+        <div style="font-size:10px;color:rgba(245,237,224,.6);margin-top:2px">待簽</div>
+      </div>
+      <div style="background:rgba(255,255,255,.12);border-radius:10px;padding:8px 6px;text-align:center">
+        <div style="font-size:20px;font-weight:500;color:#F5EDE0">${trialToday.length}</div>
+        <div style="font-size:10px;color:rgba(245,237,224,.6);margin-top:2px">體驗課</div>
+      </div>`;
+  }
+
+  // ── Quick actions ──
+  const qaEl=document.getElementById('homeQuickActions');
+  if(qaEl){
+    qaEl.innerHTML=`
+      <div onclick="openTrialModal()" style="background:#fff;border:0.5px solid var(--brown4);border-radius:14px;padding:13px 10px;text-align:center;cursor:pointer">
+        <div style="font-size:20px;margin-bottom:5px;color:#2A7A50">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="vertical-align:middle"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
+        </div>
+        <div style="font-size:12px;font-weight:500;color:var(--brown)">新增體驗</div>
+        <div style="font-size:10px;color:var(--brown3);margin-top:2px">登記體驗課</div>
+      </div>
+      <div onclick="gcSyncTodayFromHome()" style="background:#fff;border:0.5px solid var(--brown4);border-radius:14px;padding:13px 10px;text-align:center;cursor:pointer">
+        <div style="font-size:20px;margin-bottom:5px;color:var(--gold2)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="vertical-align:middle"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M17 14l-3 3-1.5-1.5" stroke-width="2"/></svg>
+        </div>
+        <div style="font-size:12px;font-weight:500;color:var(--brown)" id="gcSyncHomeLbl">同步課表</div>
+        <div style="font-size:10px;color:var(--brown3);margin-top:2px">從 Google 日曆</div>
+      </div>`;
+  }
+
+  // ── Teacher cards ──
   if(!teachers.length&&!trialToday.length){
-    document.getElementById('heroHint').textContent='';
-    el.innerHTML=`<div class="no-sch-box"><div style="font-size:28px;margin-bottom:12px">📋</div><div style="font-size:17px;letter-spacing:2px;color:var(--ink2);margin:12px 0 8px">今日尚未設定課程</div><div style="font-size:13px;color:var(--ink3);line-height:1.9">請小幫手點右上角小圓點<br>輸入密碼進入管理後台設定</div></div>
-    <div class="trial-add-btn" onclick="openTrialModal()" style="margin-top:12px">
-      <div class="trial-add-icon">＋</div>
-      <div class="trial-add-text">
-        <div class="trial-add-ttl">新增體驗學員</div>
-        <div class="trial-add-sub">快速記錄今日體驗同學</div>
-      </div>
-</div>
-    <div class="trial-add-btn" onclick="openAddSimple()" style="margin-top:10px;background:var(--gold4);border-color:var(--gold2)">
-      <div class="trial-add-icon" style="background:var(--gold)">＋</div>
-      <div class="trial-add-text">
-        <div class="trial-add-ttl" style="color:var(--gold)">新增學員</div>
-        <div class="trial-add-sub" style="color:var(--gold2)">登記新同學基本資料</div>
-      </div>
+    el.innerHTML=`<div style="text-align:center;padding:40px 20px;color:var(--brown3)">
+      <div style="font-size:36px;margin-bottom:12px;opacity:.4">📋</div>
+      <div style="font-size:15px;letter-spacing:1px;color:var(--brown2);margin-bottom:6px">今日尚無排課</div>
+      <div style="font-size:12px;line-height:1.9;opacity:.7">請點「同步課表」從 Google 日曆匯入<br>或進入後台手動設定</div>
     </div>`;return;
   }
-  const total=Object.values(sch).reduce((a,v)=>a+v.length,0);
-  const trialCount=trialToday.length;
-  const leaves=L.filter(l=>l.date===td);
-  document.getElementById('heroHint').textContent=`今日共 ${teachers.length} 位老師・${total} 正式${trialCount?' ・ '+trialCount+' 體驗':''}`;
 
-  el.innerHTML=`<div style="display:flex;flex-direction:column;gap:10px">${teachers.map(t=>{
+  const leaves=L.filter(l=>l.date===td);
+  el.innerHTML=`<div style="font-size:11px;font-weight:500;color:var(--brown3);letter-spacing:.5px;margin-bottom:8px">老師今日課卡</div>
+  <div style="display:flex;flex-direction:column;gap:10px">
+  ${teachers.map(t=>{
     const slots=sch[t]||[];
     const sc=slots.filter(sl=>recs.find(r=>r.sid===sl.sid)).length;
     const trialForT=trialToday.filter(tr=>tr.teacher===t);
     const leaveForT=leaves.filter(l=>slots.find(sl=>sl.sid===l.sid));
-    const totalSlots=slots.length+trialForT.length;
+    const totalSl=slots.length+trialForT.length;
     const doneCount=sc+trialForT.filter(tr=>tr.sig).length;
-    const allDone=doneCount===totalSlots&&totalSlots>0;
-    const hasLeave=leaveForT.length>0;
-    // 老師今日請假（TL）
-    const teacherLeavesToday=getTeacherLeavesToday(t);
-    const teacherOnLeave=teacherLeavesToday.length>0;
-
-    // Status summary chips
-    let chips='';
-    if(allDone) chips=`<span style="background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:3px 10px;font-size:11px">全部完成 ✓</span>`;
-    else if(doneCount>0) chips=`<span style="background:var(--gold4);color:var(--gold);border:1px solid var(--gold2);border-radius:20px;padding:3px 10px;font-size:11px">已簽 ${doneCount}/${totalSlots}</span>`;
-    else chips=`<span style="background:var(--bg2);color:var(--ink3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px">待簽到 ${totalSlots} 堂</span>`;
-    if(hasLeave) chips+=` <span style="background:var(--purple2);color:var(--purple);border:1px solid var(--purple3);border-radius:20px;padding:3px 10px;font-size:11px">學員請假 ${leaveForT.length}</span>`;
-    if(trialForT.length) chips+=` <span style="background:var(--teal2);color:var(--teal);border:1px solid var(--teal3);border-radius:20px;padding:3px 10px;font-size:11px">體驗 ${trialForT.length}</span>`;
-
-    // Time range summary
+    const pct=totalSl>0?Math.round(doneCount/totalSl*100):0;
+    const teacherOnLeave=getTeacherLeavesToday(t).length>0;
+    const barColor=doneCount===totalSl&&totalSl>0?'#2A7A50':'var(--gold2)';
+    const statusText=doneCount===totalSl&&totalSl>0?'全部完成 ✓':`${doneCount}／${totalSl} 已簽`;
+    const statusColor=doneCount===totalSl&&totalSl>0?'#2A7A50':'var(--gold2)';
     const times=[...slots.map(sl=>sl.time),...trialForT.map(tr=>tr.time)].filter(Boolean).sort();
-    const timeRange=times.length?(times[0]+(times.length>1?' – '+times[times.length-1]:'')):'';
-
-    // 老師請假橫幅（今天）
-    const leaveNote=teacherLeavesToday.map(l=>l.note).filter(Boolean).join('・');
-    const teacherLeaveBanner=teacherOnLeave?
-      `<div style="background:#FFF0F0;border-bottom:1px solid #F7C1C1;margin:-14px -18px 12px;padding:10px 18px;display:flex;align-items:center;gap:9px">
-        <span style="font-size:18px">🚫</span>
+    const timeRange=times.length?(times[0]+(times.length>1?' – '+times[times.length-1]:'')):'時間未定';
+    const leaveNote=teacherOnLeave?getTeacherLeavesToday(t).map(l=>l.note).filter(Boolean).join('・'):'';
+    return`<div style="background:#fff;border:0.5px solid ${teacherOnLeave?'#F7C1C1':'var(--brown4)'};border-radius:14px;padding:13px 14px;position:relative;overflow:hidden">
+      <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:${teacherOnLeave?'var(--red)':barColor}"></div>
+      ${teacherOnLeave?`<div style="background:#FFF0F0;border-bottom:1px solid #F7C1C1;margin:-13px -14px 10px;padding:8px 14px 8px 18px;font-size:12px;color:var(--red)">🚫 ${t} 老師今日請假${leaveNote?' ・ '+leaveNote:''}</div>`:''}
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div>
-          <div style="font-size:14px;font-weight:500;color:var(--red);letter-spacing:.5px">${t} 老師今日請假</div>
-          ${leaveNote?`<div style="font-size:12px;color:#9B2020;margin-top:2px">${leaveNote}</div>`:''}
+          <div style="font-size:16px;font-weight:500;color:var(--brown)">${t}</div>
+          <div style="font-size:11px;color:var(--brown3);margin-top:2px">${timeRange}・${totalSl} 堂${trialForT.length?' ・ 體驗'+trialForT.length:''}${leaveForT.length?' ・ 請假'+leaveForT.length:''}</div>
         </div>
-      </div>`:'';
-
-    return`<div style="background:var(--white);border:1.5px solid ${teacherOnLeave?'#F7C1C1':'var(--border)'};border-radius:14px;padding:14px 18px;box-shadow:0 2px 8px rgba(44,36,22,.1);position:relative;overflow:hidden">
-      <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:${teacherOnLeave?'var(--red)':'var(--gold2)'}"></div>
-      ${teacherLeaveBanner}
-      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="selectTeacher('${t}')">
-        <div>
-          <div style="font-size:22px;letter-spacing:3px;color:${teacherOnLeave?'var(--red)':'var(--ink)'}">${t}</div>
-          <div style="font-size:12px;color:var(--ink3);margin-top:4px">${timeRange||'時間未定'}・${totalSlots} 堂</div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
-          <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">${chips}</div>
-          <div style="font-size:13px;color:var(--ink3)">點選進入 ›</div>
-        </div>
+        <div style="font-size:13px;font-weight:500;color:${statusColor}">${statusText}</div>
       </div>
-      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bg2);display:flex;justify-content:space-between;gap:8px" onclick="event.stopPropagation()">
-        <button onclick="openTrialModalForTeacher('${t}')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 10px;background:var(--teal2);border:1.5px solid var(--teal3);border-radius:20px;font-size:13px;cursor:pointer;color:var(--teal);font-family:'Noto Sans TC',sans-serif">
-          ＋ 新增體驗學員
+      <div style="height:4px;background:var(--cream2);border-radius:99px;overflow:hidden;margin-bottom:10px">
+        <div style="height:100%;width:${pct}%;background:${barColor};border-radius:99px;transition:.3s"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="openTeacherCardPicker('${t}')" style="flex:1;background:#2A7A50;color:#fff;border:none;border-radius:9px;padding:8px 0;font-size:11px;font-weight:500;font-family:'Noto Sans TC',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>查課卡
         </button>
-        <button onclick="openTeacherCardPicker('${t}')" style="display:flex;align-items:center;justify-content:center;gap:5px;padding:7px 14px;background:var(--gold4);border:1.5px solid var(--gold2);border-radius:20px;font-size:13px;cursor:pointer;color:var(--gold);font-family:'Noto Sans TC',sans-serif">
-          🔍 查課卡
+        <button onclick="openTrialModalForTeacher('${t}')" style="flex:1;background:var(--cream);color:var(--brown2);border:0.5px solid var(--brown4);border-radius:9px;padding:8px 0;font-size:11px;font-weight:500;font-family:'Noto Sans TC',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>新增體驗
         </button>
       </div>
     </div>`;
   }).join('')}
-    <div style="display:flex;gap:10px;margin-top:12px">
-      <div class="trial-add-btn" onclick="openTrialModal()" style="flex:1;margin-top:0">
-        <div class="trial-add-icon">＋</div>
-        <div class="trial-add-text"><div class="trial-add-ttl">新增體驗學員</div><div class="trial-add-sub">快速記錄今日體驗同學</div></div>
-      </div>
-      <div class="trial-add-btn" onclick="openAddSimple()" style="flex:1;margin-top:0;background:var(--gold4);border-color:var(--gold2)">
-        <div class="trial-add-icon" style="background:var(--gold)">＋</div>
-        <div class="trial-add-text"><div class="trial-add-ttl" style="color:var(--gold)">新增學員</div><div class="trial-add-sub" style="color:var(--gold2)">登記新同學基本資料</div></div>
-      </div>
-    </div>
   </div>`;
 }
 renderTeachers();
+
+// ── 底部 Tab 導航 ──
+let _currentTab='home';
+function goTab(tab){
+  _currentTab=tab;
+  ['home','students','admin','sch'].forEach(t=>{
+    const el=document.getElementById('btab-'+t);
+    if(el)el.classList.toggle('active',t===tab);
+  });
+  if(tab==='home'){
+    const bn=document.getElementById('bottomNav');if(bn)bn.style.display='';
+    goScreen('sc-teachers');
+  } else if(tab==='students'){
+    const bn=document.getElementById('bottomNav');if(bn)bn.style.display='';
+    goScreen('sc-students-all');
+    renderStudentZone();
+  } else if(tab==='admin'){
+    openPin();
+  } else if(tab==='sch'){
+    const bn=document.getElementById('bottomNav');if(bn)bn.style.display='';
+    openPin('sch');
+  }
+}
+
+// ── 學員專區 ──
+let _stuFilter='all';
+function setStuFilter(f){
+  _stuFilter=f;
+  document.querySelectorAll('.sz-filter').forEach(el=>{
+    const isActive=el.dataset.filter===f;
+    el.style.background=isActive?'var(--gold2)':'rgba(255,255,255,.1)';
+    el.style.borderColor=isActive?'var(--gold2)':'rgba(255,255,255,.2)';
+    el.style.color=isActive?'#fff':'rgba(245,237,224,.7)';
+    el.style.fontWeight=isActive?'500':'400';
+    el.classList.toggle('active',isActive);
+  });
+  renderStudentZone();
+}
+function renderStudentZone(){
+  const q=(document.getElementById('stuZoneSearch')?.value||'').trim();
+  const td=todayStr();
+  const todaySids=new Set();
+  Object.values(SCH[td]||{}).forEach(slots=>slots.forEach(sl=>todaySids.add(sl.sid)));
+  let list=S.filter(s=>{
+    if(q&&!s.name.includes(q)&&!(s.phone||'').includes(q))return false;
+    const remain=s.total-s.used;
+    if(_stuFilter==='today')return todaySids.has(s.id);
+    if(_stuFilter==='warn')return remain>0&&remain<=3;
+    if(_stuFilter==='notes'){
+      const hasNote=s.cellNotes&&Object.values(s.cellNotes).some(v=>v);
+      return hasNote;
+    }
+    return true;
+  });
+  list=list.slice().sort((a,b)=>a.name.localeCompare(b.name,'zh-TW'));
+  const countEl=document.getElementById('stuZoneCount');
+  if(countEl)countEl.textContent=`共 ${list.length} 位`;
+  const el=document.getElementById('stuZoneList');
+  if(!el)return;
+  if(!list.length){
+    el.innerHTML=`<div style="text-align:center;padding:40px 20px;color:var(--brown3)">沒有符合條件的學員</div>`;return;
+  }
+  el.innerHTML=list.map(s=>{
+    const remain=s.total-s.used;
+    const rc=remain<=0?'#A32D2D':remain<=3?'#8B6914':'#8B5E3C';
+    const rb=remain<=0?'#FDEAEA':remain<=3?'#FFF8E0':'#F5EDE0';
+    const rBorder=remain<=0?';border:0.5px solid #F0A0A0':remain<=3?';border:0.5px solid #E8C840':'';
+    const signed=R.find(r=>r.sid===s.id&&r.date===td);
+    const inToday=todaySids.has(s.id);
+    const hasNote=s.cellNotes&&Object.values(s.cellNotes).some(v=>v);
+    return`<div onclick="stuZoneSelect('${s.id}')" style="background:#fff;border:0.5px solid var(--brown4);border-radius:12px;padding:11px 13px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;cursor:pointer">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+          <div style="font-size:14px;font-weight:500;color:var(--brown)">${s.name}</div>
+          ${signed?`<span style="background:#E8F7EF;color:#1F6B4A;border:0.5px solid #9FD4BC;border-radius:99px;padding:1px 6px;font-size:10px">已簽</span>`:inToday?`<span style="background:var(--gold4);color:var(--gold2);border:0.5px solid var(--gold3);border-radius:99px;padding:1px 6px;font-size:10px">今日</span>`:''}
+        </div>
+        <div style="font-size:11px;color:var(--brown3)">${s.teacher}・${s.course}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;margin-left:10px">
+        <div style="background:${rb};color:${rc};border-radius:99px;padding:3px 10px;font-size:12px;font-weight:500${rBorder}">${remain} 堂</div>
+        ${hasNote?`<div style="font-size:10px;color:var(--gold2)">有備註</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+function stuZoneSelect(sid){
+  curTeacher=S.find(x=>x.id===sid)?.teacher||curTeacher;
+  selectStu(sid);
+}
+// 從首頁快速按鈕觸發 GC 同步
+function gcSyncTodayFromHome(){
+  const lbl=document.getElementById('gcSyncHomeLbl');
+  if(typeof GC==='undefined'||!GC.ok()){showToast('請先在後台連接 Google 帳號','r');return;}
+  if(lbl)lbl.textContent='同步中…';
+  const mockBtn={disabled:false,textContent:''};
+  gcSyncToday({target:mockBtn,preventDefault:()=>{}}).then(()=>{
+    if(lbl)lbl.textContent='同步課表';
+    renderTeachers();
+  }).catch(()=>{if(lbl)lbl.textContent='同步課表';});
+}
+
+// GC 下次上課預約
+function showGcBookNext(sid){
+  const el=document.getElementById('gcBookNextArea');if(!el)return;
+  const s=S.find(x=>x.id===sid);if(!s)return;
+  if(typeof GC==='undefined'||!GC.ok()){el.innerHTML='';return;}
+  const calId=(GC.calMap||{})[s.teacher];if(!calId){el.innerHTML='';return;}
+  const now=new Date();
+  const nextWeek=new Date(now.getTime()+7*864e5);
+  const defaultDate=fmt(nextWeek).replace(/\//g,'-');
+  const defaultTime=nowTime();
+  el.innerHTML=`<div style="background:#fff;border:0.5px solid var(--brown4);border-radius:14px;padding:14px;width:100%">
+    <div style="font-size:13px;font-weight:500;color:var(--brown);margin-bottom:10px">📅 安排 ${s.name} 下次課程</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input type="date" id="gcNextDate" value="${defaultDate}" style="flex:1;padding:8px 10px;border:0.5px solid var(--brown4);border-radius:8px;font-size:13px;font-family:'Noto Sans TC',sans-serif;background:var(--cream)">
+      <select id="gcNextHour" style="padding:8px;border:0.5px solid var(--brown4);border-radius:8px;font-size:13px;background:var(--cream)">
+        ${Array.from({length:14},(_,i)=>i+7).map(h=>`<option value="${String(h).padStart(2,'0')}" ${String(h).padStart(2,'0')===defaultTime.slice(0,2)?'selected':''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
+      </select>
+    </div>
+    <button onclick="doGcBookNext('${sid}','${s.teacher}')" style="width:100%;padding:11px;background:var(--brown);color:var(--cream);border:none;border-radius:10px;font-size:14px;font-weight:500;font-family:'Noto Sans TC',sans-serif;cursor:pointer">加入 ${s.teacher} 的 Google 日曆</button>
+  </div>`;
+}
+function doGcBookNext(sid,teacher){
+  const s=S.find(x=>x.id===sid);if(!s)return;
+  const calId=(GC.calMap||{})[teacher];if(!calId){showToast('找不到老師的 Google 日曆','r');return;}
+  const date=document.getElementById('gcNextDate')?.value;
+  const hour=document.getElementById('gcNextHour')?.value;
+  if(!date||!hour){showToast('請選擇日期和時間','r');return;}
+  const time=hour+':00';
+  const parts=s.course.split(' ');
+  const title=`${parts[0]||'1on1'} | ${s.name}${s.phone?' '+s.phone:''}`;
+  GC.createEvent(calId,title,date.replace(/-/g,'/'),time,60)
+    .then(()=>{
+      showToast('✓ 已加入 '+teacher+' 的 Google 日曆');
+      document.getElementById('gcBookNextArea').innerHTML=`<div style="background:#E8F7EF;border:0.5px solid #9FD4BC;border-radius:12px;padding:12px 14px;text-align:center;font-size:13px;color:#1F6B4A">✓ 已排入 ${date} ${time} Google 日曆</div>`;
+    })
+    .catch(e=>showToast('日曆寫入失敗：'+e.message,'r'));
+}
+
 let curTeacher='';
 function selectTeacher(t){
   curTeacher=t;
@@ -1751,7 +1954,11 @@ function selectStu(sid){
   document.getElementById('cardTitle').textContent=s.name;
   renderCard(sid);goScreen('sc-card');
 }
-function goBackToStuList(){renderStuList();goScreen('sc-students')}
+function goBackToStuList(){
+  const bn=document.getElementById('bottomNav');
+  if(bn)bn.style.display='';
+  renderStuList();goScreen('sc-students');
+}
 
 function renderCard(sid){
   const s=S.find(x=>x.id===sid);const recs=R.filter(r=>r.sid===sid);
@@ -2127,6 +2334,7 @@ function confirmSig(){
   curUpgradeRatio='';curUpgradeDiff=0; // ✅ 在 renderLineMessage 之後才歸零，否則 LINE 訊息會顯示空白比例和 $0
   startUndoTimer();
   goScreen('sc-success');
+  try{showGcBookNext(curSid);}catch(e){}
 }
 
 
@@ -2307,7 +2515,11 @@ function addTrialStudent(){
 let adminOffset=0;
 
 // ── PIN ──
-function openPin(){pinStr='';updPinDots();document.getElementById('pinErr').textContent='';document.getElementById('pinOv').classList.add('open')}
+function openPin(targetTab){
+  pinStr='';updPinDots();document.getElementById('pinErr').textContent='';
+  window._adminTargetTab=targetTab||null;
+  document.getElementById('pinOv').classList.add('open');
+}
 function closePinOv(){document.getElementById('pinOv').classList.remove('open')}
 let pinStr='';
 function pIn(n){if(pinStr.length>=4)return;pinStr+=n;updPinDots()}
@@ -2316,9 +2528,14 @@ function updPinDots(){for(let i=0;i<4;i++)document.getElementById('pd'+i).classL
 function pConfirm(){
   if(pinStr===ADMIN_PIN){
     closePinOv();
+    const bn=document.getElementById('bottomNav');if(bn)bn.style.display='none';
     document.getElementById('mainScroll').style.display='none';
     document.getElementById('sc-admin').classList.add('active-admin');
     renderSchEditor();renderDaily();buildMonthSelect();renderWage();renderMgrList();renderBackupBar();renderDashboard();
+    if(window._adminTargetTab){
+      setTimeout(()=>aTab(window._adminTargetTab==='sch'?'cal':'cal'),100);
+      window._adminTargetTab=null;
+    }
   } else {document.getElementById('pinErr').textContent='密碼錯誤，請再試一次';pinStr='';updPinDots()}
 }
 
