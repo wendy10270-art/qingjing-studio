@@ -2988,7 +2988,7 @@ function renderMgrList(){
         '<div>'+
           '<div style="display:flex;align-items:center;gap:8px">'+
             '<div class="smc-name">'+s.name+pill+(s.paymentStatus==="unpaid"?'<span style="display:inline-block;background:var(--orange2);color:var(--orange);border:1px solid var(--orange3);border-radius:4px;padding:1px 8px;font-size:11px;margin-left:6px;vertical-align:middle">待收款 ⚠</span>':'')+'</div>'+
-            ('<button onclick="openEditStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--ink2)">編輯</button>')+('<button onclick="openRenewStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--teal2);border:1px solid var(--teal3);border-radius:6px;font-size:11px;cursor:pointer;color:var(--teal);margin-left:5px">續課</button>')+('<button onclick="openAddPlanForStu(\'' + s.id + '\')" style="padding:3px 10px;background:#EEF0FF;border:1px solid #B8BEF0;border-radius:6px;font-size:11px;cursor:pointer;color:#3D47C4;margin-left:5px">＋方案</button>')+('<button onclick="deleteStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:6px;font-size:11px;cursor:pointer;color:var(--red);margin-left:5px">刪除</button>')+
+            ('<button onclick="selectStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--gold4);border:1px solid var(--gold2);border-radius:6px;font-size:11px;cursor:pointer;color:var(--gold)">課卡</button>')+('<button onclick="openEditStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--ink2);margin-left:5px">編輯</button>')+('<button onclick="openRenewStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--teal2);border:1px solid var(--teal3);border-radius:6px;font-size:11px;cursor:pointer;color:var(--teal);margin-left:5px">續課</button>')+('<button onclick="openAddPlanForStu(\'' + s.id + '\')" style="padding:3px 10px;background:#EEF0FF;border:1px solid #B8BEF0;border-radius:6px;font-size:11px;cursor:pointer;color:#3D47C4;margin-left:5px">＋方案</button>')+('<button onclick="deleteStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:6px;font-size:11px;cursor:pointer;color:var(--red);margin-left:5px">刪除</button>')+
           '</div>'+
           '<div class="smc-sub">'+s.course+'・'+s.teacher+'老師<br>師資費 $'+getDefaultFee(s.teacher,s.course)+'/堂'+(s.installment?' ・ <span style="color:var(--orange)">分期每'+s.installEvery+'堂</span>':'')+'</div>'+
         '</div>'+
@@ -4897,11 +4897,7 @@ if ('serviceWorker' in navigator) {
     });
   }).catch(e => console.warn('SW 註冊失敗：', e));
 
-  // SW 切換（skipWaiting 後）→ 重新載入頁面取得最新內容
-  let refreshing = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!refreshing) { refreshing = true; window.location.reload(); }
-  });
+  // 不做自動 reload — SW 用 network-first，下次開 app 自然就是新版
 }
 </script>
 
