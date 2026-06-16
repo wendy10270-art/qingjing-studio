@@ -1483,10 +1483,32 @@ function renderTeachers(){
           <div style="font-size:13px;color:var(--ink3)">點選進入 ›</div>
         </div>
       </div>
-      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bg2);display:flex;justify-content:flex-end" onclick="event.stopPropagation()">
-        <button onclick="openTrialModalForTeacher('${t}')" style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:var(--teal2);border:1.5px solid var(--teal3);border-radius:20px;font-size:13px;cursor:pointer;color:var(--teal);font-family:'Noto Sans TC',sans-serif">
-          ＋ 新增體驗學員
-        </button>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bg2)" onclick="event.stopPropagation()">
+        ${slots.map(sl=>{
+          const s=S.find(x=>x.id===sl.sid);if(!s)return'';
+          const signed=recs.find(r=>r.sid===sl.sid);
+          const remain=s.total-s.used;
+          return`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--bg)">
+            <div style="display:flex;align-items:center;gap:8px">
+              ${signed?`<span style="font-size:10px;color:var(--green)">✓</span>`:`<span style="font-size:10px;color:var(--border)">○</span>`}
+              <span style="font-size:13px;color:var(--ink)">${s.name}</span>
+              <span style="font-size:11px;color:${remain<=3?'var(--red)':'var(--ink3)'}">${remain}堂</span>
+            </div>
+            <button onclick="selectStu('${sl.sid}')" style="padding:3px 10px;background:var(--gold4);border:1px solid var(--gold2);border-radius:6px;font-size:11px;cursor:pointer;color:var(--gold);font-family:'Noto Sans TC',sans-serif">課卡</button>
+          </div>`;
+        }).join('')}
+        ${trialForT.map(tr=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--bg)">
+          <div style="display:flex;align-items:center;gap:8px">
+            ${tr.sig?`<span style="font-size:10px;color:var(--teal)">✓</span>`:`<span style="font-size:10px;color:var(--border)">○</span>`}
+            <span style="font-size:13px;color:var(--ink)">${tr.name}</span>
+            <span style="font-size:10px;color:var(--teal);background:var(--teal2);border:1px solid var(--teal3);border-radius:4px;padding:1px 5px">體驗</span>
+          </div>
+        </div>`).join('')}
+        <div style="display:flex;justify-content:flex-end;margin-top:8px">
+          <button onclick="openTrialModalForTeacher('${t}')" style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:var(--teal2);border:1.5px solid var(--teal3);border-radius:20px;font-size:13px;cursor:pointer;color:var(--teal);font-family:'Noto Sans TC',sans-serif">
+            ＋ 新增體驗學員
+          </button>
+        </div>
       </div>
     </div>`;
   }).join('')}
