@@ -1140,34 +1140,38 @@ let _localLastUpdated=parseInt(localStorage.getItem('qjf_localTs')||'0');
 // false → 只更新 s/r/t/l（PATCH 部分更新），保留 Firebase 上的 sch 不被蓋掉
 let _schChanged=false;
 function markSchChanged(){_schChanged=true;} // 課表變動時呼叫此函式
+function doFirebaseWrite(){
+  const ts2=_localLastUpdated;
+  const writesSch=_schChanged;
+  _schChanged=false;
+  db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync:',e));
+  if(writesSch){
+    db.ref('qingjing').set({
+      s:S, r:R, sch:SCH, t:T, l:L, lastUpdated:ts2
+    }).then(()=>showSyncStatus('synced')).catch(e=>{showSyncStatus('error');console.warn('Firebase sync error:',e);});
+  } else {
+    db.ref('qingjing').patch({
+      s:S, r:R, t:T, l:L, lastUpdated:ts2
+    }).then(()=>showSyncStatus('synced')).catch(e=>{showSyncStatus('error');console.warn('Firebase sync error:',e);});
+  }
+}
 function syncToFirebase(){
   clearTimeout(syncTimer);
   _lastSaveMs=Date.now();
   _localLastUpdated=Date.now();
   localStorage.setItem('qjf_localTs',String(_localLastUpdated));
-  const ts=_localLastUpdated;
-  // ⚠️ 注意：_schChanged 不在這裡 reset！
-  // 若 800ms 內又呼叫 syncToFirebase（如連續簽到），clearTimeout 取消舊計時器，
-  // _schChanged 仍保持 true，新計時器觸發時才讀取並 reset。
-  // 這樣才能確保課表 save 不被後續的簽到 save 覆蓋掉。
-  syncTimer=setTimeout(()=>{
-    const ts2=_localLastUpdated; // 使用最新時間戳
-    const writesSch=_schChanged;
-    _schChanged=false; // ✅ 只在計時器真正觸發時才 reset
-    db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync:',e));
-    if(writesSch){
-      // 課表有改動 → PUT（全覆蓋），確保 sch 寫入 Firebase
-      db.ref('qingjing').set({
-        s:S, r:R, sch:SCH, t:T, l:L, lastUpdated:ts2
-      }).then(()=>showSyncStatus('synced')).catch(e=>{showSyncStatus('error');console.warn('Firebase sync error:',e);});
-    } else {
-      // 簽到/請假等不改課表的操作 → PATCH（部分更新），保留 Firebase 的 sch 不被覆蓋
-      db.ref('qingjing').patch({
-        s:S, r:R, t:T, l:L, lastUpdated:ts2
-      }).then(()=>showSyncStatus('synced')).catch(e=>{showSyncStatus('error');console.warn('Firebase sync error:',e);});
-    }
-  }, 800);
+  // 若 800ms 內又呼叫（如連續簽到），clearTimeout 取消舊計時器，
+  // _schChanged 仍保持 true，新計時器觸發時才讀取並 reset
+  syncTimer=setTimeout(doFirebaseWrite, 800);
 }
+// app 被滑掉或切到背景時，立刻把待寫的資料強制送出
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden'&&syncTimer){
+    clearTimeout(syncTimer);
+    syncTimer=null;
+    doFirebaseWrite();
+  }
+});
 
 function showSyncStatus(status){
   const el=document.getElementById('syncDot');
