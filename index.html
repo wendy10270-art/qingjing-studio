@@ -1774,7 +1774,7 @@ function renderCard(sid){
         <div class="cell-img">${rec.sig?`<img src="${rec.sig}">`:`<span style="font-size:16px;color:${isPaper?'var(--ink3)':rec.isUpgraded?'var(--orange)':rec.isSub?'var(--blue)':'var(--gold2)'}">✓</span>`}</div>
         ${isPaper?`<div class="cell-paper-tag">紙本</div>`:rec.isUpgraded?`<div class="cell-up-tag">↑${rec.upgradedTo}</div>`:rec.isSub?`<div class="cell-sub-tag">代課</div>`:''}</div>`;
     } else if(isNext){
-      cells+=`<div class="cell next-up"><div class="cell-num">${i}</div><div class="cell-img" style="padding-top:7px"><svg width="24" height="13" viewBox="0 0 38 20"><path d="M3 10 Q11 3 19 10 Q27 17 35 10" stroke="#C4973A" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg></div><div class="cell-tap">本次</div></div>`;
+      cells+=`<div class="cell next-up" onclick="editCellNote(${i})"><div class="cell-num">${i}</div><div class="cell-img" style="padding-top:7px"><svg width="24" height="13" viewBox="0 0 38 20"><path d="M3 10 Q11 3 19 10 Q27 17 35 10" stroke="#C4973A" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg></div><div class="cell-tap">本次</div></div>`;
     } else {
       const cn=s.cellNotes?.[i]||'';
       if(cn){cells+=`<div class="cell has-note" onclick="editCellNote(${i})"><div class="cell-num">${i}</div><div class="cell-note">${cn.replace(/</g,'&lt;')}</div></div>`;}
