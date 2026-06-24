@@ -1470,14 +1470,14 @@ function goScreen(id){
   const bn=document.getElementById('bottomNav');
   if(bn){
     const hideForScreens=['sc-card','sc-success','sc-students'];
-    bn.style.display=hideForScreens.includes(id)?'none':'';
+    bn.style.display=hideForScreens.includes(id)?'none':'flex';
   }
   // Update tab active state based on screen
   if(id==='sc-teachers'){['home','students','admin','sch'].forEach(t=>document.getElementById('btab-'+t)?.classList.toggle('active',t==='home'));}
   else if(id==='sc-students-all'){['home','students','admin','sch'].forEach(t=>document.getElementById('btab-'+t)?.classList.toggle('active',t==='students'));}
 }
 function leaveAdmin(){
-  const bn=document.getElementById('bottomNav');if(bn)bn.style.display='';
+  const bn=document.getElementById('bottomNav');if(bn)bn.style.display='flex';
   goScreen('sc-teachers');
   ['home','students','admin','sch'].forEach(t=>document.getElementById('btab-'+t)?.classList.toggle('active',t==='home'));
 }
@@ -1596,16 +1596,16 @@ function goTab(tab){
     if(el)el.classList.toggle('active',t===tab);
   });
   if(tab==='home'){
-    const bn=document.getElementById('bottomNav');if(bn)bn.style.display='';
+    const bn=document.getElementById('bottomNav');if(bn)bn.style.display='flex';
     goScreen('sc-teachers');
   } else if(tab==='students'){
-    const bn=document.getElementById('bottomNav');if(bn)bn.style.display='';
+    const bn=document.getElementById('bottomNav');if(bn)bn.style.display='flex';
     goScreen('sc-students-all');
     renderStudentZone();
   } else if(tab==='admin'){
     openPin();
   } else if(tab==='sch'){
-    const bn=document.getElementById('bottomNav');if(bn)bn.style.display='';
+    const bn=document.getElementById('bottomNav');if(bn)bn.style.display='flex';
     openPin('sch');
   }
 }
@@ -1960,7 +1960,7 @@ function selectStu(sid){
 }
 function goBackToStuList(){
   const bn=document.getElementById('bottomNav');
-  if(bn)bn.style.display='';
+  if(bn)bn.style.display='flex';
   renderStuList();goScreen('sc-students');
 }
 
