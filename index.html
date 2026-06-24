@@ -154,6 +154,8 @@ body{background:var(--bg);color:var(--ink);font-size:15px;display:flex;flex-dire
 .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
 .cell{border-radius:8px;border:1px solid var(--border);background:var(--white);min-height:78px;display:flex;flex-direction:column;overflow:hidden}
 .cell.signed{background:var(--gold4);border-color:var(--gold2)}.cell.paper-signed{background:var(--bg2);border-color:var(--border);border-style:dashed}
+.cell.retro-signed{background:#EDE8FF;border-color:#C4B0F0;border-style:dashed}
+.cell.retro-signed .cell-num{color:#6B3FA0}
 .cell.sub-signed{background:var(--blue2);border-color:var(--blue3)}
 .cell.upgraded{background:var(--orange2);border-color:var(--orange3)}
 .cell.next-up{border:2px solid var(--gold);box-shadow:0 0 0 3px var(--gold3);background:var(--gold4);animation:pulse 2s infinite}
@@ -2025,10 +2027,13 @@ function renderCard(sid){
     const rec=recs.find(r=>r.session===i);const isNext=!rec&&i===s.used+1;
     if(rec){
       const isPaper=rec.note==='紙本簽到';
-      let cls='cell '+(isPaper?'paper-signed':rec.isUpgraded?'upgraded':rec.isSub?'sub-signed':'signed');
-      cells+=`<div class="${cls}"><div class="cell-num">${i}</div><div class="cell-date">${isPaper?'紙本':''+rec.date.slice(5)}<br>${isPaper?'':rec.time}</div>
-        <div class="cell-img">${rec.sig?`<img src="${rec.sig}">`:`<span style="font-size:16px;color:${isPaper?'var(--ink3)':rec.isUpgraded?'var(--orange)':rec.isSub?'var(--blue)':'var(--gold2)'}">✓</span>`}</div>
-        ${isPaper?`<div class="cell-paper-tag">紙本</div>`:rec.isUpgraded?`<div class="cell-up-tag">↑${rec.upgradedTo}</div>`:rec.isSub?`<div class="cell-sub-tag">代課</div>`:''}</div>`;
+      const isRetro=!!rec.isRetro;
+      let cls='cell '+(isPaper?'paper-signed':isRetro?'retro-signed':rec.isUpgraded?'upgraded':rec.isSub?'sub-signed':'signed');
+      const iconColor=isPaper?'var(--ink3)':isRetro?'#6B3FA0':rec.isUpgraded?'var(--orange)':rec.isSub?'var(--blue)':'var(--gold2)';
+      cells+=`<div class="${cls}"><div class="cell-num">${i}</div>
+        <div class="cell-date">${isPaper?'紙':isRetro?'補':rec.date.slice(5)}<br>${isPaper?'本':isRetro?rec.date.slice(5):rec.time}</div>
+        <div class="cell-img">${rec.sig?`<img src="${rec.sig}">`:`<span style="font-size:16px;color:${iconColor}">✓</span>`}</div>
+        ${isPaper?`<div class="cell-paper-tag">紙本</div>`:isRetro?`<div class="cell-paper-tag" style="background:#EDE8FF;color:#6B3FA0;border-color:#C4B0F0">補簽</div>`:rec.isUpgraded?`<div class="cell-up-tag">↑${rec.upgradedTo}</div>`:rec.isSub?`<div class="cell-sub-tag">代課</div>`:''}</div>`;
     } else if(isNext){
       cells+=`<div class="cell next-up" onclick="editCellNote(${i})"><div class="cell-num">${i}</div><div class="cell-img" style="padding-top:7px"><svg width="24" height="13" viewBox="0 0 38 20"><path d="M3 10 Q11 3 19 10 Q27 17 35 10" stroke="#C4973A" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg></div><div class="cell-tap">本次</div></div>`;
     } else {
@@ -2045,8 +2050,9 @@ function renderCard(sid){
   const sa=document.getElementById('signArea');
   sa.className='sign-section';
   const alreadyLeave=L.find(l=>l.sid===sid&&l.date===todayStr());
+  const retroBtn=remain>0?`<button onclick="showRetroModal('${sid}')" style="margin-top:14px;background:transparent;border:1px dashed #9C6FD6;color:#6B3FA0;border-radius:10px;padding:9px 22px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">補登過去某堂課</button>`:'';
   if(already){
-    sa.innerHTML=`<div style="text-align:center;padding:22px 0"><div style="font-size:30px;margin-bottom:9px">✓</div><div style="font-size:16px;letter-spacing:2px;color:var(--green)">今日已完成簽到</div><div style="font-size:13px;color:var(--ink3);margin-top:5px">${already.date} ${already.time}${already.isUpgraded?' ・升級'+already.upgradedTo:''}${already.isSub?' ・代課：'+already.subTeacher:''}</div></div>`;return;
+    sa.innerHTML=`<div style="text-align:center;padding:22px 0"><div style="font-size:30px;margin-bottom:9px">✓</div><div style="font-size:16px;letter-spacing:2px;color:var(--green)">今日已完成簽到</div><div style="font-size:13px;color:var(--ink3);margin-top:5px">${already.date} ${already.time}${already.isUpgraded?' ・升級'+already.upgradedTo:''}${already.isSub?' ・代課：'+already.subTeacher:''}</div>${retroBtn}</div>`;return;
   }
   if(alreadyLeave){
     const lvTypeLabel=alreadyLeave.type==='same_day'?'臨時請假':'事先請假';
@@ -2056,6 +2062,7 @@ function renderCard(sid){
       <div style="font-size:16px;letter-spacing:2px;color:#6B3FA0">今日已請假</div>
       <div style="font-size:13px;color:var(--ink3);margin-top:5px">${lvTypeLabel}${lvNote}</div>
       <button class="btn btn-soft" style="margin-top:16px;max-width:200px;flex:none" onclick="cancelLeave('${sid}')">取消請假</button>
+      ${retroBtn}
     </div>`;return;
   }
   if(remain<=0){sa.innerHTML=`<div style="text-align:center;padding:22px 0;color:var(--red)"><div style="font-size:16px">堂數已用完，請洽小幫手購課</div></div>`;return}
@@ -2102,6 +2109,7 @@ function renderCard(sid){
     <div class="sig-acts"><button class="btn btn-soft btn-sm" onclick="clearSig()">清除</button><button class="btn btn-ink" onclick="confirmSig()">確認簽到</button></div>
     </div>
     <button class="btn btn-soft" style="width:100%;padding:12px;margin-top:6px;font-size:13px;color:var(--ink3);border:1px dashed var(--border);border-radius:11px;background:transparent;cursor:pointer" onclick="quickConfirmNoSig()">⚡ 快速確認（免簽名）</button>
+    <button onclick="showRetroModal('${sid}')" style="width:100%;padding:11px;margin-top:4px;background:transparent;border:1px dashed #9C6FD6;color:#6B3FA0;border-radius:11px;font-size:13px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">補登過去某堂課</button>
     <button class="btn-back-full" onclick="goBackToStuList()">返回學員清單</button>`;
   setTimeout(initCanvas,80);
 }
@@ -2339,6 +2347,45 @@ function confirmSig(){
   try{showGcBookNext(curSid);}catch(e){}
 }
 
+function showRetroModal(sid){
+  document.getElementById('retroOv')?.remove();
+  const s=S.find(x=>x.id===sid);if(!s)return;
+  if(s.used>=s.total){showToast('課程堂數已用完，無法補簽','r');return;}
+  const yest=new Date();yest.setDate(yest.getDate()-1);
+  const pad=n=>String(n).padStart(2,'0');
+  const yestStr=yest.getFullYear()+'-'+pad(yest.getMonth()+1)+'-'+pad(yest.getDate());
+  const ov=document.createElement('div');
+  ov.id='retroOv';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;display:flex;align-items:flex-end;justify-content:center';
+  ov.innerHTML=`<div style="background:#fff;border-radius:22px 22px 0 0;padding:24px 20px 40px;width:100%;max-width:440px">
+    <div style="font-size:17px;font-weight:500;color:var(--brown);margin-bottom:4px">補簽紀錄</div>
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:18px">${s.name}・補登過去課程，將扣除 1 堂</div>
+    <label style="font-size:13px;color:var(--ink2);font-weight:500;display:block;margin-bottom:6px">補簽日期</label>
+    <input type="date" id="retroDate" max="${yestStr}" value="${yestStr}" style="width:100%;margin-bottom:16px;padding:11px 14px;border:1px solid var(--border);border-radius:10px;font-size:15px;font-family:'Noto Sans TC',sans-serif;box-sizing:border-box">
+    <label style="font-size:13px;color:var(--ink2);font-weight:500;display:block;margin-bottom:6px">備註（選填）</label>
+    <input type="text" id="retroNote" placeholder="例：當時忘記簽到…" style="width:100%;margin-bottom:18px;padding:11px 14px;border:1px solid var(--border);border-radius:10px;font-size:14px;font-family:'Noto Sans TC',sans-serif;box-sizing:border-box">
+    <div style="display:flex;gap:10px">
+      <button onclick="document.getElementById('retroOv').remove()" style="flex:1;padding:13px;background:#f5f5f5;border:none;border-radius:11px;font-size:14px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">取消</button>
+      <button onclick="confirmRetro('${sid}')" style="flex:2;padding:13px;background:#6B3FA0;color:#fff;border:none;border-radius:11px;font-size:14px;font-weight:500;cursor:pointer;font-family:'Noto Sans TC',sans-serif">確認補簽（扣 1 堂）</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+
+function confirmRetro(sid){
+  const s=S.find(x=>x.id===sid);if(!s)return;
+  const dateInput=document.getElementById('retroDate').value;
+  if(!dateInput){showToast('請選擇補簽日期','r');return;}
+  const date=dateInput.replace(/-/g,'/');
+  if(date>=todayStr()){showToast('補簽日期需在今天之前','r');return;}
+  if(s.used>=s.total){showToast('課程堂數已用完，無法補簽','r');return;}
+  const note=document.getElementById('retroNote').value.trim();
+  s.used++;
+  R.push({id:'r'+Date.now(),sid,date,time:'',session:s.used,sig:null,isSub:false,subTeacher:'',isUpgraded:false,upgradedTo:'',upgradeDiff:0,actualFee:getDefaultFee(s.teacher,s.course),manualFee:null,manualNote:note,confirmed:false,upgPayMethod:'',feeCollected:false,isRetro:true});
+  document.getElementById('retroOv')?.remove();
+  save();renderTeachers();renderCard(sid);
+  showToast('✓ 已補簽 '+date);
+}
 
 function pickTrialRatio(el,plan,ratio){
   document.querySelectorAll('#trialRatioTags .tpt').forEach(t=>t.classList.remove('sel'));
