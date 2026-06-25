@@ -3713,11 +3713,17 @@ function _buildUpcomingGCHTML(s, events){
     const sessionNum=s.used+i+1;
     const isLast=i===events.length-1;
     const title=ev.summary||'';
+    const courseType=title.split('|')[0]?.trim()||'';
+    // 從 calendarSummary（若有）取得老師名，否則從 organizer
+    const calName=ev.organizer?.displayName||ev.organizer?.email||'';
+    const calMap=GC.calMap||{};
+    const teacherFromCal=Object.entries(calMap).find(([,id])=>id===ev.calendarId)?.[0]||'';
+    const teacherLabel=teacherFromCal||s.teacher||'';
     return`<div style="display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid var(--bg2);${isLast?'background:#FFF4EE;':''}">
       <div style="font-size:12px;color:var(--ink3);min-width:46px;text-align:center;letter-spacing:.5px">堂 ${sessionNum}</div>
       <div style="flex:1">
         <div style="font-size:15px;color:${isLast?'var(--orange)':'var(--ink)'}">${dateStr}<span style="font-size:12px;color:var(--ink3);margin-left:4px">（${dow}）</span></div>
-        <div style="font-size:11px;color:var(--ink3);margin-top:2px">${title.split('|')[0]?.trim()||''}</div>
+        <div style="font-size:11px;color:var(--ink3);margin-top:2px">${courseType}${teacherLabel?' ・ '+teacherLabel+' 老師':''}</div>
       </div>
       <div style="font-size:13px;color:var(--gold);font-weight:500">${time}</div>
       ${isLast?`<span style="font-size:10px;background:var(--orange);color:#fff;border-radius:4px;padding:2px 6px;flex-shrink:0;white-space:nowrap">最後一堂</span>`:''}
@@ -3742,7 +3748,7 @@ function renderUpcomingArea(sid, targetId){
   el.innerHTML=_buildUpcomingFallbackHTML(s, remain, gcConnected?'loading':'not-connected');
   // Step 2: if GC connected, fetch in background then silently swap
   if(gcConnected){
-    GC.searchStudentEvents(s.name,remain,s.teacher).then(events=>{
+    GC.searchStudentEvents(s.name,remain,s.teacher,s.phone).then(events=>{
       // Only update if element still in DOM and shows same student
       if(document.getElementById(targetId)!==el)return;
       if(events.length>0){
@@ -4897,7 +4903,7 @@ const GC={
   },
   // 從所有老師的 Google 日曆搜尋學員的未來課程
   // teacherName 選填：優先搜尋該老師對應的日曆
-  async searchStudentEvents(name, remain, teacherName){
+  async searchStudentEvents(name, remain, teacherName, phone){
     const calMap=this.calMap||{};
     // 搜尋範圍：所有已對應的日曆 + primary（確保不漏）
     const calIds=[...new Set([...Object.values(calMap),'primary'])];
@@ -4905,33 +4911,44 @@ const GC={
     const tMin=encodeURIComponent(now.toISOString());
     // 搜尋未來 9 個月
     const tMax=encodeURIComponent(new Date(now.getFullYear(),now.getMonth()+9,now.getDate()).toISOString());
-    const q=encodeURIComponent(name);
+    const seen=new Set();
     const allEvents=[];
-    for(const calId of calIds){
+    // Helper：搜尋一個日曆、一個關鍵字
+    const fetchQ=async(calId,q)=>{
       try{
         const data=await this.api(
-          `/calendars/${encodeURIComponent(calId)}/events?q=${q}&timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=${(remain||10)+5}`
+          `/calendars/${encodeURIComponent(calId)}/events?q=${encodeURIComponent(q)}&timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=${(remain||10)+10}`
         );
         (data.items||[]).forEach(ev=>{
-          // 確認標題真的包含學員名字（避免搜尋誤判）
-          if(ev.summary&&ev.summary.includes(name)){allEvents.push(ev);}
+          const key=ev.iCalUID||ev.id;
+          if(!seen.has(key)){seen.add(key);allEvents.push(ev);}
         });
       }catch(e){console.warn('GC search error:',calId,e);}
+    };
+    for(const calId of calIds){
+      await fetchQ(calId, name);
+      // 同時用電話後 8 碼搜尋（電話比姓名更精確）
+      if(phone&&phone.replace(/\D/g,'').length>=8){
+        await fetchQ(calId, phone.replace(/\D/g,'').slice(-8));
+      }
     }
-    // 依時間排序、去重（跨日曆可能重複同一事件）
-    const seen=new Set();
-    const unique=allEvents.filter(ev=>{
-      // 用 iCalUID 去重（比 id 更穩定），沒有就用 id
-      const key=ev.iCalUID||ev.id;
-      if(seen.has(key))return false;
-      seen.add(key);return true;
+    // 驗證：事件標題包含姓名 OR parseTitle 解出的電話後 8 碼吻合
+    const phoneDigits=(phone||'').replace(/\D/g,'').slice(-8);
+    const verified=allEvents.filter(ev=>{
+      if(!ev.summary)return false;
+      if(ev.summary.includes(name))return true;
+      if(phoneDigits){
+        const parsed=this.parseTitle(ev.summary);
+        if(parsed&&parsed.phone&&parsed.phone.replace(/\D/g,'').slice(-8)===phoneDigits)return true;
+      }
+      return false;
     });
-    unique.sort((a,b)=>{
+    verified.sort((a,b)=>{
       const at=a.start?.dateTime||a.start?.date||'';
       const bt=b.start?.dateTime||b.start?.date||'';
       return at.localeCompare(bt);
     });
-    return unique.slice(0,remain||10);
+    return verified.slice(0,remain||10);
   }
 };
 
