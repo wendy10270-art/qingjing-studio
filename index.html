@@ -685,6 +685,7 @@ const db={
     <div class="a-tab" onclick="aTab(&#39;mgr&#39;)">學員管理</div>
     <div class="a-tab" onclick="aTab(&#39;tch&#39;)">師資管理</div>
     <div class="a-tab" onclick="aTab(&#39;gcal&#39;)">Google日曆</div>
+    <div class="a-tab" onclick="aTab(&#39;notify&#39;)">明日通知</div>
     <div class="a-tab" onclick="leaveAdmin()" style="color:#8A5A50">← 離開</div>
   </div>
   <div class="admin-scroll">
@@ -719,6 +720,7 @@ const db={
     </div>
     <div class="a-page" id="ap-tch"><div style="padding:4px 0"><div id="tchLeaveContent" style="margin-bottom:16px"></div><div id="tchContent"></div></div></div>
     <div class="a-page" id="ap-gcal"><div id="gcalContent" style="padding:4px 0"></div></div>
+    <div class="a-page" id="ap-notify"><div id="notifyContent" style="padding:4px 0"></div></div>
   </div>
 </div>
 
@@ -2648,7 +2650,7 @@ function renderDashboard(){
 
 function aTab(t){
   renderDashboard();
-  const ns=['sch','daily','cal','ledger','wage','mgr','tch','gcal'];
+  const ns=['sch','daily','cal','ledger','wage','mgr','tch','gcal','notify'];
   document.querySelectorAll('.a-tab').forEach((el,i)=>el.classList.toggle('active',ns[i]===t));
   ns.forEach(n=>document.getElementById('ap-'+n).classList.toggle('active',n===t));
   if(t==='daily')renderDaily();
@@ -2658,6 +2660,7 @@ function aTab(t){
   if(t==='mgr')renderMgrList();
   if(t==='tch')renderTchMgr();
   if(t==='gcal')renderGcalPage();
+  if(t==='notify')renderTomorrowNotify();
 }
 
 // ── 月曆 ──
@@ -4856,6 +4859,13 @@ const GC={
     const data=await this.api(`/calendars/${encodeURIComponent(calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=100`);
     return data.items||[];
   },
+  async tomorrowEvents(calId){
+    const now=new Date(),y=now.getFullYear(),mo=now.getMonth(),d=now.getDate()+1;
+    const tMin=encodeURIComponent(new Date(y,mo,d).toISOString());
+    const tMax=encodeURIComponent(new Date(y,mo,d+1).toISOString());
+    const data=await this.api(`/calendars/${encodeURIComponent(calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=100`);
+    return data.items||[];
+  },
   parseTitle(t){
     if(!t)return null;
     if(/^[\(（]取消/.test(t)||/^[\(（]老師出國/.test(t)||/^取消/.test(t))return null;
@@ -4932,10 +4942,12 @@ const GC={
         await fetchQ(calId, phone.replace(/\D/g,'').slice(-8));
       }
     }
-    // 驗證：事件標題包含姓名 OR parseTitle 解出的電話後 8 碼吻合
+    // 驗證：排除取消課程；事件標題包含姓名 OR parseTitle 解出的電話後 8 碼吻合
     const phoneDigits=(phone||'').replace(/\D/g,'').slice(-8);
+    const cancelRe=/^[\(（]取消|^取消/;
     const verified=allEvents.filter(ev=>{
       if(!ev.summary)return false;
+      if(cancelRe.test(ev.summary))return false; // 略過取消課程
       if(ev.summary.includes(name))return true;
       if(phoneDigits){
         const parsed=this.parseTitle(ev.summary);
@@ -5312,6 +5324,78 @@ ${monthNew.length?`<div class="section">
 </div>
 </body></html>`);
   win.document.close();
+}
+
+
+// ── 明日通知 ──
+function generateTomorrowMsg(name, month, day, weekday, time, teacher){
+  return ['嗨 '+name+'！','提醒您明天有課 🌿','','📅 '+month+'/'+day+'（星期'+weekday+'）','⏰ '+time,'👩‍🏫 '+teacher+' 老師','','期待明天與您一起運動！','輕境運動工作室'].join('\n');
+}
+
+function copyTomorrowMsg(msgId){
+  const el=document.getElementById(msgId);if(!el)return;
+  const text=el.innerHTML.replace(/<br>/g,'\n').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+  let copied=false;
+  try{const ta=document.createElement('textarea');ta.value=text;ta.style.cssText='position:fixed;top:0;left:0;opacity:0;font-size:16px;pointer-events:none';document.body.appendChild(ta);ta.focus();ta.select();copied=document.execCommand('copy');document.body.removeChild(ta);}catch(e){}
+  if(!copied&&navigator.clipboard){navigator.clipboard.writeText(text).catch(()=>{});}
+  el.style.background='#E8F5EE';
+  setTimeout(()=>{el.style.background='#F0F0F0';},1500);
+  showToast(copied?'✓ 訊息已複製！切換到 LINE OA 後搜尋學員名字貼上':'請長按訊息手動複製');
+  const a=document.createElement('a');a.href='https://manager.line.biz/';a.style.display='none';document.body.appendChild(a);a.click();setTimeout(()=>{document.body.removeChild(a);},500);
+}
+
+async function renderTomorrowNotify(){
+  const el=document.getElementById('notifyContent');if(!el)return;
+  if(!GC.ok()){
+    el.innerHTML='<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">請先在「Google日曆」頁面連接 Google 帳號</div>';
+    return;
+  }
+  const calMap=GC.calMap;
+  const teachers=Object.keys(calMap);
+  if(!teachers.length){
+    el.innerHTML='<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">請先在「Google日曆」頁面設定老師日曆對照</div>';
+    return;
+  }
+  el.innerHTML='<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">讀取明日課表中…</div>';
+  const tom=new Date();tom.setDate(tom.getDate()+1);
+  const tomMonth=tom.getMonth()+1;
+  const tomDay=tom.getDate();
+  const tomWD=WD[tom.getDay()];
+  const dateLabel=tomMonth+'/'+tomDay+'（星期'+tomWD+'）';
+  const allItems=[];
+  try{
+    for(const teacher of teachers){
+      const calId=calMap[teacher];if(!calId)continue;
+      let evs=[];
+      try{evs=await GC.tomorrowEvents(calId);}catch(e){console.warn('GC tomorrow err:',teacher,e);continue;}
+      for(const ev of evs){
+        const parsed=GC.parseTitle(ev.summary||'');
+        if(!parsed)continue;
+        allItems.push({name:parsed.name,time:GC.getTime(ev),teacher,courseType:parsed.type});
+      }
+    }
+    allItems.sort((a,b)=>a.time.localeCompare(b.time));
+    if(!allItems.length){
+      el.innerHTML=`<div style="padding:32px;text-align:center"><div style="font-size:36px;margin-bottom:14px">🌙</div><div style="color:var(--ink3);font-size:15px">${dateLabel}<br>明天沒有課程安排</div></div>`;
+      return;
+    }
+    let html=`<div style="margin-bottom:14px"><div style="font-family:'Noto Serif TC',serif;font-size:18px;letter-spacing:2px;color:var(--ink);margin-bottom:4px">明日通知</div><div style="font-size:13px;color:var(--ink3)">📅 ${dateLabel}・共 ${allItems.length} 堂</div></div><div style="font-size:12px;color:var(--ink3);background:var(--bg);border-radius:8px;padding:8px 12px;margin-bottom:14px;line-height:1.7">點「複製 & 開啟 LINE」→ 開啟 LINE OA 後搜尋學員名字貼上</div>`;
+    allItems.forEach((item,idx)=>{
+      const msgId='tnMsg_'+idx;
+      const msg=generateTomorrowMsg(item.name,tomMonth,tomDay,tomWD,item.time,item.teacher);
+      html+=`<div style="background:var(--white);border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">
+          <div style="font-size:16px;font-weight:600;color:var(--ink);letter-spacing:.5px">${item.name}</div>
+          <div style="font-size:11px;color:var(--ink3)">${item.time}・${item.teacher} 老師</div>
+        </div>
+        <div class="line-msg-content" id="${msgId}" style="font-size:13px;margin-bottom:10px">${msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div>
+        <button onclick="copyTomorrowMsg('${msgId}')" style="background:#06C755;color:#fff;border:none;border-radius:9px;padding:10px;width:100%;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:500"><span style="font-size:18px;line-height:1">💬</span>複製訊息 & 開啟 LINE</button>
+      </div>`;
+    });
+    el.innerHTML=html;
+  }catch(e){
+    el.innerHTML=`<div style="padding:16px;color:var(--red);font-size:13px">讀取失敗：${e.message}</div>`;
+  }
 }
 
 // ── Service Worker 自動更新 ──
