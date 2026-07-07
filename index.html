@@ -1039,9 +1039,7 @@ const db={
       <label>選擇課程方案</label>
       <div id="hpPlanPicker"></div>
       <div class="sel-disp" id="hpSelDisp"></div>
-      <label>師資課費（每堂，自動帶入）</label>
-      <input type="number" id="hpFee" placeholder="800" style="margin-bottom:14px">
-      <div style="height:1px;background:var(--bg2);margin-bottom:14px"></div>
+      <div style="height:1px;background:var(--bg2);margin:10px 0 14px"></div>
       <label>繳款方式</label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px" id="hpPayMethods">
         <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white)" onclick="hpSelectPM(this,'transfer_fubon')"><div style="font-size:18px;margin-bottom:4px">🏦</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">匯款聯邦</div></div>
@@ -4583,30 +4581,21 @@ function hpShowStep2(){
   // today as default pay date
   const pd=document.getElementById('hpPayDate');if(pd)pd.value=todayStr().replace(/\//g,'-');
   document.getElementById('hpNote').value='';
-  // build plan picker
+  // build plan picker — same structure as renewPlanPicker
   const pp=document.getElementById('hpPlanPicker');
-  pp.innerHTML=Object.entries(PLANS).map(([name,plan])=>{
-    const type=plan.type||'p';
-    return`<div style="margin-bottom:10px">
-      <div style="font-size:12px;font-weight:500;color:var(--brown2);letter-spacing:.5px;margin-bottom:6px">${name}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px">
-        ${plan.ratios.map(r=>`<div class="pt" onclick="hpPickRatio(this,'${name}','${r}','${type}')" style="flex:1;min-width:70px;border:1.5px solid var(--border);border-radius:8px;padding:8px 6px;text-align:center;cursor:pointer;font-size:13px;color:var(--ink2)">${r}</div>`).join('')}
-      </div>
-      <div class="session-row" id="hpsp-${name}" style="display:none"></div>
-    </div>`;
-  }).join('');
-  // fee
-  document.getElementById('hpFee').value=_hpTmpTeacher?getDefaultFee(_hpTmpTeacher,''):0;
+  pp.innerHTML=Object.entries(PLANS).map(([name,plan])=>`
+    <div class="plan-group"><div class="pg-ttl" style="color:${plan.type==='p'?'var(--gold)':plan.type==='s'?'var(--blue)':'var(--green)'}">${name}</div>
+    <div class="plan-tags">${plan.ratios.map(r=>`<div class="pt" onclick="hpPickRatio(event,this,'${name}','${r}','${plan.type}')">${r}</div>`).join('')}</div>
+    <div class="session-row" id="hpsp-${name}"></div></div>`).join('');
 }
 
-function hpPickRatio(el,planName,ratio,type){
+function hpPickRatio(e,el,planName,ratio,type){
   document.querySelectorAll('#hpPlanPicker .pt').forEach(t=>t.className='pt');
   el.classList.add('sel-'+type);
   _hpSelPlan=planName+' '+ratio;_hpSelN=0;_hpSelPrice=0;
   document.querySelectorAll('#hpPlanPicker .session-row').forEach(s=>{s.classList.remove('show');s.innerHTML='';});
   const sp=document.getElementById('hpsp-'+planName);sp.classList.add('show');
   sp.innerHTML=PLANS[planName].sessions[ratio].map(s=>`<div class="sc" onclick="hpPickSession(this,${s.n},${s.price})"><div class="sc-n">${s.n}</div><div class="sc-lbl">${s.lbl}</div><div class="sc-price">$${s.price.toLocaleString()}</div></div>`).join('');
-  document.getElementById('hpFee').value=_hpTmpTeacher?getDefaultFee(_hpTmpTeacher,_hpSelPlan):0;
   hpUpdDisp();hpUpdPaySummary();
 }
 
@@ -4643,7 +4632,7 @@ function hpUpdPaySummary(){
 function confirmHomePurchase(){
   if(!_hpSelPlan||!_hpSelN){showToast('請選擇課程方案','r');return;}
   if(!_hpPayMethod){showToast('請選擇繳款方式','r');return;}
-  const fee=parseInt(document.getElementById('hpFee').value)||0;
+  const fee=getDefaultFee(_hpTmpTeacher,_hpSelPlan);
   const payDateRaw=document.getElementById('hpPayDate').value;
   const payDate=payDateRaw?payDateRaw.replace(/-/g,'/'):todayStr();
   const note=document.getElementById('hpNote').value.trim();
