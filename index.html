@@ -1388,6 +1388,12 @@ window.addEventListener('load', ()=>{
       startFbListener(); // 啟動即時監聽
       startPeriodicSync(); // 啟動定期同步（iOS Safari SSE 備援）
       try{autoGcSyncOnLoad();}catch(e){} // Auto GC sync first load of day
+      // 啟動時靜默更新 GC token（有 cid 就嘗試，不管 ok() 結果）
+      if(typeof GC!=='undefined'&&GC.cid){
+        setTimeout(()=>GC.silentRefresh().then(ok=>{
+          if(ok)GC._scheduleRefresh(); // 成功後排程下次更新
+        }).catch(()=>{}), 2000); // 延遲2秒等 Google 腳本載入
+      }
     });
   });
 });
@@ -4813,6 +4819,36 @@ const GC={
     }
     return !!(this._tok&&Date.now()<this._tokExp);
   },
+  // 靜默更新 token（不彈視窗，只要 Google 帳號還在登入狀態就能自動完成）
+  async silentRefresh(){
+    if(!this.cid||typeof google==='undefined'||!google.accounts)return false;
+    return new Promise(res=>{
+      try{
+        google.accounts.oauth2.initTokenClient({
+          client_id:this.cid,
+          scope:'https://www.googleapis.com/auth/calendar',
+          callback:r=>{
+            if(r.access_token){
+              this._tok=r.access_token;
+              this._tokExp=Date.now()+((parseInt(r.expires_in)||3600)-60)*1000;
+              localStorage.setItem('gc_tok',this._tok);
+              localStorage.setItem('gc_tokExp',String(this._tokExp));
+              this._scheduleRefresh();
+              res(true);
+            }else{res(false);}
+          },
+          error_callback:()=>res(false)
+        }).requestAccessToken({prompt:''});
+      }catch(e){res(false);}
+    });
+  },
+  // 排程在 token 到期前 10 分鐘自動靜默更新
+  _scheduleRefresh(){
+    if(this._refreshTimer)clearTimeout(this._refreshTimer);
+    const msLeft=this._tokExp-Date.now();
+    const delay=Math.max(msLeft-10*60*1000, 30*1000); // 到期前10分鐘，最少30秒後
+    this._refreshTimer=setTimeout(()=>this.silentRefresh().catch(()=>{}), delay);
+  },
   async connect(){
     if(!this.cid)throw new Error('請先輸入並儲存 Client ID');
     if(typeof google==='undefined'||!google.accounts)throw new Error('Google 登入程式尚未載入，請稍後再試或確認網路連線');
@@ -4825,9 +4861,9 @@ const GC={
             if(r.access_token){
               this._tok=r.access_token;
               this._tokExp=Date.now()+((parseInt(r.expires_in)||3600)-60)*1000;
-              // 存入 localStorage，下次重載頁面自動還原（有效期通常 1 小時）
               localStorage.setItem('gc_tok',this._tok);
               localStorage.setItem('gc_tokExp',String(this._tokExp));
+              this._scheduleRefresh(); // 登入成功後排程自動更新
               res();
             }else{rej(new Error(r.error_description||r.error||'授權失敗'));}
           },
@@ -4837,17 +4873,26 @@ const GC={
     });
   },
   async api(path,method,body){
-    if(!this.ok())throw new Error('請先連接 Google 帳號');
-    const r=await fetch('https://www.googleapis.com/calendar/v3'+path,{
+    // token 不存在或已過期 → 先嘗試靜默更新
+    if(!this.ok()){
+      const ok=await this.silentRefresh();
+      if(!ok)throw new Error('請先連接 Google 帳號');
+    }
+    const doFetch=()=>fetch('https://www.googleapis.com/calendar/v3'+path,{
       method:method||'GET',
       headers:{'Authorization':'Bearer '+this._tok,'Content-Type':'application/json'},
       body:body?JSON.stringify(body):undefined
     });
+    let r=await doFetch();
     if(r.status===401){
-      // Token 過期，清除 localStorage
-      this._tok=null;this._tokExp=0;
-      localStorage.removeItem('gc_tok');localStorage.removeItem('gc_tokExp');
-      throw new Error('授權已過期，請重新連接');
+      // Token 在使用中途過期 → 靜默更新後再試一次
+      const ok=await this.silentRefresh();
+      if(ok){r=await doFetch();}
+      else{
+        this._tok=null;this._tokExp=0;
+        localStorage.removeItem('gc_tok');localStorage.removeItem('gc_tokExp');
+        throw new Error('授權已過期，請重新連接 Google 帳號');
+      }
     }
     if(!r.ok){let e={};try{e=await r.json();}catch{}throw new Error((e.error&&e.error.message)||'API 錯誤 '+r.status);}
     return r.json();
