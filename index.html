@@ -1799,7 +1799,7 @@ function addToSchAndSelect(sid){
     if(!SCH[td][s.teacher])SCH[td][s.teacher]=[];
     if(!SCH[td][s.teacher].find(sl=>sl.sid===sid)){
       SCH[td][s.teacher].push({sid,time:''});
-      markSchChanged();save();
+      markSchChanged();save();renderTeachers();
       showToast('✓ 已加入今日 '+s.teacher+' 課表');
     }
     curTeacher=s.teacher;
@@ -1967,6 +1967,7 @@ function goBackToStuList(){
 }
 
 function renderCard(sid){
+  leaveType='advance'; // 每次打開新課卡重設請假類型
   const s=S.find(x=>x.id===sid);const recs=R.filter(r=>r.sid===sid);
   const remain=s.total-s.used;const ct=getCT(s.course);const ci=CT[ct];
   const pc=remain<=0?'var(--red)':remain<=3?'#B8860B':remain<=6?'var(--gold2)':'var(--gold)';
@@ -2213,6 +2214,9 @@ function confirmLeave(){
   document.getElementById('successSub').textContent=(leaveType==='same_day'?'臨時請假':'事先請假')+'已登記\n第 '+nextSession+' 堂・'+todayStr()+(note?'\n備註：'+note:'');
   document.getElementById('successRemain').textContent=s.total-s.used;
   document.getElementById('successLbl').textContent='堂課程可用（堂數未扣）';
+  document.getElementById('nextBookingArea').innerHTML='';
+  renderUpcomingArea(s.id,'successUpcomingArea');
+  try{showGcBookNext(curSid);}catch(e){}
   goScreen('sc-success');
 }
 function cancelLeave(sid){
