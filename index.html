@@ -269,8 +269,8 @@ input:focus,select:focus{border-color:var(--gold2)}
 .admin-top-bar{background:var(--white);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:50px;flex-shrink:0}
 .admin-top-ttl{font-size:16px;letter-spacing:2px}
 .admin-top-sub{font-size:11px;color:var(--ink3);margin-top:2px}
-.admin-tabs{display:flex;background:var(--bg2);flex-shrink:0;border-bottom:2px solid var(--border)}
-.a-tab{flex:1;padding:11px 3px;text-align:center;font-size:12px;cursor:pointer;color:var(--ink3);border-bottom:3px solid transparent;transition:.2s;letter-spacing:.3px}
+.admin-tabs{display:flex;background:var(--bg2);flex-shrink:0;border-bottom:2px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch}
+.a-tab{flex:1;padding:11px 3px;text-align:center;font-size:12px;cursor:pointer;color:var(--ink3);border-bottom:3px solid transparent;transition:.2s;letter-spacing:.3px;white-space:nowrap}
 .a-tab.active{color:var(--ink);font-size:13px;font-weight:600;background:var(--white);border-bottom:3px solid var(--gold);border-radius:8px 8px 0 0}
 .admin-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .a-page{display:none;padding:16px}
@@ -487,6 +487,16 @@ input:focus,select:focus{border-color:var(--gold2)}
 const FB_URL='https://qingjing-studio-default-rtdb.firebaseio.com';
 const FB_API_KEY='AIzaSyBg3_toi-Kqyi9iw2IbW9C5HhkbgJappxI';
 
+// Firebase 錯誤回應（如 Permission denied）HTTP 狀態非 2xx 或 body 帶 error 欄位，
+// 必須丟出例外，否則會誤判為同步成功
+function fbCheck(r){
+  return r.json().then(data=>{
+    if(!r.ok||(data&&typeof data==='object'&&data.error&&Object.keys(data).length===1)){
+      throw new Error((data&&data.error)||('HTTP '+r.status));
+    }
+    return data;
+  });
+}
 const db={
   ref: function(path){
     return {
@@ -495,7 +505,7 @@ const db={
           method:'PUT',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify(data)
-        }).then(r=>r.json());
+        }).then(fbCheck);
       },
       // PATCH = 部分更新，不覆蓋未提供的欄位（用於簽到等不改課表的操作）
       patch: function(data){
@@ -503,11 +513,11 @@ const db={
           method:'PATCH',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify(data)
-        }).then(r=>r.json());
+        }).then(fbCheck);
       },
       once: function(event){
         return fetch(FB_URL+'/'+path+'.json?auth='+FB_API_KEY)
-          .then(r=>r.json())
+          .then(fbCheck)
           .then(data=>({val:()=>data}));
       }
     };
@@ -677,7 +687,8 @@ const db={
     </label>
   </div>
   <div class="admin-tabs">
-    <div class="a-tab active" onclick="aTab(&#39;sch&#39;)">今日開課</div>
+    <div class="a-tab active" onclick="aTab(&#39;helper&#39;)">✨小幫手</div>
+    <div class="a-tab" onclick="aTab(&#39;sch&#39;)">今日開課</div>
     <div class="a-tab" onclick="aTab(&#39;daily&#39;)">確認消課</div>
     <div class="a-tab" onclick="aTab(&#39;cal&#39;)">預排行事曆</div>
     <div class="a-tab" onclick="aTab(&#39;ledger&#39;)">流水帳</div>
@@ -689,7 +700,8 @@ const db={
     <div class="a-tab" onclick="leaveAdmin()" style="color:#8A5A50">← 離開</div>
   </div>
   <div class="admin-scroll">
-    <div class="a-page active" id="ap-sch"><div id="schEditor"></div></div>
+    <div class="a-page active" id="ap-helper"><div id="helperContent" style="padding:4px 0"></div></div>
+    <div class="a-page" id="ap-sch"><div id="schEditor"></div></div>
     <div class="a-page" id="ap-daily">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 0 11px">
         <div><div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:17px;letter-spacing:2px" id="aDayTtl"></div><div style="font-size:12px;color:var(--ink3);margin-top:3px">確認後計入師資費</div></div>
@@ -2653,7 +2665,7 @@ function pConfirm(){
     const bn=document.getElementById('bottomNav');if(bn)bn.style.display='none';
     document.getElementById('mainScroll').style.display='none';
     document.getElementById('sc-admin').classList.add('active-admin');
-    renderSchEditor();renderDaily();buildMonthSelect();renderWage();renderMgrList();renderBackupBar();renderDashboard();
+    renderSchEditor();renderDaily();buildMonthSelect();renderWage();renderMgrList();renderBackupBar();renderDashboard();try{renderHelper();}catch(e){console.warn('helper render error:',e);}
     if(window._adminTargetTab){
       setTimeout(()=>aTab(window._adminTargetTab==='sch'?'cal':'cal'),100);
       window._adminTargetTab=null;
@@ -2718,9 +2730,10 @@ function renderDashboard(){
 
 function aTab(t){
   renderDashboard();
-  const ns=['sch','daily','cal','ledger','wage','mgr','tch','gcal','notify'];
+  const ns=['helper','sch','daily','cal','ledger','wage','mgr','tch','gcal','notify'];
   document.querySelectorAll('.a-tab').forEach((el,i)=>el.classList.toggle('active',ns[i]===t));
   ns.forEach(n=>document.getElementById('ap-'+n).classList.toggle('active',n===t));
+  if(t==='helper')renderHelper();
   if(t==='daily')renderDaily();
   if(t==='cal')renderCalendar();
   if(t==='ledger')renderLedger();
@@ -5661,6 +5674,244 @@ async function renderTomorrowNotify(){
   }catch(e){
     el.innerHTML=`<div style="padding:16px;color:var(--red);font-size:13px">讀取失敗：${e.message}</div>`;
   }
+}
+
+// ══════════ 輕境自動化小幫手 ══════════
+function hEsc(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+let _hMsgs={};
+function copyHelperMsg(key,openLine){
+  const text=_hMsgs[key];if(!text)return;
+  let copied=false;
+  try{const ta=document.createElement('textarea');ta.value=text;ta.style.cssText='position:fixed;top:0;left:0;opacity:0;font-size:16px;pointer-events:none';document.body.appendChild(ta);ta.focus();ta.select();copied=document.execCommand('copy');document.body.removeChild(ta);}catch(e){}
+  if(!copied&&navigator.clipboard){navigator.clipboard.writeText(text).catch(()=>{});}
+  showToast('✓ 訊息已複製！到 LINE OA 搜尋學員名字貼上');
+  if(openLine!==false){const a=document.createElement('a');a.href='https://manager.line.biz/';a.style.display='none';document.body.appendChild(a);a.click();setTimeout(()=>{document.body.removeChild(a);},500);}
+}
+function generateRenewMsg(name,remain,course){
+  const head=remain>0?('您的'+(course||'課程')+'還剩 '+remain+' 堂囉 🌿'):('您的'+(course||'課程')+'已經上完囉 🎉');
+  return['嗨 '+name+'！',head,'','若想繼續保持運動習慣，歡迎隨時找我們續課，','也可以直接回覆這則訊息幫您安排 💪','','輕境運動工作室'].join('\n');
+}
+function generateExpiryMsg(name,expiryDate,remain){
+  return['嗨 '+name+'！','貼心提醒：您的課程將於 '+expiryDate+' 到期 📅',(remain>0?'目前還有 '+remain+' 堂課程可以使用，':'')+'記得把握時間預約上課，別讓權益睡著囉 🌿','','有任何問題都歡迎直接回覆訊息！','輕境運動工作室'].join('\n');
+}
+function generateInstallMsg(name,used){
+  return['嗨 '+name+'！','您已經完成第 '+used+' 堂課囉 🎉','','依照分期約定，下一期課程費用要麻煩您安排繳納，','繳費方式有任何問題都歡迎詢問，謝謝您 🙏','','輕境運動工作室'].join('\n');
+}
+
+// 今日課表（SCH 排課 + 每週固定課 + 指定下堂 + 體驗課），附簽到狀態
+function helperTodayItems(){
+  const td=todayStr();const dow=new Date().getDay();
+  const items=[];const sch=SCH[td]||{};
+  Object.entries(sch).forEach(([teacher,slots])=>{slots.forEach(sl=>{
+    if(sl.skip)return;const s=S.find(x=>x.id===sl.sid);if(!s)return;
+    items.push({sid:s.id,name:s.name,teacher,time:sl.time||'',trial:false});
+  })});
+  S.forEach(s=>{
+    (s.recurring||[]).forEach(rc=>{
+      if(rc.day!==dow)return;
+      const skipped=Object.values(sch).some(slots=>slots.some(sl=>sl.sid===s.id&&sl.skip));
+      if(!skipped&&!items.find(it=>it.sid===s.id&&it.time===rc.time)&&s.used<s.total)
+        items.push({sid:s.id,name:s.name,teacher:s.teacher,time:rc.time,trial:false});
+    });
+    if(s.nextBooking&&s.nextBooking.date===td&&!items.find(it=>it.sid===s.id))
+      items.push({sid:s.id,name:s.name,teacher:s.teacher,time:s.nextBooking.time||'',trial:false});
+  });
+  items.forEach(it=>{
+    const rec=R.find(r=>r.sid===it.sid&&r.date===td);
+    const lv=L.find(l=>l.sid===it.sid&&l.date===td);
+    it.status=rec?'signed':lv?'leave':'pending';
+  });
+  T.forEach(t=>{if(t.date===td)items.push({sid:'',name:t.name,teacher:t.teacher,time:t.time||'',trial:true,status:t.sig?'signed':'pending'});});
+  items.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  return items;
+}
+
+// 月營運資料（與月薪資頁同一套算法）
+function helperMonthData(mk){
+  const monthR=R.filter(r=>r.date&&monthKey(r.date)===mk);
+  const confR=monthR.filter(r=>r.confirmed!==false);
+  const monthT=T.filter(t=>t.date&&monthKey(t.date)===mk);
+  const confT=monthT.filter(t=>t.confirmed===true);
+  const fee=confR.reduce((a,r)=>{const s=S.find(x=>x.id===r.sid);return a+getRecFee(r,s)},0)
+    +confT.reduce((a,t)=>a+(t.manualFee!=null?t.manualFee:t.teacherFee),0);
+  const income=LEDGER.filter(l=>l.type==='purchase'&&monthKey(l.createdAt||l.payDate||'')===mk).reduce((a,l)=>a+(l.actualPayment||0),0);
+  const newStu=S.filter(s=>s.payDate&&monthKey(s.payDate)===mk).length;
+  const bonusPaid=LEDGER.filter(l=>monthKey(l.createdAt||'')===mk&&l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
+  return{monthR,confR,monthT,confT,fee,income,newStu,bonusPaid};
+}
+let _helperMk='';
+function renderHelperMonth(){
+  const el=document.getElementById('helperMonthCard');if(!el)return;
+  const mk=_helperMk||monthKey(todayStr());
+  const d=helperMonthData(mk);
+  const[y,mo]=mk.split('/');
+  const gross=d.income-d.fee;
+  _hMsgs['monthReport']=['🌿 輕境運動工作室 '+y+'年'+parseInt(mo)+'月營運摘要','────────────','💰 課程收入：$'+d.income.toLocaleString(),'👩‍🏫 師資費用：$'+d.fee.toLocaleString()+'（已確認 '+(d.confR.length+d.confT.length)+' 堂）'+(d.bonusPaid?'，另撥獎金 $'+d.bonusPaid.toLocaleString():''),'📈 粗估毛利：$'+gross.toLocaleString(),'✍️ 簽到堂數：'+d.monthR.length+' 堂（已確認 '+d.confR.length+' 堂）','🧪 體驗課：'+d.monthT.length+' 堂','🙋 新學員：'+d.newStu+' 位'].join('\n');
+  el.innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+      <div style="text-align:center;padding:9px 4px;background:var(--bg);border-radius:9px"><div style="font-family:'Noto Serif TC',serif;font-size:17px;color:var(--green)">$${(d.income/1000).toFixed(1)}k</div><div style="font-size:11px;color:var(--ink3)">收入</div></div>
+      <div style="text-align:center;padding:9px 4px;background:var(--bg);border-radius:9px"><div style="font-family:'Noto Serif TC',serif;font-size:17px;color:var(--orange)">$${(d.fee/1000).toFixed(1)}k</div><div style="font-size:11px;color:var(--ink3)">師資費</div></div>
+      <div style="text-align:center;padding:9px 4px;background:var(--bg);border-radius:9px"><div style="font-family:'Noto Serif TC',serif;font-size:17px;color:${gross>=0?'var(--gold)':'var(--red)'}">$${(gross/1000).toFixed(1)}k</div><div style="font-size:11px;color:var(--ink3)">粗估毛利</div></div>
+    </div>
+    <div style="font-size:12px;color:var(--ink2);line-height:1.9">✍️ 簽到 ${d.monthR.length} 堂（已確認 ${d.confR.length}）・🧪 體驗 ${d.monthT.length} 堂・🙋 新學員 ${d.newStu} 位</div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button onclick="copyHelperMsg('monthReport',false)" style="flex:1;background:var(--ink);color:#fff;border:none;border-radius:9px;padding:10px;font-size:13px;cursor:pointer">📋 複製月報文字</button>
+      <button onclick="aTab('wage')" style="flex:1;background:var(--white);color:var(--ink2);border:1px solid var(--border);border-radius:9px;padding:10px;font-size:13px;cursor:pointer">查看薪資明細 →</button>
+    </div>`;
+}
+function helperMonthChange(v){_helperMk=v;renderHelperMonth();}
+
+// 雲端同步健檢（真的打一次 Firebase 確認可讀）
+async function helperCheckSync(){
+  const el=document.getElementById('helperSyncCard');if(!el)return;
+  try{
+    const snap=await db.ref('qingjing/lastUpdated').once('value');
+    const ts=snap.val();
+    if(typeof ts==='number'&&ts>0){
+      const dt=new Date(ts);
+      const ago=Math.round((Date.now()-ts)/60000);
+      const agoTxt=ago<60?ago+' 分鐘前':ago<1440?Math.round(ago/60)+' 小時前':Math.round(ago/1440)+' 天前';
+      el.innerHTML=`<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--green)"><span>✅</span><span>雲端同步正常・最後更新：${fmt(dt)} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}（${agoTxt}）</span></div>`;
+    }else{
+      el.innerHTML=`<div style="font-size:13px;color:var(--orange)">⚠️ 雲端讀取成功，但還沒有同步過的資料</div>`;
+    }
+  }catch(e){
+    el.innerHTML=`<div style="font-size:13px;color:var(--red);line-height:1.7">❌ <b>雲端同步異常：${hEsc(e.message)}</b><br>
+    <span style="color:var(--ink2)">資料目前只存在這台裝置上（跨裝置同步與雲端備份都沒有生效）。<br>
+    修復方式：到 Firebase 控制台 → Realtime Database → 規則，將讀寫規則開啟。<br>
+    在修復前請多用「備份」按鈕手動備份資料。</span></div>`;
+  }
+}
+
+// 資料檢查：本地異常 + Google 日曆漏簽比對
+async function runDataCheck(){
+  const el=document.getElementById('dataCheckResult');if(!el)return;
+  el.innerHTML='<div style="font-size:13px;color:var(--ink3);padding:8px 0">🔍 檢查中…</div>';
+  const issues=[];
+  const now=new Date();
+  S.forEach(s=>{
+    if(s.used>s.total)issues.push({lv:'err',msg:`${s.name}：已使用 ${s.used} 堂，超過總堂數 ${s.total} 堂（堂數異常）`});
+    if(!s.phone)issues.push({lv:'warn',msg:`${s.name}：沒有電話號碼（Google 日曆比對與搜尋會不準）`});
+    if(s.used>=s.total&&s.recurring&&s.recurring.length)issues.push({lv:'warn',msg:`${s.name}：堂數已用完，但每週固定課還排著，請確認是否續購`});
+    if(s.expiryDate&&s.used<s.total){const ed=parseDate(s.expiryDate);if(ed<now)issues.push({lv:'warn',msg:`${s.name}：課程已於 ${s.expiryDate} 過期，還剩 ${s.total-s.used} 堂未使用`});}
+  });
+  R.forEach(r=>{if(!S.find(s=>s.id===r.sid))issues.push({lv:'err',msg:`${r.date} 有一筆簽到紀錄找不到對應學員（學員可能已被刪除）`});});
+  const dup={};
+  R.forEach(r=>{const k=r.sid+'|'+r.date;dup[k]=(dup[k]||0)+1;});
+  Object.entries(dup).forEach(([k,c])=>{if(c>1){const sid=k.split('|')[0];const s=S.find(x=>x.id===sid);issues.push({lv:'warn',msg:`${s?s.name:'（未知學員）'} 在 ${k.split('|')[1]} 有 ${c} 筆簽到，請確認是否重複簽到`});}});
+  // Google 日曆比對：過去 7 天有課但沒有簽到／請假紀錄
+  if(typeof GC!=='undefined'&&GC.ok()){
+    const calMap=GC.calMap||{};
+    const start=new Date(now.getFullYear(),now.getMonth(),now.getDate()-7);
+    const tMin=encodeURIComponent(start.toISOString());
+    const tMax=encodeURIComponent(now.toISOString());
+    for(const[teacher,calId]of Object.entries(calMap)){
+      if(!calId)continue;
+      try{
+        const data=await GC.api(`/calendars/${encodeURIComponent(calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=250`);
+        for(const ev of(data.items||[])){
+          if(ev.status==='cancelled')continue;
+          const parsed=GC.parseTitle(ev.summary||'');if(!parsed)continue;
+          const evDate=fmt(new Date(ev.start&&(ev.start.dateTime||ev.start.date)||now));
+          if(/體驗/.test(parsed.type||'')){
+            if(!T.find(t=>t.name===parsed.name&&t.date===evDate))issues.push({lv:'warn',msg:`${parsed.name} ${evDate}（${teacher}）日曆有體驗課，但系統沒有體驗紀錄`});
+            continue;
+          }
+          const pd=(parsed.phone||'').replace(/\D/g,'').slice(-8);
+          const stu=S.find(s=>(pd&&(s.phone||'').replace(/\D/g,'').slice(-8)===pd)||s.name===parsed.name);
+          if(!stu){
+            if(!T.find(t=>t.name===parsed.name&&t.date===evDate))issues.push({lv:'info',msg:`${evDate}（${teacher}）「${parsed.name}」不在學員名單（可能是體驗課或尚未建檔）`});
+            continue;
+          }
+          const hasR=R.find(r=>r.sid===stu.id&&r.date===evDate);
+          const hasL=L.find(l=>l.sid===stu.id&&l.date===evDate);
+          if(!hasR&&!hasL)issues.push({lv:'warn',msg:`${stu.name} ${evDate}（${teacher}）日曆有課，但沒有簽到／請假紀錄，可能漏簽 → 可到「確認消課」用補簽處理`});
+        }
+      }catch(e){issues.push({lv:'info',msg:`讀取 ${teacher} 的日曆失敗：${e.message}`});}
+    }
+  }else{
+    issues.push({lv:'info',msg:'未連接 Google 日曆，這次略過課表漏簽比對（可到「Google日曆」分頁連接後再檢查）'});
+  }
+  const ic={err:['🔴','#FDECEA','#C0392B'],warn:['🟠','#FFF4E5','#B9770E'],info:['🔵','#EBF2FA','#3A6EA5']};
+  const errN=issues.filter(i=>i.lv==='err').length,warnN=issues.filter(i=>i.lv==='warn').length;
+  el.innerHTML=(issues.length?`<div style="font-size:12px;color:var(--ink3);margin-bottom:8px">檢查完成：${errN} 個異常・${warnN} 個提醒</div>`+issues.map(i=>`<div style="background:${ic[i.lv][1]};border-radius:9px;padding:9px 12px;margin-bottom:6px;font-size:12.5px;color:${ic[i.lv][2]};line-height:1.6">${ic[i.lv][0]} ${hEsc(i.msg)}</div>`).join(''):`<div style="text-align:center;padding:14px;font-size:14px;color:var(--green)">✅ 太棒了！資料全部正常</div>`);
+}
+
+function renderHelper(){
+  const el=document.getElementById('helperContent');if(!el)return;
+  const td=todayStr();const d=new Date();
+  const dateLabel=`${d.getMonth()+1}/${d.getDate()}（星期${WD[d.getDay()]}）`;
+  const items=helperTodayItems();
+  const signed=items.filter(i=>i.status==='signed').length;
+  const leave=items.filter(i=>i.status==='leave').length;
+  const pending=items.length-signed-leave;
+  // ── 待辦收集 ──
+  _hMsgs={};
+  const todos=[];
+  const nowT=new Date();const in14=new Date(nowT.getTime()+14*864e5);
+  S.forEach(s=>{
+    const remain=s.total-s.used;
+    const active=(s.recurring&&s.recurring.length)||s.nextBooking;
+    if(s.used<s.total&&remain<=2){
+      _hMsgs['renew_'+s.id]=generateRenewMsg(s.name,remain,(s.course||'').split(' ')[0]);
+      todos.push({icon:'⚠️',ttl:`${s.name} 剩 ${remain} 堂`,sub:`${s.teacher||''} 老師・請提醒續購`,btn:'renew_'+s.id,btnLbl:'💬 續購提醒'});
+    } else if(s.used>=s.total&&active){
+      _hMsgs['renew_'+s.id]=generateRenewMsg(s.name,0,(s.course||'').split(' ')[0]);
+      todos.push({icon:'🔴',ttl:`${s.name} 堂數已用完`,sub:'仍有排課，請確認續購',btn:'renew_'+s.id,btnLbl:'💬 續購提醒'});
+    }
+    if(s.expiryDate&&s.used<s.total){
+      const ed=parseDate(s.expiryDate);
+      if(ed>=nowT&&ed<=in14){
+        _hMsgs['exp_'+s.id]=generateExpiryMsg(s.name,s.expiryDate,s.total-s.used);
+        todos.push({icon:'📅',ttl:`${s.name} 課程 ${s.expiryDate} 到期`,sub:`還剩 ${s.total-s.used} 堂`,btn:'exp_'+s.id,btnLbl:'💬 到期提醒'});
+      }
+    }
+    if(s.installment&&s.installEvery&&s.used>0&&s.used%s.installEvery===0&&s.used<s.total){
+      _hMsgs['inst_'+s.id]=generateInstallMsg(s.name,s.used);
+      todos.push({icon:'💰',ttl:`${s.name} 分期繳費時間到`,sub:`已完成第 ${s.used} 堂，請收下一期費用`,btn:'inst_'+s.id,btnLbl:'💬 繳費提醒'});
+    }
+  });
+  // 45 天內未確認消課
+  const cutoff=fmt(new Date(nowT.getTime()-45*864e5));
+  const unconfR=R.filter(r=>r.confirmed===false&&r.date>=cutoff&&r.date<td);
+  const unconfT=T.filter(t=>t.confirmed!==true&&t.date&&t.date>=cutoff&&t.date<td&&t.sig);
+  if(unconfR.length+unconfT.length>0)todos.push({icon:'📝',ttl:`${unconfR.length+unconfT.length} 堂課待確認消課`,sub:'確認後才會計入師資費',jump:'daily',btnLbl:'前往確認 →'});
+  const stChip=s=>s==='signed'?'<span style="font-size:10px;background:var(--gold4);color:var(--gold);border-radius:99px;padding:2px 8px">已簽到</span>':s==='leave'?'<span style="font-size:10px;background:var(--purple2,#F0EAF8);color:var(--purple,#7B5EA7);border-radius:99px;padding:2px 8px">請假</span>':'<span style="font-size:10px;background:var(--bg);color:var(--ink3);border-radius:99px;padding:2px 8px">待簽到</span>';
+  const card=(ttl,body,extra)=>`<div style="background:var(--white);border:1px solid var(--border);border-radius:13px;padding:14px 16px;margin-bottom:12px">${ttl?`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px"><div style="font-size:13px;font-weight:600;color:var(--ink2);letter-spacing:1px;white-space:nowrap">${ttl}</div>${extra||''}</div>`:''}${body}</div>`;
+  // ── 月份選單（近 6 個月）──
+  const mkNow=monthKey(td);if(!_helperMk)_helperMk=mkNow;
+  let mkOpts='';
+  for(let i=0;i<6;i++){
+    const md=new Date(d.getFullYear(),d.getMonth()-i,1);
+    const mk=md.getFullYear()+'/'+String(md.getMonth()+1).padStart(2,'0');
+    mkOpts+=`<option value="${mk}"${mk===_helperMk?' selected':''}>${md.getFullYear()}年${md.getMonth()+1}月</option>`;
+  }
+  el.innerHTML=`
+  <div style="padding:12px 2px 4px">
+    <div style="font-family:'Noto Serif TC',serif;font-size:19px;letter-spacing:2px;color:var(--ink)">✨ 輕境小幫手</div>
+    <div style="font-size:12.5px;color:var(--ink3);margin-top:4px">${dateLabel}・今日 ${items.length} 堂${items.length?`（已簽 ${signed}・待簽 ${pending}${leave?`・請假 ${leave}`:''}）`:''}・待辦 ${todos.length} 件</div>
+  </div>
+  ${card('☁️ 雲端同步',`<div id="helperSyncCard"><div style="font-size:13px;color:var(--ink3)">檢查中…</div></div>`)}
+  ${card('📋 今日待辦（'+todos.length+' 件）',todos.length?todos.map(t=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--bg2)">
+      <div style="font-size:18px;flex-shrink:0">${t.icon}</div>
+      <div style="flex:1;min-width:0"><div style="font-size:14px;color:var(--ink);font-weight:500">${hEsc(t.ttl)}</div><div style="font-size:11.5px;color:var(--ink3);margin-top:2px">${hEsc(t.sub)}</div></div>
+      ${t.btn?`<button onclick="copyHelperMsg('${t.btn}')" style="flex-shrink:0;background:#06C755;color:#fff;border:none;border-radius:8px;padding:8px 11px;font-size:12px;cursor:pointer;font-weight:500">${t.btnLbl}</button>`:''}
+      ${t.jump?`<button onclick="aTab('${t.jump}')" style="flex-shrink:0;background:var(--white);color:var(--ink2);border:1px solid var(--border);border-radius:8px;padding:8px 11px;font-size:12px;cursor:pointer">${t.btnLbl}</button>`:''}
+    </div>`).join(''):`<div style="text-align:center;padding:10px;font-size:14px;color:var(--green)">✅ 目前沒有待辦事項，一切都在軌道上！</div>`)}
+  ${card('🗓 今日課表',items.length?items.map(it=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--bg2)">
+      <div style="font-size:12.5px;color:var(--ink3);width:44px;flex-shrink:0">${it.time||'--:--'}</div>
+      <div style="flex:1;font-size:14px;color:var(--ink)">${hEsc(it.name)}${it.trial?'<span style="font-size:10px;color:var(--teal);margin-left:4px">體驗</span>':''}</div>
+      <div style="font-size:11.5px;color:var(--ink3)">${hEsc(it.teacher||'')}</div>
+      ${stChip(it.status)}
+    </div>`).join(''):'<div style="text-align:center;padding:10px;font-size:13px;color:var(--ink3)">今天沒有排課 🌿</div>')}
+  ${card('💬 明日上課提醒',`<div style="font-size:12.5px;color:var(--ink2);line-height:1.8">自動抓明天 Google 日曆課表，逐一產生 LINE 提醒訊息。</div><button onclick="aTab('notify')" style="width:100%;margin-top:8px;background:var(--ink);color:#fff;border:none;border-radius:9px;padding:10px;font-size:13px;cursor:pointer">產生明日提醒訊息 →</button>`)}
+  ${card('📊 本月營運',`<div id="helperMonthCard"></div>`,`<select onchange="helperMonthChange(this.value)" style="width:auto;margin-bottom:0;font-size:12px;border:1px solid var(--border);border-radius:8px;padding:4px 8px;background:var(--white);color:var(--ink2);outline:none">${mkOpts}</select>`)}
+  ${card('🔍 資料健康檢查',`<div style="font-size:12.5px;color:var(--ink2);line-height:1.8">檢查堂數異常、過期課程、重複簽到，並比對 Google 日曆找出漏簽。</div><button onclick="runDataCheck()" style="width:100%;margin-top:8px;background:var(--white);color:var(--ink);border:1.5px solid var(--ink);border-radius:9px;padding:10px;font-size:13px;cursor:pointer;font-weight:500">開始檢查</button><div id="dataCheckResult" style="margin-top:10px"></div>`)}
+  <div style="height:20px"></div>`;
+  renderHelperMonth();
+  helperCheckSync();
 }
 
 // ── Service Worker 自動更新 ──
