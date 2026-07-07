@@ -555,7 +555,7 @@ const db={
       <div id="homeTodayStats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px"></div>
     </div>
     <div class="sc-pad" style="padding-top:14px">
-      <div id="homeQuickActions" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px"></div>
+      <div id="homeQuickActions" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px"></div>
       <div id="homeGcSync" style="display:none;margin-bottom:12px"></div>
       <div id="teacherArea"></div>
     </div>
@@ -1009,6 +1009,59 @@ const db={
   </div>
 </div>
 
+
+<!-- ── 首頁購課登記 overlay ── -->
+<div class="add-ov" id="purchaseOv" onclick="if(event.target===this)closeOvById('purchaseOv')">
+  <div class="add-modal">
+    <div class="modal-ttl">購課登記</div>
+    <!-- Step 1: 找學員 -->
+    <div id="hpStep1">
+      <label>搜尋現有學員</label>
+      <input type="text" id="hpSearchInput" placeholder="輸入姓名或電話…" oninput="hpSearch(this.value)" autocomplete="off" style="margin-bottom:8px">
+      <div id="hpSearchResults" style="max-height:180px;overflow-y:auto;margin-bottom:10px"></div>
+      <div style="text-align:center;color:var(--brown3);font-size:12px;margin:6px 0 8px">或</div>
+      <button class="btn-full bf-soft" onclick="hpShowNewForm()">＋ 新同學購課</button>
+    </div>
+    <!-- Step 1b: 新同學表單 -->
+    <div id="hpNewForm" style="display:none">
+      <label>姓名</label><input type="text" id="hpNewName" placeholder="學員姓名">
+      <label>電話</label><input type="text" id="hpNewPhone" placeholder="電話（選填）">
+      <label>授課老師</label>
+      <select id="hpNewTeacher" style="display:block;width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;margin-bottom:12px;background:var(--white);color:var(--ink)">
+        <option value="">-- 選擇老師 --</option>
+      </select>
+      <button class="btn-full bf-soft" style="margin-bottom:8px" onclick="hpConfirmNewStu()">下一步 ›</button>
+      <button class="btn-full bf-soft" onclick="hpBackToSearch()">← 返回搜尋</button>
+    </div>
+    <!-- Step 2: 選課程 + 付款 -->
+    <div id="hpStep2" style="display:none">
+      <div id="hpStuInfo" style="background:var(--teal2);border:1.5px solid var(--teal3);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--teal)"></div>
+      <label>選擇課程方案</label>
+      <div id="hpPlanPicker"></div>
+      <div class="sel-disp" id="hpSelDisp"></div>
+      <label>師資課費（每堂，自動帶入）</label>
+      <input type="number" id="hpFee" placeholder="800" style="margin-bottom:14px">
+      <div style="height:1px;background:var(--bg2);margin-bottom:14px"></div>
+      <label>繳款方式</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px" id="hpPayMethods">
+        <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white)" onclick="hpSelectPM(this,'transfer_fubon')"><div style="font-size:18px;margin-bottom:4px">🏦</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">匯款聯邦</div></div>
+        <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white)" onclick="hpSelectPM(this,'transfer_cathay')"><div style="font-size:18px;margin-bottom:4px">🏦</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">匯款國泰</div></div>
+        <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white)" onclick="hpSelectPM(this,'card')"><div style="font-size:18px;margin-bottom:4px">💳</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">刷卡</div><div style="font-size:11px;color:var(--red);font-weight:500">+3%</div></div>
+        <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white)" onclick="hpSelectPM(this,'cash')"><div style="font-size:18px;margin-bottom:4px">💵</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">付現金</div><div style="font-size:11px;color:var(--green);font-weight:500">現折 $1,000</div></div>
+      </div>
+      <div id="hpPaySummary" style="display:none;background:var(--gold4);border:1px solid var(--gold2);border-radius:10px;padding:12px 16px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--ink2);padding:3px 0"><span>課程定價</span><span id="hpPsPrice">—</span></div>
+        <div id="hpPsFeeRow" style="display:none;justify-content:space-between;font-size:13px;color:var(--ink2);padding:3px 0"><span id="hpPsFeeLabel">—</span><span id="hpPsFeeAmt">—</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;margin-top:8px;border-top:1px solid var(--gold2)"><span style="font-size:14px;font-weight:500;color:var(--gold)">實際入帳</span><span style="font-family:'Noto Serif TC',serif;font-size:20px;color:var(--gold)" id="hpPsTotal">—</span></div>
+      </div>
+      <label>入帳日期</label><input type="date" id="hpPayDate" class="native-date-inp">
+      <label>備註（選填）</label><input type="text" id="hpNote" placeholder="例：首購、折扣…">
+      <button class="btn-full bf-ink" style="background:var(--teal);margin-top:4px" onclick="confirmHomePurchase()">確認購課</button>
+      <button class="btn-full bf-soft" style="margin-top:9px" onclick="hpBackToSearch()">← 返回</button>
+    </div>
+    <button class="btn-full bf-soft" style="margin-top:9px" onclick="closeOvById('purchaseOv')">關閉</button>
+  </div>
+</div>
 
 <!-- 行事曆新增課程 Modal -->
 <div class="add-ov" id="calAddOv" onclick="if(event.target===this)closeOvById(&#39;calAddOv&#39;)">
@@ -1538,6 +1591,13 @@ function renderTeachers(){
         </div>
         <div style="font-size:12px;font-weight:500;color:var(--brown)" id="gcSyncHomeLbl">同步課表</div>
         <div style="font-size:10px;color:var(--brown3);margin-top:2px">從 Google 日曆</div>
+      </div>
+      <div onclick="showPurchaseModal()" style="background:#fff;border:0.5px solid var(--brown4);border-radius:14px;padding:13px 10px;text-align:center;cursor:pointer">
+        <div style="font-size:20px;margin-bottom:5px;color:#7C4DBA">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="vertical-align:middle"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/><path d="M14 15h.01"/></svg>
+        </div>
+        <div style="font-size:12px;font-weight:500;color:var(--brown)">購課登記</div>
+        <div style="font-size:10px;color:var(--brown3);margin-top:2px">買課紀錄</div>
       </div>`;
   }
 
@@ -4451,6 +4511,173 @@ function confirmRenew(){
   showToast('✓ '+s.name+' 續課成功！新一期 '+renewSelN+' 堂');
 }
 
+
+// ── 首頁購課登記 ──
+let _hpStuId=null,_hpIsNew=false,_hpTmpName='',_hpTmpPhone='',_hpTmpTeacher='';
+let _hpSelPlan='',_hpSelN=0,_hpSelPrice=0,_hpPayMethod='';
+
+function showPurchaseModal(){
+  _hpStuId=null;_hpIsNew=false;_hpSelPlan='';_hpSelN=0;_hpSelPrice=0;_hpPayMethod='';
+  document.getElementById('hpStep1').style.display='';
+  document.getElementById('hpNewForm').style.display='none';
+  document.getElementById('hpStep2').style.display='none';
+  const inp=document.getElementById('hpSearchInput');
+  if(inp){inp.value='';document.getElementById('hpSearchResults').innerHTML='';}
+  document.getElementById('purchaseOv').classList.add('open');
+}
+
+function hpSearch(q){
+  const el=document.getElementById('hpSearchResults');
+  if(!q.trim()){el.innerHTML='';return;}
+  const lq=q.toLowerCase();
+  const hits=S.filter(s=>(s.name||'').toLowerCase().includes(lq)||(s.phone||'').includes(q)).slice(0,8);
+  if(!hits.length){el.innerHTML=`<div style="text-align:center;padding:12px;color:var(--brown3);font-size:13px">找不到學員</div>`;return;}
+  el.innerHTML=hits.map(s=>`<div onclick="hpSelectStu('${s.id}')" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:6px;cursor:pointer;background:var(--white)">
+    <div style="font-size:14px;font-weight:500;color:var(--ink)">${s.name}</div>
+    <div style="font-size:11px;color:var(--brown3);margin-top:2px">${s.course||'—'} · ${s.teacher||'—'}${s.phone?' · '+s.phone:''}</div>
+  </div>`).join('');
+}
+
+function hpSelectStu(sid){
+  const s=S.find(x=>x.id===sid);if(!s)return;
+  _hpStuId=sid;_hpIsNew=false;
+  _hpTmpTeacher=s.teacher||'';
+  document.getElementById('hpStuInfo').innerHTML=`<b>${s.name}</b>　${s.teacher||'—'}<br><span style="opacity:.7">現有課程：${s.course||'—'}　剩餘 ${Math.max(0,(s.total||0)-(s.used||0))} 堂</span>`;
+  hpShowStep2();
+}
+
+function hpShowNewForm(){
+  document.getElementById('hpStep1').style.display='none';
+  document.getElementById('hpNewForm').style.display='';
+  // populate teacher select
+  const sel=document.getElementById('hpNewTeacher');
+  sel.innerHTML='<option value="">-- 選擇老師 --</option>'+getAllTeachers().map(t=>`<option value="${t}">${t}</option>`).join('');
+}
+
+function hpBackToSearch(){
+  document.getElementById('hpStep1').style.display='';
+  document.getElementById('hpNewForm').style.display='none';
+  document.getElementById('hpStep2').style.display='none';
+}
+
+function hpConfirmNewStu(){
+  const name=(document.getElementById('hpNewName').value||'').trim();
+  const phone=(document.getElementById('hpNewPhone').value||'').trim();
+  const teacher=document.getElementById('hpNewTeacher').value;
+  if(!name){showToast('請輸入姓名','r');return;}
+  if(!teacher){showToast('請選擇老師','r');return;}
+  _hpStuId=null;_hpIsNew=true;
+  _hpTmpName=name;_hpTmpPhone=phone;_hpTmpTeacher=teacher;
+  document.getElementById('hpStuInfo').innerHTML=`<b>${name}</b>（新同學）　${teacher}${phone?'<br><span style="opacity:.7">'+phone+'</span>':''}`;
+  hpShowStep2();
+}
+
+function hpShowStep2(){
+  document.getElementById('hpStep1').style.display='none';
+  document.getElementById('hpNewForm').style.display='none';
+  document.getElementById('hpStep2').style.display='';
+  _hpSelPlan='';_hpSelN=0;_hpSelPrice=0;_hpPayMethod='';
+  document.getElementById('hpSelDisp').classList.remove('show');
+  document.getElementById('hpPaySummary').style.display='none';
+  document.querySelectorAll('#hpPayMethods>div').forEach(d=>{d.style.borderColor='var(--border)';d.style.background='var(--white)';});
+  // today as default pay date
+  const pd=document.getElementById('hpPayDate');if(pd)pd.value=todayStr().replace(/\//g,'-');
+  document.getElementById('hpNote').value='';
+  // build plan picker
+  const pp=document.getElementById('hpPlanPicker');
+  pp.innerHTML=Object.entries(PLANS).map(([name,plan])=>{
+    const type=plan.type||'p';
+    return`<div style="margin-bottom:10px">
+      <div style="font-size:12px;font-weight:500;color:var(--brown2);letter-spacing:.5px;margin-bottom:6px">${name}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px">
+        ${plan.ratios.map(r=>`<div class="pt" onclick="hpPickRatio(this,'${name}','${r}','${type}')" style="flex:1;min-width:70px;border:1.5px solid var(--border);border-radius:8px;padding:8px 6px;text-align:center;cursor:pointer;font-size:13px;color:var(--ink2)">${r}</div>`).join('')}
+      </div>
+      <div class="session-row" id="hpsp-${name}" style="display:none"></div>
+    </div>`;
+  }).join('');
+  // fee
+  document.getElementById('hpFee').value=_hpTmpTeacher?getDefaultFee(_hpTmpTeacher,''):0;
+}
+
+function hpPickRatio(el,planName,ratio,type){
+  document.querySelectorAll('#hpPlanPicker .pt').forEach(t=>t.className='pt');
+  el.classList.add('sel-'+type);
+  _hpSelPlan=planName+' '+ratio;_hpSelN=0;_hpSelPrice=0;
+  document.querySelectorAll('#hpPlanPicker .session-row').forEach(s=>{s.classList.remove('show');s.innerHTML='';});
+  const sp=document.getElementById('hpsp-'+planName);sp.classList.add('show');
+  sp.innerHTML=PLANS[planName].sessions[ratio].map(s=>`<div class="sc" onclick="hpPickSession(this,${s.n},${s.price})"><div class="sc-n">${s.n}</div><div class="sc-lbl">${s.lbl}</div><div class="sc-price">$${s.price.toLocaleString()}</div></div>`).join('');
+  document.getElementById('hpFee').value=_hpTmpTeacher?getDefaultFee(_hpTmpTeacher,_hpSelPlan):0;
+  hpUpdDisp();hpUpdPaySummary();
+}
+
+function hpPickSession(el,n,price){
+  document.querySelectorAll('#hpPlanPicker .sc').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');_hpSelN=n;_hpSelPrice=price;
+  hpUpdDisp();hpUpdPaySummary();
+}
+
+function hpUpdDisp(){
+  const el=document.getElementById('hpSelDisp');
+  if(_hpSelPlan&&_hpSelN){el.classList.add('show');el.textContent='已選：'+_hpSelPlan+'・'+_hpSelN+'堂・$'+_hpSelPrice.toLocaleString();}
+  else el.classList.remove('show');
+}
+
+function hpSelectPM(el,method){
+  document.querySelectorAll('#hpPayMethods>div').forEach(d=>{d.style.borderColor='var(--border)';d.style.background='var(--white)';});
+  el.style.borderColor='var(--gold)';el.style.background='var(--gold4)';
+  _hpPayMethod=method;hpUpdPaySummary();
+}
+
+function hpUpdPaySummary(){
+  const summary=document.getElementById('hpPaySummary');
+  if(!_hpSelPrice||!_hpPayMethod){summary.style.display='none';return;}
+  const pay=calcPayment(_hpSelPrice,_hpPayMethod);
+  summary.style.display='block';
+  document.getElementById('hpPsPrice').textContent='$'+_hpSelPrice.toLocaleString();
+  const feeRow=document.getElementById('hpPsFeeRow');
+  if(pay.feeLabel){feeRow.style.display='flex';document.getElementById('hpPsFeeLabel').textContent=pay.feeLabel;document.getElementById('hpPsFeeAmt').textContent=(pay.feeAmount>0?'+':'')+' $'+Math.abs(pay.feeAmount).toLocaleString();}
+  else{feeRow.style.display='none';}
+  document.getElementById('hpPsTotal').textContent='$'+pay.amount.toLocaleString();
+}
+
+function confirmHomePurchase(){
+  if(!_hpSelPlan||!_hpSelN){showToast('請選擇課程方案','r');return;}
+  if(!_hpPayMethod){showToast('請選擇繳款方式','r');return;}
+  const fee=parseInt(document.getElementById('hpFee').value)||0;
+  const payDateRaw=document.getElementById('hpPayDate').value;
+  const payDate=payDateRaw?payDateRaw.replace(/-/g,'/'):todayStr();
+  const note=document.getElementById('hpNote').value.trim();
+  const pay=calcPayment(_hpSelPrice,_hpPayMethod);
+  const bonus=Math.round(_hpSelPrice*0.03);
+  let stuName='';
+  if(_hpIsNew){
+    // 建立新學員
+    const newStu={
+      id:'s'+Date.now(),name:_hpTmpName,phone:_hpTmpPhone,
+      course:_hpSelPlan,teacher:_hpTmpTeacher,
+      total:_hpSelN,used:0,price:_hpSelPrice,fee,
+      payMethod:_hpPayMethod,payDate,actualPayment:pay.amount,
+      note,bonus,bonusNote:'',paymentStatus:'paid',
+      installment:false,installEvery:null,expiryDate:'',healthNotes:''
+    };
+    S.push(newStu);
+    addLedgerEntry({type:'new',sid:newStu.id,name:newStu.name,teacher:newStu.teacher,course:_hpSelPlan,total:_hpSelN,price:_hpSelPrice,actualPayment:pay.amount,payMethod:_hpPayMethod,payDate,bonus,bonusPaid:false,note});
+    stuName=newStu.name;
+  } else {
+    const s=S.find(x=>x.id===_hpStuId);if(!s)return;
+    stuName=s.name;
+    // 續課：保留舊資料
+    s.prevCourses=s.prevCourses||[];
+    s.prevCourses.push({course:s.course,total:s.total,used:s.used,price:s.price,fee:s.fee,payMethod:s.payMethod,payDate:s.payDate,actualPayment:s.actualPayment,bonus:s.bonus,note:s.note,period:s.prevCourses.length+1});
+    s.course=_hpSelPlan;s.total=_hpSelN;s.used=0;s.price=_hpSelPrice;s.fee=fee;
+    s.payMethod=_hpPayMethod;s.payDate=payDate;s.actualPayment=pay.amount;
+    s.bonus=bonus;s.bonusNote='';s.note=note;s.paymentStatus='paid';
+    addLedgerEntry({type:'renew',sid:s.id,name:s.name,teacher:s.teacher,course:_hpSelPlan,total:_hpSelN,price:_hpSelPrice,actualPayment:pay.amount,payMethod:_hpPayMethod,payDate,bonus,bonusPaid:false,note});
+  }
+  save();renderTeachers();
+  closeOvById('purchaseOv');
+  showToast('✓ '+stuName+' 購課完成！'+_hpSelN+'堂 $'+pay.amount.toLocaleString());
+}
 
 // ── 約下次上課（成功畫面）──
 function renderNextApptArea(sid){
