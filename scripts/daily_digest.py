@@ -87,10 +87,10 @@ def main():
             if s.get('installment') and s.get('installEvery') and s.get('used', 0) > 0
             and s['used'] % s['installEvery'] == 0 and s['used'] < s.get('total', 0)]
 
-    # ── 本月收入 ──
+    # ── 本月收入（計入所有流水帳項目：新購/續課/首頁購課/體驗課費）──
     mk = now.strftime('%Y/%m')
     inc = sum(l.get('actualPayment', 0) for l in led
-              if l and l.get('type') == 'purchase' and (l.get('createdAt') or '')[:7] == mk)
+              if l and (l.get('createdAt') or '')[:7] == mk)
 
     # ── 組訊息 ──
     lines = []

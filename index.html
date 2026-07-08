@@ -2685,7 +2685,8 @@ function renderDashboard(){
   let todayCnt=0;
   Object.values(SCH[td]||{}).forEach(slots=>todayCnt+=slots.filter(sl=>!sl.skip).length);
   const mk=monthKey(td);
-  const monthIncome=LEDGER.filter(l=>l.type==='purchase'&&monthKey(l.createdAt||l.payDate||'')===mk).reduce((a,l)=>a+(l.actualPayment||0),0);
+  // 收入計入所有流水帳項目（新購/續課/首頁購課/體驗課費）
+  const monthIncome=LEDGER.filter(l=>monthKey(l.createdAt||l.payDate||'')===mk).reduce((a,l)=>a+(l.actualPayment||0),0);
   const monthNew=S.filter(s=>s.payDate&&monthKey(s.payDate)===mk).length;
   const lowSess=S.filter(s=>s.used<s.total&&s.total-s.used<=2);
   const now=new Date();const in14=new Date(now.getTime()+14*864e5);
@@ -4760,6 +4761,39 @@ function saveLedger(){
   db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync error:',e));
 }
 
+// ── 體驗課費登記 ──
+// 近 60 天已上、但還沒登記到流水帳的體驗課
+function recentUnloggedTrials(){
+  const cutoff=fmt(new Date(Date.now()-60*864e5));
+  return T.filter(t=>t.date&&t.date>=cutoff&&t.date<=todayStr()
+    &&!LEDGER.some(l=>l.type==='trial'&&l.name===t.name&&(l.payDate===t.date||l.createdAt===t.date)))
+    .sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10);
+}
+function toggleTrialFeePanel(){
+  const p=document.getElementById('trialFeePanel');if(!p)return;
+  p.style.display=p.style.display==='none'?'block':'none';
+}
+function fillTrialFee(name,teacher,fee,date){
+  const p=document.getElementById('trialFeePanel');if(p)p.style.display='block';
+  document.getElementById('tfName').value=name;
+  document.getElementById('tfTeacher').value=teacher||'';
+  document.getElementById('tfAmount').value=fee||'';
+  document.getElementById('tfDate').value=(date||todayStr()).replace(/\//g,'-');
+}
+function saveTrialFee(){
+  const name=document.getElementById('tfName').value.trim();
+  const amount=parseInt(document.getElementById('tfAmount').value)||0;
+  const teacher=document.getElementById('tfTeacher').value;
+  const payMethod=document.getElementById('tfPay').value;
+  const note=document.getElementById('tfNote').value.trim();
+  const date=(document.getElementById('tfDate').value||'').replace(/-/g,'/')||todayStr();
+  if(!name){showToast('請輸入學員姓名','r');return;}
+  if(amount<=0){showToast('請輸入體驗課費金額','r');return;}
+  addLedgerEntry({type:'trial',name,teacher,course:'體驗課',total:1,price:amount,actualPayment:amount,payMethod,payDate:date,bonus:0,bonusPaid:true,bonusNote:'',note});
+  renderLedger();
+  showToast('✓ 已登記 '+name+' 的體驗課費 $'+amount.toLocaleString());
+}
+
 function loadLedgerFromFirebase(callback){
   db.ref('qingjing_ledger').once('value').then(snap=>{
     const data=snap.val();
@@ -4812,34 +4846,58 @@ function renderLedger(){
     </div>
   </div>
 
+  <div style="margin-bottom:14px">
+    <button onclick="toggleTrialFeePanel()" style="width:100%;padding:11px;background:var(--teal2);color:var(--teal);border:1.5px dashed var(--teal3);border-radius:11px;font-size:14px;cursor:pointer;font-weight:500">＋ 登記體驗課費</button>
+    <div id="trialFeePanel" style="display:none;background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-top:10px;box-shadow:var(--shadow)">
+      ${(()=>{const picks=recentUnloggedTrials();return picks.length?`
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:6px">點一下快速帶入（近 60 天已上、還沒記帳的體驗課）：</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+        ${picks.map(t=>`<span onclick="fillTrialFee('${hEsc(t.name).replace(/'/g,'&#39;')}','${hEsc(t.teacher||'').replace(/'/g,'&#39;')}',${t.fee||0},'${t.date}')" style="background:var(--bg);border:1px solid var(--border);border-radius:99px;padding:5px 12px;font-size:12px;cursor:pointer;color:var(--ink2)">${hEsc(t.name)}・${t.date.slice(5)}・$${(t.fee||0).toLocaleString()}</span>`).join('')}
+      </div>`:''})()}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label style="font-size:12px;color:var(--ink3)">日期</label><input type="date" id="tfDate" class="native-date-inp" style="margin-bottom:0" value="${todayStr().replace(/\//g,'-')}"></div>
+        <div><label style="font-size:12px;color:var(--ink3)">學員姓名</label><input type="text" id="tfName" placeholder="體驗學員姓名" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:0"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label style="font-size:12px;color:var(--ink3)">老師</label><select id="tfTeacher" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;outline:none;background:var(--white);margin-bottom:0"><option value="">—</option>${ALL_TEACHERS.map(t=>`<option value="${hEsc(t)}">${hEsc(t)}</option>`).join('')}</select></div>
+        <div><label style="font-size:12px;color:var(--ink3)">金額</label><input type="number" id="tfAmount" placeholder="例：1200" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:0"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div><label style="font-size:12px;color:var(--ink3)">付款方式</label><select id="tfPay" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;outline:none;background:var(--white);margin-bottom:0"><option value="cash">付現金</option><option value="transfer_fubon">匯款聯邦</option><option value="transfer_cathay">匯款國泰</option><option value="card">刷卡</option></select></div>
+        <div><label style="font-size:12px;color:var(--ink3)">備註（選填）</label><input type="text" id="tfNote" placeholder="例：器械 1on1" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;outline:none;margin-bottom:0"></div>
+      </div>
+      <button onclick="saveTrialFee()" style="width:100%;padding:12px;background:var(--teal);color:#fff;border:none;border-radius:10px;font-size:15px;cursor:pointer;font-weight:500">儲存體驗課費</button>
+    </div>
+  </div>
+
   ${monthEntries.length?monthEntries.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(l=>`
   <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
       <div>
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:16px;letter-spacing:1px">${l.name}</span>
-          <span style="font-size:11px;background:${l.type==='renew'?'var(--blue2)':'var(--green2)'};color:${l.type==='renew'?'var(--blue)':'var(--green)'};border:1px solid ${l.type==='renew'?'var(--blue3)':'#90D4B0'};border-radius:4px;padding:1px 7px">${l.type==='renew'?'續課':'新購'}</span>
+          <span style="font-size:11px;background:${l.type==='trial'?'var(--orange2)':l.type==='renew'?'var(--blue2)':'var(--green2)'};color:${l.type==='trial'?'var(--orange)':l.type==='renew'?'var(--blue)':'var(--green)'};border:1px solid ${l.type==='trial'?'var(--orange3)':l.type==='renew'?'var(--blue3)':'#90D4B0'};border-radius:4px;padding:1px 7px">${l.type==='trial'?'體驗':l.type==='renew'?'續課':'新購'}</span>
         </div>
-        <div style="font-size:12px;color:var(--ink3);margin-top:3px">${l.course}・${l.total}堂・${l.teacher}老師</div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:3px">${l.type==='trial'?`體驗課${l.note?'・'+l.note:''}・${l.teacher||'—'}老師`:`${l.course}・${l.total}堂・${l.teacher}老師`}</div>
         <div style="font-size:11px;color:var(--ink3);margin-top:2px">${l.createdAt}・${PAY_NAME[l.payMethod]||l.payMethod||'—'}</div>
       </div>
       <div style="text-align:right">
         <div style="font-size:18px;color:var(--green)">$${(l.actualPayment||0).toLocaleString()}</div>
-        <div style="font-size:11px;color:var(--ink3)">定價 $${(l.price||0).toLocaleString()}</div>
+        ${l.type==='trial'?'':`<div style="font-size:11px;color:var(--ink3)">定價 $${(l.price||0).toLocaleString()}</div>`}
       </div>
     </div>
     <div style="border-top:1px solid var(--bg2);padding-top:8px;display:flex;align-items:center;justify-content:space-between">
       <div>
-        <span style="font-size:12px;color:var(--teal)">續課獎金 $${(l.bonus||0).toLocaleString()}</span>
+        ${l.type==='trial'?`<span style="font-size:12px;color:var(--ink3)">體驗課費（無續課獎金）</span>`:`<span style="font-size:12px;color:var(--teal)">續課獎金 $${(l.bonus||0).toLocaleString()}</span>`}
         ${l.bonusNote?`<span style="font-size:11px;color:var(--ink3);margin-left:8px">${l.bonusNote}</span>`:''}
       </div>
       <div style="display:flex;align-items:center;gap:8px">
-        <button onclick="editLedgerBonus('${l.id}')" style="padding:4px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--ink2)">調整獎金</button>
+        ${l.type==='trial'?'':`<button onclick="editLedgerBonus('${l.id}')" style="padding:4px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--ink2)">調整獎金</button>`}
         <button onclick="editLedgerDate('${l.id}')" style="padding:4px 10px;background:var(--blue2);border:1px solid var(--blue3);border-radius:6px;font-size:11px;cursor:pointer;color:var(--blue)">改日期</button>
         <button onclick="deleteLedgerEntry('${l.id}')" style="padding:4px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:6px;font-size:11px;cursor:pointer;color:var(--red)">刪除</button>
-        ${l.bonusPaid?
+        ${l.type==='trial'?'':(l.bonusPaid?
           `<span style="font-size:11px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:3px 10px;cursor:pointer" onclick="toggleBonusPaid('${l.id}')">已撥款 ✓</span>`:
-          `<button onclick="toggleBonusPaid('${l.id}')" style="padding:5px 12px;background:var(--teal);color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer;font-weight:500">確認撥款</button>`
+          `<button onclick="toggleBonusPaid('${l.id}')" style="padding:5px 12px;background:var(--teal);color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer;font-weight:500">確認撥款</button>`)
         }
       </div>
     </div>
@@ -5552,7 +5610,8 @@ function showMonthReport(){
   const monthR=R.filter(r=>monthKey(r.date)===mk&&r.confirmed!==false);
   const monthT=T.filter(t=>monthKey(t.date)===mk&&t.confirmed===true);
   const totalFee=monthR.reduce((a,r)=>{const s=S.find(x=>x.id===r.sid);return a+(getRecFee(r,s)||0)},0)+monthT.reduce((a,t)=>a+(t.manualFee!=null?t.manualFee:t.teacherFee),0);
-  const monthIncome=LEDGER.filter(l=>l.type==='purchase'&&monthKey(l.createdAt||l.payDate||'')===mk).reduce((a,l)=>a+(l.actualPayment||0),0);
+  // 收入計入所有流水帳項目（新購/續課/首頁購課/體驗課費）
+  const monthIncome=LEDGER.filter(l=>monthKey(l.createdAt||l.payDate||'')===mk).reduce((a,l)=>a+(l.actualPayment||0),0);
   const monthNew=S.filter(s=>s.payDate&&monthKey(s.payDate)===mk);
   const sessionsByTeacher={};
   monthR.forEach(r=>{const s=S.find(x=>x.id===r.sid);const t=r.isSub?r.subTeacher:(s?.teacher||'其他');if(!sessionsByTeacher[t])sessionsByTeacher[t]=0;sessionsByTeacher[t]++;});
@@ -5734,7 +5793,8 @@ function helperMonthData(mk){
   const confT=monthT.filter(t=>t.confirmed===true);
   const fee=confR.reduce((a,r)=>{const s=S.find(x=>x.id===r.sid);return a+getRecFee(r,s)},0)
     +confT.reduce((a,t)=>a+(t.manualFee!=null?t.manualFee:t.teacherFee),0);
-  const income=LEDGER.filter(l=>l.type==='purchase'&&monthKey(l.createdAt||l.payDate||'')===mk).reduce((a,l)=>a+(l.actualPayment||0),0);
+  // 收入計入所有流水帳項目（新購/續課/首頁購課/體驗課費）
+  const income=LEDGER.filter(l=>monthKey(l.createdAt||l.payDate||'')===mk).reduce((a,l)=>a+(l.actualPayment||0),0);
   const newStu=S.filter(s=>s.payDate&&monthKey(s.payDate)===mk).length;
   const bonusPaid=LEDGER.filter(l=>monthKey(l.createdAt||'')===mk&&l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
   return{monthR,confR,monthT,confT,fee,income,newStu,bonusPaid};
