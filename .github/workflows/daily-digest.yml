@@ -1,0 +1,14 @@
+name: 每日營運摘要
+on:
+  schedule:
+    - cron: '0 0 * * *'   # UTC 00:00 = 台北 08:00
+  workflow_dispatch: {}
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 產生並推播摘要
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python3 scripts/daily_digest.py
