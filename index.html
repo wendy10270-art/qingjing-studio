@@ -1320,9 +1320,13 @@ function loadFromFirebase(callback){
       if(data.lastUpdated>=_localLastUpdated){
         S=data.s||[];
         R=data.r||[];
-        SCH=data.sch||{};
-        T=data.t||[];
-        L=data.l||[];
+        // 雲端缺 sch/l 時保留本地（sch 只在課表變動時才會上傳，patch 不帶 sch；
+        // 若因此清空本地課表，手動排課與 skip 標記會全部消失）
+        SCH=data.sch||SCH||{};
+        T=data.t||T||[];
+        L=data.l||L||[];
+        // 雲端還沒有課表、但本地有 → 標記下次同步做完整上傳，把課表補回雲端
+        if(!data.sch&&Object.keys(SCH).length){_schChanged=true;syncToFirebase();}
         _localLastUpdated=data.lastUpdated;
         localStorage.setItem('qjf_localTs',String(_localLastUpdated));
         localStorage.setItem('qjf_s',JSON.stringify(S));
