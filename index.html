@@ -3771,9 +3771,13 @@ function _buildUpcomingFallbackHTML(s, remain, gcStatus){
     ?`<div style="margin-top:6px;padding:7px 12px;background:var(--bg2);border-radius:8px;font-size:11px;color:var(--ink3);text-align:center">💡 連接 Google 日曆後可自動顯示已預約課程</div>`:'';
   const dates=getUpcomingDates(s);
   if(!dates.length){
+    // 查詢 Google 日曆期間先顯示載入中，避免誤導成「沒有排課」
+    const body=gcStatus==='loading'
+      ?`<div style="font-size:12px;color:var(--ink3);line-height:1.8"><span style="animation:spin 1s linear infinite;display:inline-block">⟳</span> 正在從 Google 日曆查詢已預約課程…</div>`
+      :`<div style="font-size:12px;color:var(--ink3);line-height:1.8">尚未設定每週固定時段<br>可到管理後台→學員管理→固定排課設定</div>`;
     return`<div style="background:var(--white);border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;text-align:center">
       <div style="font-size:13px;color:var(--gold);margin-bottom:6px">📅 接下來的課程</div>
-      <div style="font-size:12px;color:var(--ink3);line-height:1.8">尚未設定每週固定時段<br>可到管理後台→學員管理→固定排課設定</div>
+      ${body}
       ${gcHintBelow}
     </div>`;
   }
@@ -3838,21 +3842,24 @@ function renderUpcomingArea(sid, targetId){
   if(remain<=0){el.innerHTML='';return;}
   const gcConnected=(typeof GC!=='undefined'&&GC.ok());
   // Step 1: render fallback immediately (no await → instant display)
+  el.dataset.upcomingSid=sid;
   el.innerHTML=_buildUpcomingFallbackHTML(s, remain, gcConnected?'loading':'not-connected');
   // Step 2: if GC connected, fetch in background then silently swap
   if(gcConnected){
     GC.searchStudentEvents(s.name,remain,s.teacher,s.phone).then(events=>{
-      // Only update if element still in DOM and shows same student
-      if(document.getElementById(targetId)!==el)return;
+      // 只要目標區塊還在、且顯示的是同一位學員就更新（重繪換掉元件也沒關係）
+      const cur=document.getElementById(targetId);
+      if(!cur||cur.dataset.upcomingSid!==sid)return;
       if(events.length>0){
-        el.innerHTML=_buildUpcomingGCHTML(s,events);
+        cur.innerHTML=_buildUpcomingGCHTML(s,events);
       }else{
-        el.innerHTML=_buildUpcomingFallbackHTML(s,remain,'no-events');
+        cur.innerHTML=_buildUpcomingFallbackHTML(s,remain,'no-events');
       }
     }).catch(e=>{
       console.warn('GC upcoming search failed:',e);
-      if(document.getElementById(targetId)===el){
-        el.innerHTML=_buildUpcomingFallbackHTML(s,remain,'no-events');
+      const cur=document.getElementById(targetId);
+      if(cur&&cur.dataset.upcomingSid===sid){
+        cur.innerHTML=_buildUpcomingFallbackHTML(s,remain,'no-events');
       }
     });
   }
@@ -5275,17 +5282,20 @@ const GC={
         );
         (data.items||[]).forEach(ev=>{
           const key=ev.iCalUID||ev.id;
-          if(!seen.has(key)){seen.add(key);allEvents.push(ev);}
+          if(!seen.has(key)){seen.add(key);ev.calendarId=calId;allEvents.push(ev);}
         });
       }catch(e){console.warn('GC search error:',calId,e);}
     };
+    // 所有日曆×關鍵字並行查詢（逐本序列查在多位老師時會拖到 10 秒以上）
+    const jobs=[];
     for(const calId of calIds){
-      await fetchQ(calId, name);
+      jobs.push(fetchQ(calId, name));
       // 同時用電話後 8 碼搜尋（電話比姓名更精確）
       if(phone&&phone.replace(/\D/g,'').length>=8){
-        await fetchQ(calId, phone.replace(/\D/g,'').slice(-8));
+        jobs.push(fetchQ(calId, phone.replace(/\D/g,'').slice(-8)));
       }
     }
+    await Promise.all(jobs);
     // 驗證：排除取消課程；事件標題包含姓名 OR parseTitle 解出的電話後 8 碼吻合
     const phoneDigits=(phone||'').replace(/\D/g,'').slice(-8);
     const cancelRe=/^[\(（]取消|^取消/;
