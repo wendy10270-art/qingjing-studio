@@ -1247,6 +1247,10 @@ let _localLastUpdated=parseInt(localStorage.getItem('qjf_localTs')||'0');
 // false → 只更新 s/r/t/l（PATCH 部分更新），保留 Firebase 上的 sch 不被蓋掉
 let _schChanged=false;
 function markSchChanged(){_schChanged=true;} // 課表變動時呼叫此函式
+// Firebase 節點名稱不允許 / . # $ [ ]；課表以日期（YYYY/MM/DD）為 key，
+// 上傳前轉成 YYYY-MM-DD、下載後轉回，否則整包寫入會被 Firebase 以 400 拒絕
+function encSchKeys(sch){const o={};Object.keys(sch||{}).forEach(k=>{o[k.replace(/\//g,'-')]=sch[k]});return o}
+function decSchKeys(sch){const o={};Object.keys(sch||{}).forEach(k=>{o[k.replace(/-/g,'/')]=sch[k]});return o}
 function doFirebaseWrite(){
   const ts2=_localLastUpdated;
   const writesSch=_schChanged;
@@ -1254,7 +1258,7 @@ function doFirebaseWrite(){
   db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync:',e));
   if(writesSch){
     db.ref('qingjing').set({
-      s:S, r:R, sch:SCH, t:T, l:L, lastUpdated:ts2
+      s:S, r:R, sch:encSchKeys(SCH), t:T, l:L, lastUpdated:ts2
     }).then(()=>showSyncStatus('synced')).catch(e=>{showSyncStatus('error');console.warn('Firebase sync error:',e);});
   } else {
     db.ref('qingjing').patch({
@@ -1322,7 +1326,7 @@ function loadFromFirebase(callback){
         R=data.r||[];
         // 雲端缺 sch/l 時保留本地（sch 只在課表變動時才會上傳，patch 不帶 sch；
         // 若因此清空本地課表，手動排課與 skip 標記會全部消失）
-        SCH=data.sch||SCH||{};
+        SCH=data.sch?decSchKeys(data.sch):(SCH||{});
         T=data.t||T||[];
         L=data.l||L||[];
         // 雲端還沒有課表、但本地有 → 標記下次同步做完整上傳，把課表補回雲端
@@ -1340,7 +1344,7 @@ function loadFromFirebase(callback){
       }
     } else if(data&&data.s&&Array.isArray(data.s)&&data.s.length>0){
       // 相容舊格式（沒有 lastUpdated 的資料）
-      S=data.s;R=data.r||R;SCH=data.sch||SCH;T=data.t||T;L=data.l||L;
+      S=data.s;R=data.r||R;SCH=data.sch?decSchKeys(data.sch):SCH;T=data.t||T;L=data.l||L;
       localStorage.setItem('qjf_s',JSON.stringify(S));
       localStorage.setItem('qjf_r',JSON.stringify(R));
       localStorage.setItem('qjf_sch',JSON.stringify(SCH));
@@ -1401,7 +1405,7 @@ function applyRemoteData(data){
     console.log('⚠ SSE 遠端資料較舊，略過（遠端:'+new Date(data.lastUpdated).toLocaleTimeString()+' < 本地:'+new Date(_localLastUpdated).toLocaleTimeString()+')');
     return;
   }
-  S=data.s;R=data.r||R;SCH=data.sch||SCH;T=data.t||T;L=data.l||L;
+  S=data.s;R=data.r||R;SCH=data.sch?decSchKeys(data.sch):SCH;T=data.t||T;L=data.l||L;
   if(data.lastUpdated){_localLastUpdated=data.lastUpdated;localStorage.setItem('qjf_localTs',String(_localLastUpdated));}
   localStorage.setItem('qjf_s',JSON.stringify(S));
   localStorage.setItem('qjf_r',JSON.stringify(R));
