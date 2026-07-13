@@ -714,10 +714,19 @@ const db={
     <div class="a-page" id="ap-wage">
       <div class="stat-row" id="statRow"></div>
       <div class="month-bar">
-        <select class="month-select" id="monthSelect" onchange="renderWage()"></select>
+        <select class="month-select" id="monthSelect" onchange="wageBackToMonth()"></select>
         <button class="export-btn btn-csv" onclick="exportCSV()">↓ CSV</button>
         <button class="export-btn btn-copy-all" onclick="copyAll()">複製全部薪資</button>
         <button class="export-btn" onclick="showMonthReport()" style="background:var(--teal2);color:var(--teal);border:1px solid var(--teal3)">📊 月報表</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 4px;background:var(--white);border:1.5px dashed var(--gold2);border-radius:11px;padding:10px 12px">
+        <span style="font-size:12px;color:var(--ink3);letter-spacing:1px">📆 週結</span>
+        <button class="export-btn" onclick="setWageWeek(-1)" style="background:var(--gold);color:#fff;border:none">上週（一～日）</button>
+        <button class="export-btn" onclick="setWageWeek(0)">本週</button>
+        <input type="date" id="wageStart" class="native-date-inp" style="width:auto;margin:0;padding:7px 8px;font-size:13px">
+        <span style="color:var(--ink3);font-size:12px">～</span>
+        <input type="date" id="wageEnd" class="native-date-inp" style="width:auto;margin:0;padding:7px 8px;font-size:13px">
+        <button class="export-btn" onclick="applyWageRange()">套用區間</button>
       </div>
       <div class="section-label" id="wageSectionLabel"></div>
       <div class="teacher-grid-admin" id="teacherWageGrid"></div>
@@ -3467,24 +3476,51 @@ function buildMonthSelect(){
   sel.innerHTML=months.map(m=>{const[y,mo]=m.split('/');return`<option value="${m}">${y}年${parseInt(mo)}月</option>`}).join('');
   if(cur)sel.value=cur;
 }
+// 週結/自訂區間模式（週週發薪用；日期字串 YYYY/MM/DD 可直接字典序比較）
+let _wageMode='month',_wageStart='',_wageEnd='';
+function wageInRange(dstr,mk){
+  if(!dstr)return false;
+  if(_wageMode==='range'&&_wageStart&&_wageEnd)return dstr>=_wageStart&&dstr<=_wageEnd;
+  return monthKey(dstr)===mk;
+}
+function setWageWeek(offset){ // 0=本週、-1=上週（週一～週日）
+  const now=new Date();
+  const mon=new Date(now.getFullYear(),now.getMonth(),now.getDate()-((now.getDay()+6)%7)+offset*7);
+  const sun=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6);
+  _wageStart=fmt(mon);_wageEnd=fmt(sun);_wageMode='range';
+  const ws=document.getElementById('wageStart'),we=document.getElementById('wageEnd');
+  if(ws)ws.value=_wageStart.replace(/\//g,'-');
+  if(we)we.value=_wageEnd.replace(/\//g,'-');
+  renderWage();
+}
+function applyWageRange(){
+  const s=(document.getElementById('wageStart')?.value||'').replace(/-/g,'/');
+  const e=(document.getElementById('wageEnd')?.value||'').replace(/-/g,'/');
+  if(!s||!e||s>e){showToast('請選擇正確的起訖日期','r');return;}
+  _wageStart=s;_wageEnd=e;_wageMode='range';renderWage();
+}
+function wageBackToMonth(){_wageMode='month';renderWage();}
 function renderWage(){
   const mk=document.getElementById('monthSelect').value;if(!mk)return;
   const[y,mo]=mk.split('/');
-  const monthR=R.filter(r=>r.date&&monthKey(r.date)===mk&&r.confirmed!==false);
-  const monthT=T.filter(t=>t.date&&monthKey(t.date)===mk&&t.confirmed===true);
-  const monthG=GW.filter(g=>g.date&&monthKey(g.date)===mk);
+  const isRange=_wageMode==='range'&&_wageStart&&_wageEnd;
+  const monthR=R.filter(r=>r.date&&wageInRange(r.date,mk)&&r.confirmed!==false);
+  const monthT=T.filter(t=>t.date&&wageInRange(t.date,mk)&&t.confirmed===true);
+  const monthG=GW.filter(g=>g.date&&wageInRange(g.date,mk));
   const totalFee=monthR.reduce((a,r)=>{const s=S.find(x=>x.id===r.sid);return a+getRecFee(r,s)},0)
     +monthT.reduce((a,t)=>a+(t.manualFee!=null?t.manualFee:t.teacherFee),0)
     +monthG.reduce((a,g)=>a+(g.fee||0),0);
-  const totalBonusPaid=LEDGER.filter(l=>monthKey(l.createdAt)===mk&&l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
-  const totalBonusPending=LEDGER.filter(l=>monthKey(l.createdAt)===mk&&!l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
+  const totalBonusPaid=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
+  const totalBonusPending=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&!l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
   const activeT=new Set([...monthR.map(r=>{const s=S.find(x=>x.id===r.sid);return r.isSub?r.subTeacher:(s?.teacher||'其他')}),...monthT.map(t=>t.teacher)]).size;
   const adjCount=monthR.filter(r=>isAdj(r)).length+monthT.filter(t=>t.manualFee!=null).length;
   document.getElementById('statRow').innerHTML=`
     <div class="stat-card"><div class="stat-label">已確認課堂</div><div class="stat-value">${monthR.length+monthT.length+monthG.length}${monthG.length?`<span style="font-size:12px;color:var(--gold);margin-left:8px">含 GC ${monthG.length}</span>`:''}${adjCount?`<span style="font-size:12px;color:var(--orange);margin-left:8px">含 ${adjCount} 筆調整</span>`:''}</div></div>
     <div class="stat-card"><div class="stat-label">師資費用總計</div><div class="stat-value green">$${totalFee.toLocaleString()}</div></div>
     <div class="stat-card"><div class="stat-label">已撥獎金</div><div class="stat-value" style="color:var(--teal)">$${totalBonusPaid.toLocaleString()}${totalBonusPending>0?`<span style="font-size:11px;color:var(--orange);display:block;margin-top:3px">待撥 $${totalBonusPending.toLocaleString()}</span>`:''}</div></div>`;
-  document.getElementById('wageSectionLabel').textContent=`${y}年${parseInt(mo)}月　各老師薪資明細`;
+  document.getElementById('wageSectionLabel').innerHTML=isRange
+    ?`📆 ${_wageStart.slice(5)}～${_wageEnd.slice(5)}　各老師薪資明細（週結）<span onclick="wageBackToMonth()" style="margin-left:10px;font-size:12px;color:var(--blue);cursor:pointer;text-decoration:underline">回月結</span>`
+    :`${y}年${parseInt(mo)}月　各老師薪資明細`;
   const tMap={};
   monthR.forEach(r=>{const s=S.find(x=>x.id===r.sid);if(!s)return;const t=r.isSub?r.subTeacher:(s.teacher||'其他');if(!tMap[t])tMap[t]=[];tMap[t].push({type:'regular',s,r,fee:getRecFee(r,s)})});
   monthT.forEach(t=>{const teacher=t.teacher||'其他';if(!tMap[teacher])tMap[teacher]=[];tMap[teacher].push({type:'trial',tr:t,fee:t.manualFee!=null?t.manualFee:t.teacherFee})});
@@ -3501,8 +3537,8 @@ function renderWage(){
       if(!byType[k])byType[k]={count:0,fee:0};byType[k].count++;byType[k].fee+=item.fee;
     });
     // 計算續課獎金 - 從流水帳讀取該老師已撥款的獎金
-    const bonusTotal=LEDGER.filter(l=>monthKey(l.createdAt)===mk&&l.teacher===t&&l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
-    const bonusPending=LEDGER.filter(l=>monthKey(l.createdAt)===mk&&l.teacher===t&&!l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
+    const bonusTotal=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.teacher===t&&l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
+    const bonusPending=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.teacher===t&&!l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
     const adjSessions=sessions.filter(x=>x.type==='regular'?isAdj(x.r):x.type==='trial'?(x.tr.manualFee!=null):false);
     const trialCount=sessions.filter(x=>x.type==='trial').length;
     const gcCount=sessions.filter(x=>x.type==='gc').length;
@@ -3585,13 +3621,14 @@ function closeEditOut(e){if(e.target===document.getElementById('editOv'))closeEd
 function copyTeacher(teacher,mk){
   const[y,mo]=mk.split('/');
   const sessions=[
-    ...R.filter(r=>monthKey(r.date)===mk).filter(r=>{const s=S.find(x=>x.id===r.sid);return s&&(r.isSub?r.subTeacher:s.teacher)===teacher}).map(r=>{const s=S.find(x=>x.id===r.sid);return{type:'regular',s,r,fee:getRecFee(r,s)}}),
-    ...T.filter(t=>monthKey(t.date)===mk&&t.teacher===teacher).map(tr=>({type:'trial',tr,fee:tr.manualFee!=null?tr.manualFee:tr.teacherFee})),
-    ...GW.filter(g=>monthKey(g.date)===mk&&g.teacher===teacher).map(g=>({type:'gc',g,fee:g.fee||0}))
+    ...R.filter(r=>wageInRange(r.date,mk)).filter(r=>{const s=S.find(x=>x.id===r.sid);return s&&(r.isSub?r.subTeacher:s.teacher)===teacher}).map(r=>{const s=S.find(x=>x.id===r.sid);return{type:'regular',s,r,fee:getRecFee(r,s)}}),
+    ...T.filter(t=>wageInRange(t.date,mk)&&t.teacher===teacher).map(tr=>({type:'trial',tr,fee:tr.manualFee!=null?tr.manualFee:tr.teacherFee})),
+    ...GW.filter(g=>wageInRange(g.date,mk)&&g.teacher===teacher).map(g=>({type:'gc',g,fee:g.fee||0}))
   ];
   const total=sessions.reduce((a,x)=>a+x.fee,0);
   const byType={};sessions.forEach(x=>{const k=x.type==='gc'?`${x.g.course} ${x.g.ratio}（GC核銷）`:x.type==='trial'?`${x.tr.course} ${x.tr.ratio}（體驗）`:(x.r?.isUpgraded?x.s.course.split(' ')[0]+' ＋1人｜'+x.r.upgradedTo:x.s.course);if(!byType[k])byType[k]={count:0,fee:0};byType[k].count++;byType[k].fee+=x.fee});
-  let text=`輕境運動工作室 ${y}年${parseInt(mo)}月 師資費用\n老師：${teacher}\n────────────\n`;
+  const period=(_wageMode==='range'&&_wageStart&&_wageEnd)?`${_wageStart}～${_wageEnd}（週結）`:`${y}年${parseInt(mo)}月`;
+  let text=`輕境運動工作室 ${period} 師資費用\n老師：${teacher}\n────────────\n`;
   Object.entries(byType).forEach(([c,d])=>{text+=`${c}：${d.count}堂 / $${d.fee.toLocaleString()}\n`});
   text+=`────────────\n合計：$${total.toLocaleString()}\n`;
   const adjRecs=sessions.filter(x=>x.type==='regular'?isAdj(x.r):x.type==='trial'?(x.tr.manualFee!=null):false);
@@ -3606,11 +3643,12 @@ function copyTeacher(teacher,mk){
 }
 function copyAll(){
   const mk=document.getElementById('monthSelect').value;const[y,mo]=mk.split('/');
-  let text=`輕境運動工作室 ${y}年${parseInt(mo)}月 師資費用總覽\n════════════════\n`;
+  const period=(_wageMode==='range'&&_wageStart&&_wageEnd)?`${_wageStart}～${_wageEnd}（週結）`:`${y}年${parseInt(mo)}月`;
+  let text=`輕境運動工作室 ${period} 師資費用總覽\n════════════════\n`;
   const tMap={};
-  R.filter(r=>monthKey(r.date)===mk).forEach(r=>{const s=S.find(x=>x.id===r.sid);if(!s)return;const t=r.isSub?r.subTeacher:(s.teacher||'其他');if(!tMap[t])tMap[t]=0;tMap[t]+=getRecFee(r,s)});
-  T.filter(t=>t.date&&monthKey(t.date)===mk).forEach(t=>{if(!tMap[t.teacher])tMap[t.teacher]=0;tMap[t.teacher]+=(t.manualFee!=null?t.manualFee:t.teacherFee)});
-  GW.filter(g=>g.date&&monthKey(g.date)===mk).forEach(g=>{const t=g.teacher||'其他';if(!tMap[t])tMap[t]=0;tMap[t]+=(g.fee||0)});
+  R.filter(r=>wageInRange(r.date,mk)).forEach(r=>{const s=S.find(x=>x.id===r.sid);if(!s)return;const t=r.isSub?r.subTeacher:(s.teacher||'其他');if(!tMap[t])tMap[t]=0;tMap[t]+=getRecFee(r,s)});
+  T.filter(t=>t.date&&wageInRange(t.date,mk)).forEach(t=>{if(!tMap[t.teacher])tMap[t.teacher]=0;tMap[t.teacher]+=(t.manualFee!=null?t.manualFee:t.teacherFee)});
+  GW.filter(g=>g.date&&wageInRange(g.date,mk)).forEach(g=>{const t=g.teacher||'其他';if(!tMap[t])tMap[t]=0;tMap[t]+=(g.fee||0)});
   let grand=0;
   Object.entries(tMap).forEach(([t,total])=>{grand+=total;text+=`${t}：$${total.toLocaleString()}\n`});
   text+=`────────────\n合計：$${grand.toLocaleString()}\n`;
@@ -3619,20 +3657,21 @@ function copyAll(){
 function exportCSV(){
   const mk=document.getElementById('monthSelect').value;const[y,mo]=mk.split('/');
   let csv='日期,時間,學員,課程,老師,師資費,類型,備註\n';
-  R.filter(r=>monthKey(r.date)===mk).sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{
+  R.filter(r=>wageInRange(r.date,mk)).sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{
     const s=S.find(x=>x.id===r.sid);if(!s)return;const t=r.isSub?r.subTeacher:(s.teacher||'其他');const fee=getRecFee(r,s);
     csv+=`${r.date},${r.time},${s.name},${s.course},${t},$${fee},${r.isSub?'代課':r.isUpgraded?'升級':'正式'},${r.manualNote||''}\n`;
   });
-  T.filter(t=>monthKey(t.date)===mk).sort((a,b)=>a.date.localeCompare(b.date)).forEach(t=>{
+  T.filter(t=>wageInRange(t.date,mk)).sort((a,b)=>a.date.localeCompare(b.date)).forEach(t=>{
     const fee=t.manualFee!=null?t.manualFee:t.teacherFee;
     csv+=`${t.date},${t.time},${t.name},${t.course} ${t.ratio},${t.teacher},$${fee},體驗,${t.manualNote||''}\n`;
   });
-  GW.filter(g=>monthKey(g.date)===mk).sort((a,b)=>a.date.localeCompare(b.date)).forEach(g=>{
+  GW.filter(g=>wageInRange(g.date,mk)).sort((a,b)=>a.date.localeCompare(b.date)).forEach(g=>{
     csv+=`${g.date},${g.time||''},${g.name},${g.course} ${g.ratio},${g.teacher},$${g.fee||0},GC核銷,\n`;
   });
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);const a=document.createElement('a');
-  a.href=url;a.download=`輕境師資費_${y}${mo}.csv`;a.click();URL.revokeObjectURL(url);
+  const fname=(_wageMode==='range'&&_wageStart&&_wageEnd)?`輕境師資費_${_wageStart.replace(/\//g,'')}-${_wageEnd.replace(/\//g,'')}.csv`:`輕境師資費_${y}${mo}.csv`;
+  a.href=url;a.download=fname;a.click();URL.revokeObjectURL(url);
   showToast('CSV 已下載');
 }
 
