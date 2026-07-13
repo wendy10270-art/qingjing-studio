@@ -652,6 +652,11 @@ const db={
     </div>
     <div id="stuZoneList" style="overflow-y:auto;flex:1;padding:12px"></div>
   </div></div>
+
+  <!-- 前台唯讀課表（不需密碼、不顯示金額） -->
+  <div class="screen" id="sc-schedule"><div class="sc-pad" style="padding:18px 16px 30px">
+    <div id="frontSchedContent"></div>
+  </div></div>
 </div>
 
 <div id="bottomNav" style="background:#fff;border-top:0.5px solid var(--brown4);display:flex;justify-content:space-around;padding:10px 0 max(14px,env(safe-area-inset-bottom,14px));flex-shrink:0;z-index:100">
@@ -689,10 +694,9 @@ const db={
   <div class="admin-tabs">
     <div class="a-tab active" onclick="aTab(&#39;helper&#39;)">✨小幫手</div>
     <div class="a-tab" onclick="aTab(&#39;sch&#39;)">今日開課</div>
-    <div class="a-tab" onclick="aTab(&#39;daily&#39;)">確認消課</div>
     <div class="a-tab" onclick="aTab(&#39;cal&#39;)">預排行事曆</div>
     <div class="a-tab" onclick="aTab(&#39;ledger&#39;)">流水帳</div>
-    <div class="a-tab" onclick="aTab(&#39;wage&#39;)">月薪資</div>
+    <div class="a-tab" onclick="aTab(&#39;wage&#39;)">薪資結算</div>
     <div class="a-tab" onclick="aTab(&#39;mgr&#39;)">學員管理</div>
     <div class="a-tab" onclick="aTab(&#39;tch&#39;)">師資管理</div>
     <div class="a-tab" onclick="aTab(&#39;gcal&#39;)">Google日曆</div>
@@ -702,16 +706,21 @@ const db={
   <div class="admin-scroll">
     <div class="a-page active" id="ap-helper"><div id="helperContent" style="padding:4px 0"></div></div>
     <div class="a-page" id="ap-sch"><div id="schEditor"></div></div>
-    <div class="a-page" id="ap-daily">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 0 11px">
-        <div><div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:17px;letter-spacing:2px" id="aDayTtl"></div><div style="font-size:12px;color:var(--ink3);margin-top:3px">確認後計入師資費</div></div>
-        <div class="date-nav"><button class="dnav-btn" onclick="shiftDay(-1)">‹</button><div class="dnav-lbl" id="aDayShort"></div><button class="dnav-btn" onclick="shiftDay(1)">›</button></div>
-      </div>
-      <div id="dailyContent"></div>
-    </div>
     <div class="a-page" id="ap-cal"><div id="calContent"></div></div>
     <div class="a-page" id="ap-ledger"><div id="ledgerContent"></div></div>
     <div class="a-page" id="ap-wage">
+      <div style="display:flex;gap:8px;padding:12px 0 4px">
+        <button id="wsubDailyBtn" onclick="wageSub('daily')" style="flex:1;padding:11px;border-radius:11px;font-size:14px;cursor:pointer;font-weight:600;font-family:'Noto Sans TC',sans-serif;border:1.5px solid var(--ink);background:var(--ink);color:#fff">📋 核對課堂</button>
+        <button id="wsubWageBtn" onclick="wageSub('wage')" style="flex:1;padding:11px;border-radius:11px;font-size:14px;cursor:pointer;font-weight:600;font-family:'Noto Sans TC',sans-serif;border:1.5px solid var(--border);background:var(--white);color:var(--ink3)">💰 薪資總覽</button>
+      </div>
+      <div id="wageSubDaily">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0 11px">
+          <div><div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:17px;letter-spacing:2px" id="aDayTtl"></div><div style="font-size:12px;color:var(--ink3);margin-top:3px">確認／核銷後計入師資費</div></div>
+          <div class="date-nav"><button class="dnav-btn" onclick="shiftDay(-1)">‹</button><div class="dnav-lbl" id="aDayShort"></div><button class="dnav-btn" onclick="shiftDay(1)">›</button></div>
+        </div>
+        <div id="dailyContent"></div>
+      </div>
+      <div id="wageSubWage" style="display:none">
       <div class="stat-row" id="statRow"></div>
       <div class="month-bar">
         <select class="month-select" id="monthSelect" onchange="wageBackToMonth()"></select>
@@ -730,6 +739,7 @@ const db={
       </div>
       <div class="section-label" id="wageSectionLabel"></div>
       <div class="teacher-grid-admin" id="teacherWageGrid"></div>
+      </div>
     </div>
     <div class="a-page" id="ap-mgr">
       <button class="btn-full bf-ink" style="margin-bottom:13px" onclick="openAdd()">＋ 新增學員</button>
@@ -1439,7 +1449,7 @@ function applyRemoteData(data){
   renderTeachers();
   // 用 false 保留使用者正在編輯的 tmpSch，避免同步蓋掉未儲存的新增
   if(document.getElementById('ap-sch')?.classList.contains('active'))renderSchEditor(false);
-  if(document.getElementById('ap-daily')?.classList.contains('active'))renderDaily();
+  if((document.getElementById('ap-wage')?.classList.contains('active')&&document.getElementById('wageSubDaily')?.style.display!=='none'))renderDaily();
   if(document.getElementById('ap-cal')?.classList.contains('active')){calMonthOffset=calMonthOffset;renderCalendar();}
   if(document.getElementById('ap-ledger')?.classList.contains('active'))renderLedger();
   if(document.getElementById('ap-mgr')?.classList.contains('active'))renderMgrList();
@@ -1506,7 +1516,7 @@ function startPeriodicSync(){
       const adminActive=document.getElementById('sc-admin')?.classList.contains('active-admin');
       if(adminActive){
         try{if(document.getElementById('ap-sch')?.classList.contains('active'))renderSchEditor(false);}catch(e){}
-        try{if(document.getElementById('ap-daily')?.classList.contains('active'))renderDaily();}catch(e){}
+        try{if((document.getElementById('ap-wage')?.classList.contains('active')&&document.getElementById('wageSubDaily')?.style.display!=='none'))renderDaily();}catch(e){}
         try{if(document.getElementById('ap-cal')?.classList.contains('active'))renderCalendar();}catch(e){}
       }
     });
@@ -1529,7 +1539,7 @@ function startPeriodicSync(){
           const adminActive=document.getElementById('sc-admin')?.classList.contains('active-admin');
           if(adminActive){
             try{if(document.getElementById('ap-sch')?.classList.contains('active'))renderSchEditor(false);}catch(e){}
-            try{if(document.getElementById('ap-daily')?.classList.contains('active'))renderDaily();}catch(e){}
+            try{if((document.getElementById('ap-wage')?.classList.contains('active')&&document.getElementById('wageSubDaily')?.style.display!=='none'))renderDaily();}catch(e){}
           }
           if(!_fbEs||_fbEs.readyState===EventSource.CLOSED)startFbListener();
         });
@@ -1716,9 +1726,37 @@ function goTab(tab){
   } else if(tab==='admin'){
     openPin();
   } else if(tab==='sch'){
+    // 前台唯讀課表：不需密碼、不顯示任何金額
     const bn=document.getElementById('bottomNav');if(bn)bn.style.display='flex';
-    openPin('sch');
+    goScreen('sc-schedule');
+    renderFrontSchedule();
   }
+}
+
+// ── 前台課表（唯讀：今日＋明日，無金額資訊）──
+function renderFrontSchedule(){
+  const el=document.getElementById('frontSchedContent');if(!el)return;
+  const days=[{d:new Date(),lbl:'今日課表',showStatus:true},{d:new Date(Date.now()+864e5),lbl:'明日課表',showStatus:false}];
+  el.innerHTML=days.map(({d,lbl,showStatus})=>{
+    const items=dayScheduleItems(d);
+    const dateLabel=`${d.getMonth()+1}/${d.getDate()}（星期${WD[d.getDay()]}）`;
+    const chip=st=>st==='signed'?'<span style="font-size:10px;background:var(--gold4);color:var(--gold);border-radius:99px;padding:2px 8px">已簽到</span>':st==='leave'?'<span style="font-size:10px;background:#F0EAF8;color:#7B5EA7;border-radius:99px;padding:2px 8px">請假</span>':'<span style="font-size:10px;background:var(--bg);color:var(--ink3);border-radius:99px;padding:2px 8px">待簽到</span>';
+    return`<div style="margin-bottom:20px">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">
+        <div style="font-family:'Noto Serif TC',serif;font-size:18px;letter-spacing:2px;color:var(--ink)">${lbl}</div>
+        <div style="font-size:12px;color:var(--ink3)">${dateLabel}・${items.length} 堂</div>
+      </div>
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:13px;padding:4px 16px">
+        ${items.length?items.map(it=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bg2)">
+          <div style="font-size:13px;color:var(--gold);font-weight:500;width:48px;flex-shrink:0">${it.time||'--:--'}</div>
+          <div style="flex:1;font-size:15px;color:var(--ink)">${hEsc(it.name)}${it.trial?'<span style="font-size:10px;color:var(--teal);margin-left:5px">體驗</span>':''}</div>
+          <div style="font-size:12px;color:var(--ink3)">${hEsc(it.teacher||'')}</div>
+          ${showStatus?chip(it.status):''}
+        </div>`).join(''):'<div style="text-align:center;padding:22px 0;font-size:13px;color:var(--ink3)">沒有排課 🌿</div>'}
+      </div>
+    </div>`;
+  }).join('')+`<div style="text-align:center;font-size:11px;color:var(--ink3);margin-top:4px">課表來自固定排課與已登記的預約；體驗課與臨時加課請洽管理者</div>`;
 }
 
 // ── 學員專區 ──
@@ -2762,16 +2800,31 @@ function renderDashboard(){
 </div>`;
 }
 
+// 薪資結算子頁：daily=核對課堂（原確認消課＋GC核銷）、wage=薪資總覽
+let _wageSub='daily';
+function wageSub(v){
+  _wageSub=v;
+  const d=document.getElementById('wageSubDaily'),w=document.getElementById('wageSubWage');
+  const bd=document.getElementById('wsubDailyBtn'),bw=document.getElementById('wsubWageBtn');
+  if(d)d.style.display=v==='daily'?'block':'none';
+  if(w)w.style.display=v==='wage'?'block':'none';
+  const on='flex:1;padding:11px;border-radius:11px;font-size:14px;cursor:pointer;font-weight:600;font-family:\'Noto Sans TC\',sans-serif;border:1.5px solid var(--ink);background:var(--ink);color:#fff';
+  const off='flex:1;padding:11px;border-radius:11px;font-size:14px;cursor:pointer;font-weight:600;font-family:\'Noto Sans TC\',sans-serif;border:1.5px solid var(--border);background:var(--white);color:var(--ink3)';
+  if(bd)bd.style.cssText=v==='daily'?on:off;
+  if(bw)bw.style.cssText=v==='wage'?on:off;
+  if(v==='daily')renderDaily();
+  else{buildMonthSelect();renderWage();}
+}
+function openDailyConfirm(){aTab('wage');wageSub('daily');}
 function aTab(t){
   renderDashboard();
-  const ns=['helper','sch','daily','cal','ledger','wage','mgr','tch','gcal','notify'];
+  const ns=['helper','sch','cal','ledger','wage','mgr','tch','gcal','notify'];
   document.querySelectorAll('.a-tab').forEach((el,i)=>el.classList.toggle('active',ns[i]===t));
   ns.forEach(n=>document.getElementById('ap-'+n).classList.toggle('active',n===t));
   if(t==='helper')renderHelper();
-  if(t==='daily')renderDaily();
   if(t==='cal')renderCalendar();
   if(t==='ledger')renderLedger();
-  if(t==='wage'){buildMonthSelect();renderWage()}
+  if(t==='wage')wageSub(_wageSub);
   if(t==='mgr')renderMgrList();
   if(t==='tch')renderTchMgr();
   if(t==='gcal')renderGcalPage();
@@ -5980,9 +6033,9 @@ function generateInstallMsg(name,used){
   return['嗨 '+name+'！','您已經完成第 '+used+' 堂課囉 🎉','','依照分期約定，下一期課程費用要麻煩您安排繳納，','繳費方式有任何問題都歡迎詢問，謝謝您 🙏','','輕境運動工作室'].join('\n');
 }
 
-// 今日課表（SCH 排課 + 每週固定課 + 指定下堂 + 體驗課），附簽到狀態
-function helperTodayItems(){
-  const td=todayStr();const dow=new Date().getDay();
+// 指定日期課表（SCH 排課 + 每週固定課 + 指定下堂 + 體驗課），附簽到狀態
+function dayScheduleItems(dateObj){
+  const td=fmt(dateObj);const dow=dateObj.getDay();
   const items=[];const sch=SCH[td]||{};
   Object.entries(sch).forEach(([teacher,slots])=>{slots.forEach(sl=>{
     if(sl.skip)return;const s=S.find(x=>x.id===sl.sid);if(!s)return;
@@ -6128,7 +6181,7 @@ function renderHelper(){
   const el=document.getElementById('helperContent');if(!el)return;
   const td=todayStr();const d=new Date();
   const dateLabel=`${d.getMonth()+1}/${d.getDate()}（星期${WD[d.getDay()]}）`;
-  const items=helperTodayItems();
+  const items=dayScheduleItems(new Date());
   const signed=items.filter(i=>i.status==='signed').length;
   const leave=items.filter(i=>i.status==='leave').length;
   const pending=items.length-signed-leave;
@@ -6162,7 +6215,7 @@ function renderHelper(){
   const cutoff=fmt(new Date(nowT.getTime()-45*864e5));
   const unconfR=R.filter(r=>r.confirmed===false&&r.date>=cutoff&&r.date<td);
   const unconfT=T.filter(t=>t.confirmed!==true&&t.date&&t.date>=cutoff&&t.date<td&&t.sig);
-  if(unconfR.length+unconfT.length>0)todos.push({icon:'📝',ttl:`${unconfR.length+unconfT.length} 堂課待確認消課`,sub:'確認後才會計入師資費',jump:'daily',btnLbl:'前往確認 →'});
+  if(unconfR.length+unconfT.length>0)todos.push({icon:'📝',ttl:`${unconfR.length+unconfT.length} 堂課待確認消課`,sub:'確認後才會計入師資費',jump:'wage-daily',btnLbl:'前往確認 →'});
   const stChip=s=>s==='signed'?'<span style="font-size:10px;background:var(--gold4);color:var(--gold);border-radius:99px;padding:2px 8px">已簽到</span>':s==='leave'?'<span style="font-size:10px;background:var(--purple2,#F0EAF8);color:var(--purple,#7B5EA7);border-radius:99px;padding:2px 8px">請假</span>':'<span style="font-size:10px;background:var(--bg);color:var(--ink3);border-radius:99px;padding:2px 8px">待簽到</span>';
   const card=(ttl,body,extra)=>`<div style="background:var(--white);border:1px solid var(--border);border-radius:13px;padding:14px 16px;margin-bottom:12px">${ttl?`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px"><div style="font-size:13px;font-weight:600;color:var(--ink2);letter-spacing:1px;white-space:nowrap">${ttl}</div>${extra||''}</div>`:''}${body}</div>`;
   // ── 月份選單（近 6 個月）──
@@ -6184,7 +6237,7 @@ function renderHelper(){
       <div style="font-size:18px;flex-shrink:0">${t.icon}</div>
       <div style="flex:1;min-width:0"><div style="font-size:14px;color:var(--ink);font-weight:500">${hEsc(t.ttl)}</div><div style="font-size:11.5px;color:var(--ink3);margin-top:2px">${hEsc(t.sub)}</div></div>
       ${t.btn?`<button onclick="copyHelperMsg('${t.btn}')" style="flex-shrink:0;background:#06C755;color:#fff;border:none;border-radius:8px;padding:8px 11px;font-size:12px;cursor:pointer;font-weight:500">${t.btnLbl}</button>`:''}
-      ${t.jump?`<button onclick="aTab('${t.jump}')" style="flex-shrink:0;background:var(--white);color:var(--ink2);border:1px solid var(--border);border-radius:8px;padding:8px 11px;font-size:12px;cursor:pointer">${t.btnLbl}</button>`:''}
+      ${t.jump?`<button onclick="${t.jump==='wage-daily'?'openDailyConfirm()':`aTab('${t.jump}')`}" style="flex-shrink:0;background:var(--white);color:var(--ink2);border:1px solid var(--border);border-radius:8px;padding:8px 11px;font-size:12px;cursor:pointer">${t.btnLbl}</button>`:''}
     </div>`).join(''):`<div style="text-align:center;padding:10px;font-size:14px;color:var(--green)">✅ 目前沒有待辦事項，一切都在軌道上！</div>`)}
   ${card('🗓 今日課表',items.length?items.map(it=>`
     <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--bg2)">
