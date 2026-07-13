@@ -1601,15 +1601,16 @@ function closeOvOut(id,e){if(e.target===document.getElementById(id))closeOvById(
 // ── 首頁 ──
 function renderTeachers(){
   const td=todayStr();const sch=SCH[td]||{};
-  const recs=R.filter(r=>r.date===td);
   const trialToday=T.filter(t=>t.date===td);
-  const teachers=[...new Set([...Object.keys(sch),...trialToday.map(tr=>tr.teacher||'其他')])];
   const el=document.getElementById('teacherArea');
+  // ── 今日課程（SCH＋固定課＋指定下堂＋體驗，依時間排序，不分老師卡）──
+  const items=dayScheduleItems(new Date());
+  const nf=(window._gcNotFoundDate===td?(window._gcNotFound||[]):[]);
 
   // ── Today stats ──
-  const totalSigned=recs.length;
-  const totalSlotCount=Object.values(sch).reduce((a,v)=>a+v.length,0);
-  const totalPending=totalSlotCount-totalSigned;
+  const totalSigned=items.filter(i=>i.status==='signed').length;
+  const totalLeave=items.filter(i=>i.status==='leave').length;
+  const totalPending=items.length-totalSigned-totalLeave;
   const statsEl=document.getElementById('homeTodayStats');
   if(statsEl){
     statsEl.innerHTML=`
@@ -1654,57 +1655,62 @@ function renderTeachers(){
       </div>`;
   }
 
-  // ── Teacher cards ──
-  if(!teachers.length&&!trialToday.length){
+  // ── 今日課程列表（點學員直接進課卡；不再依老師分卡）──
+  if(!items.length&&!nf.length){
     el.innerHTML=`<div style="text-align:center;padding:40px 20px;color:var(--brown3)">
       <div style="font-size:36px;margin-bottom:12px;opacity:.4">📋</div>
       <div style="font-size:15px;letter-spacing:1px;color:var(--brown2);margin-bottom:6px">今日尚無排課</div>
       <div style="font-size:12px;line-height:1.9;opacity:.7">請點「同步課表」從 Google 日曆匯入<br>或進入後台手動設定</div>
     </div>`;return;
   }
-
-  const leaves=L.filter(l=>l.date===td);
-  el.innerHTML=`<div style="font-size:11px;font-weight:500;color:var(--brown3);letter-spacing:.5px;margin-bottom:8px">老師今日課卡</div>
-  <div style="display:flex;flex-direction:column;gap:10px">
-  ${teachers.map(t=>{
-    const slots=sch[t]||[];
-    const sc=slots.filter(sl=>recs.find(r=>r.sid===sl.sid)).length;
-    const trialForT=trialToday.filter(tr=>tr.teacher===t);
-    const leaveForT=leaves.filter(l=>slots.find(sl=>sl.sid===l.sid));
-    const totalSl=slots.length+trialForT.length;
-    const doneCount=sc+trialForT.filter(tr=>tr.sig).length;
-    const pct=totalSl>0?Math.round(doneCount/totalSl*100):0;
-    const teacherOnLeave=getTeacherLeavesToday(t).length>0;
-    const barColor=doneCount===totalSl&&totalSl>0?'#2A7A50':'var(--gold2)';
-    const statusText=doneCount===totalSl&&totalSl>0?'全部完成 ✓':`${doneCount}／${totalSl} 已簽`;
-    const statusColor=doneCount===totalSl&&totalSl>0?'#2A7A50':'var(--gold2)';
-    const times=[...slots.map(sl=>sl.time),...trialForT.map(tr=>tr.time)].filter(Boolean).sort();
-    const timeRange=times.length?(times[0]+(times.length>1?' – '+times[times.length-1]:'')):'時間未定';
-    const leaveNote=teacherOnLeave?getTeacherLeavesToday(t).map(l=>l.note).filter(Boolean).join('・'):'';
-    return`<div style="background:#fff;border:0.5px solid ${teacherOnLeave?'#F7C1C1':'var(--brown4)'};border-radius:14px;padding:13px 14px;position:relative;overflow:hidden">
-      <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:${teacherOnLeave?'var(--red)':barColor}"></div>
-      ${teacherOnLeave?`<div style="background:#FFF0F0;border-bottom:1px solid #F7C1C1;margin:-13px -14px 10px;padding:8px 14px 8px 18px;font-size:12px;color:var(--red)">🚫 ${t} 老師今日請假${leaveNote?' ・ '+leaveNote:''}</div>`:''}
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div>
-          <div style="font-size:16px;font-weight:500;color:var(--brown)">${t}</div>
-          <div style="font-size:11px;color:var(--brown3);margin-top:2px">${timeRange}・${totalSl} 堂${trialForT.length?' ・ 體驗'+trialForT.length:''}${leaveForT.length?' ・ 請假'+leaveForT.length:''}</div>
-        </div>
-        <div style="font-size:13px;font-weight:500;color:${statusColor}">${statusText}</div>
+  const leaveTeachers=ALL_TEACHERS.filter(t=>getTeacherLeavesToday(t).length>0);
+  const chip=st=>st==='signed'?'<span style="font-size:10px;background:#E8F7EF;color:#1F6B4A;border:0.5px solid #9FD4BC;border-radius:99px;padding:3px 9px;flex-shrink:0">已簽到 ✓</span>':st==='leave'?'<span style="font-size:10px;background:#F0EAF8;color:#7B5EA7;border-radius:99px;padding:3px 9px;flex-shrink:0">請假</span>':'<span style="font-size:10px;background:var(--cream2);color:var(--brown3);border-radius:99px;padding:3px 9px;flex-shrink:0">待簽到</span>';
+  el.innerHTML=`
+  ${leaveTeachers.length?`<div style="background:#FFF0F0;border:0.5px solid #F7C1C1;border-radius:11px;padding:9px 13px;margin-bottom:10px;font-size:12px;color:var(--red)">🚫 今日請假老師：${leaveTeachers.map(hEsc).join('、')}</div>`:''}
+  <div style="font-size:11px;font-weight:500;color:var(--brown3);letter-spacing:.5px;margin-bottom:8px">今日課程・點學員進入課卡簽到</div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+  ${items.map(it=>`
+    <div onclick="${it.trial?`homeTrialTap('${it.tid}')`:`homeStuTap('${it.sid}')`}" style="background:#fff;border:0.5px solid var(--brown4);border-radius:13px;padding:12px 14px;display:flex;align-items:center;gap:11px;cursor:pointer">
+      <div style="font-size:13px;color:var(--gold2);font-weight:600;width:46px;flex-shrink:0">${it.time||'--:--'}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:15px;font-weight:500;color:var(--brown)">${hEsc(it.name)}${it.trial?'<span style="font-size:10px;color:#1F8A70;background:#E5F5F1;border-radius:5px;padding:1px 6px;margin-left:6px">體驗</span>':''}</div>
+        <div style="font-size:11px;color:var(--brown3);margin-top:2px">${hEsc(it.teacher||'')} 老師</div>
       </div>
-      <div style="height:4px;background:var(--cream2);border-radius:99px;overflow:hidden;margin-bottom:10px">
-        <div style="height:100%;width:${pct}%;background:${barColor};border-radius:99px;transition:.3s"></div>
+      ${chip(it.status)}
+    </div>`).join('')}
+  ${nf.map((n,i)=>`
+    <div style="background:#FFF9F2;border:1px dashed #E8B27D;border-radius:13px;padding:12px 14px;display:flex;align-items:center;gap:11px">
+      <div style="font-size:13px;color:#C05A20;font-weight:600;width:46px;flex-shrink:0">${n.time||'--:--'}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:15px;font-weight:500;color:var(--brown)">${hEsc(n.name)}<span style="font-size:10px;color:#C05A20;background:#FDEBD9;border-radius:5px;padding:1px 6px;margin-left:6px">未建檔</span></div>
+        <div style="font-size:11px;color:var(--brown3);margin-top:2px">${hEsc(n.teacher||'')} 老師${n.phone?'・'+hEsc(n.phone):''}</div>
       </div>
-      <div style="display:flex;gap:8px">
-        <button onclick="openTeacherCardPicker('${t}')" style="flex:1;background:#2A7A50;color:#fff;border:none;border-radius:9px;padding:8px 0;font-size:11px;font-weight:500;font-family:'Noto Sans TC',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>查課卡
-        </button>
-        <button onclick="openTrialModalForTeacher('${t}')" style="flex:1;background:var(--cream);color:var(--brown2);border:0.5px solid var(--brown4);border-radius:9px;padding:8px 0;font-size:11px;font-weight:500;font-family:'Noto Sans TC',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>新增體驗
-        </button>
-      </div>
-    </div>`;
-  }).join('')}
+      <button onclick="homeGcCreate(${i})" style="flex-shrink:0;background:#E87D3E;color:#fff;border:none;border-radius:9px;padding:8px 13px;font-size:12px;font-weight:500;font-family:'Noto Sans TC',sans-serif;cursor:pointer">＋ 建檔</button>
+    </div>`).join('')}
   </div>`;
+}
+// 首頁課程列點擊：學員 → 課卡；體驗 → 體驗課卡
+function homeStuTap(sid){
+  const s=S.find(x=>x.id===sid);if(!s)return;
+  curTeacher=s.teacher||curTeacher;
+  selectStu(sid);
+}
+function homeTrialTap(tid){
+  const t=T.find(x=>x.id===tid);if(!t)return;
+  curTrialId=tid;curIsTrialStu=true;
+  document.getElementById('cardTitle').textContent=t.name+' (體驗)';
+  renderTrialCard(tid);goScreen('sc-card');
+}
+// 首頁「未建檔」→ 開購課登記並帶入姓名電話（建檔＝登記購課）
+function homeGcCreate(i){
+  const n=(window._gcNotFound||[])[i];if(!n)return;
+  showPurchaseModal();
+  hpShowNewForm();
+  setTimeout(()=>{
+    const nn=document.getElementById('hpNewName');if(nn)nn.value=n.name||'';
+    const np=document.getElementById('hpNewPhone');if(np)np.value=n.phone||'';
+  },60);
+  showToast('建檔完成後再按一次「同步課表」，課程就會出現在列表');
 }
 try{renderTeachers();}catch(e){console.error('renderTeachers init:',e);}
 
@@ -5697,7 +5703,7 @@ function gcSaveMap(){
 }
 
 async function gcSyncToday(ev){
-  const btn=ev&&ev.target?ev.target.closest('button'):null;
+  const btn=ev&&ev.target&&typeof ev.target.closest==='function'?ev.target.closest('button'):null;
   const resEl=document.getElementById('gcSyncResult');
   if(resEl)resEl.innerHTML='<div style="color:var(--ink3);font-size:13px;padding:8px 0">同步中…</div>';
   if(btn){btn.disabled=true;btn.textContent='同步中…';}
@@ -5742,8 +5748,8 @@ async function gcSyncToday(ev){
           if(stu)break;
         }
         if(stu){
-          // 決定使用哪位老師的課表（以系統資料為準）
-          const actualTeacher=stu.teacher||teacher;
+          // 歸到「實際開課的日曆老師」名下（代課時顯示代課老師，而非學員原本的老師）
+          const actualTeacher=teacher;
           if(!SCH[td])SCH[td]={};
           if(!SCH[td][actualTeacher])SCH[td][actualTeacher]=[];
           if(!SCH[td][actualTeacher].find(sl=>sl.sid===stu.id)){
@@ -5762,9 +5768,10 @@ async function gcSyncToday(ev){
       <div style="font-weight:500;margin-bottom:6px">✓ 匯入完成：新增 ${added} 堂、略過重複 ${skipped} 筆</div>
       <div style="font-size:12px;color:var(--ink2);line-height:2">${log.map(l=>`${l}`).join('<br>')}</div>
     </div>`;
+    // 存到全局：後台手動對應用，也讓首頁列出「未建檔」學員
+    window._gcNotFound=notFound;
+    window._gcNotFoundDate=td;
     if(notFound.length){
-      // 存到全局以便手動對應
-      window._gcNotFound=notFound;
       html+=`<div style="margin-top:10px;background:#FFF4EE;border:1px solid #F5C4A1;border-radius:9px;padding:12px 14px;font-size:12px;color:#C05A20">
         <div style="font-weight:500;margin-bottom:8px">⚠ 以下課程未能匹配系統學員</div>
         ${notFound.map((n,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F5D4B0">
@@ -6056,7 +6063,7 @@ function dayScheduleItems(dateObj){
     const lv=L.find(l=>l.sid===it.sid&&l.date===td);
     it.status=rec?'signed':lv?'leave':'pending';
   });
-  T.forEach(t=>{if(t.date===td)items.push({sid:'',name:t.name,teacher:t.teacher,time:t.time||'',trial:true,status:t.sig?'signed':'pending'});});
+  T.forEach(t=>{if(t.date===td)items.push({sid:'',tid:t.id,name:t.name,teacher:t.teacher,time:t.time||'',trial:true,status:t.sig?'signed':'pending'});});
   items.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   return items;
 }
