@@ -3647,11 +3647,17 @@ function renderWage(){
     if(!sessions.length){
       return`<div class="wage-card no-data"><div class="wc-header"><div class="wc-name">${t}</div><div class="wc-no-data-lbl">尚無記錄</div></div><div class="wc-body"><div class="wc-no-record">本月尚無課堂</div></div></div>`;
     }
-    const byType={};
-    sessions.forEach(item=>{
-      const k=item.type==='gc'?`${item.g.course} ${item.g.ratio}（GC核銷）`:item.type==='trial'?`${item.tr.course} ${item.tr.ratio}（體驗）`:(item.r?.isUpgraded?item.s.course.split(' ')[0]+' ＋1人｜'+item.r.upgradedTo:item.s.course);
-      if(!byType[k])byType[k]={count:0,fee:0};byType[k].count++;byType[k].fee+=item.fee;
-    });
+    // 逐堂明細：對帳要看誰、哪天哪個時段，不是只看課種小計
+    const detailRows=sessions.map(item=>{
+      if(item.type==='regular'){
+        const label=item.r.isUpgraded?item.s.course.split(' ')[0]+' ＋1人｜'+item.r.upgradedTo:item.s.course;
+        return{date:item.r.date,time:item.r.time,name:item.s.name,label,fee:item.fee,adj:isAdj(item.r)};
+      }
+      if(item.type==='trial'){
+        return{date:item.tr.date,time:item.tr.time,name:item.tr.name,label:item.tr.course+' '+item.tr.ratio+'（體驗）',fee:item.fee,adj:item.tr.manualFee!=null};
+      }
+      return{date:item.g.date,time:item.g.time,name:cleanGcName(item.g.name),label:item.g.course+' '+item.g.ratio+'（GC核銷）',fee:item.fee,adj:false};
+    }).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
     // 計算續課獎金 - 從流水帳讀取該老師已撥款的獎金
     const bonusTotal=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.teacher===t&&l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
     const bonusPending=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.teacher===t&&!l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
@@ -3664,8 +3670,12 @@ function renderWage(){
       <div class="wc-header"><div class="wc-name">${t}${adjSessions.length?`<span class="adjusted-badge">含調整</span>`:''}</div><div class="wc-total">$${grandTotal.toLocaleString()}</div></div>
       <div class="wc-divider"></div>
       <div class="wc-body">
-        ${Object.entries(byType).map(([c,d])=>`<div class="wc-row"><span style="color:var(--ink2);font-size:12px">${c}</span><span class="wc-fee">${d.count}堂／$${d.fee.toLocaleString()}</span></div>`).join('')}
-        <div class="wc-note">${sessions.length} 堂${tp?' ・ '+tp+' 人次':''}${trialCount?' ・ 含體驗 '+trialCount+' 堂':''}${gcCount?' ・ 含GC核銷 '+gcCount+' 堂':''}${adjSessions.length?' ・ 含 '+adjSessions.length+' 筆調整':''}</div>${bonusTotal>0?`<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--teal)">續課獎金（已撥）</span><span style="color:var(--teal);font-weight:500">$${bonusTotal.toLocaleString()}</span></div>`:''}${bonusPending>0?`<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px"><span style="color:var(--orange)">續課獎金（待撥）</span><span style="color:var(--orange)">$${bonusPending.toLocaleString()}</span></div>`:''}
+        ${detailRows.map(d=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px">
+          <div style="color:var(--ink3);width:78px;flex-shrink:0">${d.date.slice(5)} ${d.time||''}</div>
+          <div style="flex:1;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${hEsc(d.name)}<span style="color:var(--ink3)"> ・ ${hEsc(d.label)}</span></div>
+          <div style="color:${d.adj?'var(--orange)':'var(--ink2)'};flex-shrink:0">$${d.fee.toLocaleString()}</div>
+        </div>`).join('')}
+        <div class="wc-note" style="margin-top:6px">${sessions.length} 堂${tp?' ・ '+tp+' 人次':''}${trialCount?' ・ 含體驗 '+trialCount+' 堂':''}${gcCount?' ・ 含GC核銷 '+gcCount+' 堂':''}${adjSessions.length?' ・ 含 '+adjSessions.length+' 筆調整':''}</div>${bonusTotal>0?`<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--teal)">續課獎金（已撥）</span><span style="color:var(--teal);font-weight:500">$${bonusTotal.toLocaleString()}</span></div>`:''}${bonusPending>0?`<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px"><span style="color:var(--orange)">續課獎金（待撥）</span><span style="color:var(--orange)">$${bonusPending.toLocaleString()}</span></div>`:''}
       </div>
       <div class="wc-footer"><button class="wc-btn wc-btn-copy" onclick="copyTeacher('${t}','${mk}')">📋 複製薪資</button></div>
     </div>`;
@@ -3753,7 +3763,7 @@ function copyTeacher(teacher,mk){
   sessions.sort((a,b)=>{const da=a.type==='regular'?a.r.date:a.type==='trial'?a.tr.date:a.g.date;const db=b.type==='regular'?b.r.date:b.type==='trial'?b.tr.date:b.g.date;return da.localeCompare(db)}).forEach(x=>{
     if(x.type==='regular'){const adjNote=isAdj(x.r)?(' [調整$'+x.fee+(x.r.manualNote?' '+x.r.manualNote:'')+']'):'';text+=(x.r.date.slice(5)+' '+x.r.time+' '+x.s.name+' '+x.s.course+(x.r.isSub?' [代課]':'')+(x.r.isUpgraded?' [升級'+x.r.upgradedTo+']':'')+adjNote+' $'+x.fee.toLocaleString()+'\n')}
     else if(x.type==='trial'){text+=`${x.tr.date.slice(5)} ${x.tr.time} ${x.tr.name} ${x.tr.course} ${x.tr.ratio} [體驗] $${x.fee.toLocaleString()}\n`}
-    else{text+=`${x.g.date.slice(5)} ${x.g.time||''} ${x.g.name} ${x.g.course} ${x.g.ratio} [GC核銷] $${x.fee.toLocaleString()}\n`}
+    else{text+=`${x.g.date.slice(5)} ${x.g.time||''} ${cleanGcName(x.g.name)} ${x.g.course} ${x.g.ratio} [GC核銷] $${x.fee.toLocaleString()}\n`}
   });
   copyText(text,`${teacher} 薪資已複製`);
 }
