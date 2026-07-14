@@ -1511,14 +1511,23 @@ function startPeriodicSync(){
   _periodicSyncTimer=setInterval(()=>{
     if(Date.now()-_lastSaveMs<5000)return;
     loadFromFirebase(()=>{
+      // GW（GC核銷）與流水帳不在即時 SSE 監聽範圍內，必須跟著這裡一起拉，
+      // 否則「這台裝置核銷、另一台裝置看不到」（要等下次整頁重新載入才會出現）
+      loadGwFromFB();
+      loadLedgerFromFB(()=>{
       try{renderTeachers();}catch(e){console.warn('renderTeachers error:',e);}
       try{renderDashboard();}catch(e){}
       const adminActive=document.getElementById('sc-admin')?.classList.contains('active-admin');
       if(adminActive){
         try{if(document.getElementById('ap-sch')?.classList.contains('active'))renderSchEditor(false);}catch(e){}
-        try{if((document.getElementById('ap-wage')?.classList.contains('active')&&document.getElementById('wageSubDaily')?.style.display!=='none'))renderDaily();}catch(e){}
+        try{if(document.getElementById('ap-wage')?.classList.contains('active')){
+          if(document.getElementById('wageSubDaily')?.style.display!=='none')renderDaily();
+          else renderWage();
+        }}catch(e){}
         try{if(document.getElementById('ap-cal')?.classList.contains('active'))renderCalendar();}catch(e){}
+        try{if(document.getElementById('ap-ledger')?.classList.contains('active'))renderLedger();}catch(e){}
       }
+      });
     });
   },30000);
 
@@ -1531,6 +1540,7 @@ function startPeriodicSync(){
       _syncing=true;
       showSyncStatus('syncing');
       loadFromFirebase(()=>{
+        loadGwFromFB();
         loadLedgerFromFB(()=>{
           _syncing=false;
           try{renderTeachers();}catch(e){console.warn('renderTeachers error:',e);}
@@ -1539,7 +1549,11 @@ function startPeriodicSync(){
           const adminActive=document.getElementById('sc-admin')?.classList.contains('active-admin');
           if(adminActive){
             try{if(document.getElementById('ap-sch')?.classList.contains('active'))renderSchEditor(false);}catch(e){}
-            try{if((document.getElementById('ap-wage')?.classList.contains('active')&&document.getElementById('wageSubDaily')?.style.display!=='none'))renderDaily();}catch(e){}
+            try{if(document.getElementById('ap-wage')?.classList.contains('active')){
+              if(document.getElementById('wageSubDaily')?.style.display!=='none')renderDaily();
+              else renderWage();
+            }}catch(e){}
+            try{if(document.getElementById('ap-ledger')?.classList.contains('active'))renderLedger();}catch(e){}
           }
           if(!_fbEs||_fbEs.readyState===EventSource.CLOSED)startFbListener();
         });
@@ -3354,7 +3368,10 @@ function renderDaily(){
   renderGcSettle(ds);
 }
 
-// ── Google 日曆核銷（學員不需建檔，直接以日曆為準核銷師資費）──
+// ── Google 日曆核銷（學員不需建檔、不需簽到，直接以日曆為準核銷師資費；與前台簽到完全脫鉤）──
+function jsQ(x){return String(x==null?'':x).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
+function gcDomId(k){return 'k'+String(k).replace(/[^a-zA-Z0-9_]/g,'_')}
+function cleanGcName(n){return String(n||'').replace(/[，,、\s]+$/,'').trim()}
 function gcGuessFee(teacher,type){
   const t=type||'';
   const ratio=(t.match(/1on\d/)||['1on1'])[0];
@@ -3368,7 +3385,17 @@ function gcGuessFee(teacher,type){
   }
   return{course,ratio,fee:getTeacherFee(teacher,course,ratio)||800};
 }
-let _gcPendArr=[];
+// 唯一需要擋下核銷的情況：這堂已經透過前台簽到「確認消課」實際領過師資費了（避免同一堂課付兩次錢）。
+// 除此之外（沒建檔、沒簽到、只是請假紀錄）一律開放直接從日曆核銷。
+function gcAlreadyPaidElsewhere(name,phone,ds){
+  const pd=(phone||'').replace(/\D/g,'').slice(-8);
+  const stu=S.find(s=>(pd&&(s.phone||'').replace(/\D/g,'').slice(-8)===pd)||s.name===name);
+  if(stu&&R.some(r=>r.sid===stu.id&&r.date===ds&&r.confirmed===true))return true;
+  if(T.some(t=>t.name===name&&t.date===ds&&t.confirmed===true))return true;
+  return false;
+}
+let _gcPend={};      // key(gcKey) → 待核銷資料，每次 renderGcSettle 重新整理
+let _gcOverride={};  // key(gcKey) → 使用者手動調整過的老師／金額，跨次重新整理仍保留，直到核銷或離開此天
 async function renderGcSettle(ds){
   const el=document.getElementById('gcSettleArea');if(!el)return;
   const gcOK=(typeof GC!=='undefined'&&GC.ok());
@@ -3376,7 +3403,7 @@ async function renderGcSettle(ds){
   const dayGW=GW.filter(g=>g.date===ds);
   if(!gcOK||!Object.keys(calMap).length){
     el.innerHTML=(dayGW.length?_gcGwOnlyHTML(dayGW):'')+
-      `<div style="text-align:center;font-size:12px;color:var(--ink3);padding:12px 0">💡 連接 Google 日曆後（後台→Google日曆），可直接從日曆核銷師資費，學員不需先建檔</div>`;
+      `<div style="text-align:center;font-size:12px;color:var(--ink3);padding:12px 0">💡 連接 Google 日曆後（後台→Google日曆），可直接從日曆核銷師資費，不需要學員先簽到或建檔</div>`;
     return;
   }
   el.innerHTML=`<div style="text-align:center;font-size:12px;color:var(--ink3);padding:12px 0"><span style="animation:spin 1s linear infinite;display:inline-block">⟳</span> 正在讀取 Google 日曆課程…</div>`;
@@ -3394,85 +3421,151 @@ async function renderGcSettle(ds){
   // 該日課表若已換日期重繪，放棄本次結果
   if(fmt(getAdminDate())!==ds)return;
   const cur=document.getElementById('gcSettleArea');if(!cur)return;
-  _gcPendArr=[];
+  _gcPend={};
   const rows=[];
   evs.forEach(({teacher,ev})=>{
     const parsed=GC.parseTitle(ev.summary||'');if(!parsed)return;
     const key=ev.iCalUID||ev.id;
     const time=GC.getTime(ev);
+    const name=cleanGcName(parsed.name);
     const settled=GW.find(g=>g.gcKey===key);
-    const pd=(parsed.phone||'').replace(/\D/g,'').slice(-8);
-    const stu=S.find(s=>(pd&&(s.phone||'').replace(/\D/g,'').slice(-8)===pd)||s.name===parsed.name);
-    const signed=!!(stu&&(R.some(r=>r.sid===stu.id&&r.date===ds)||L.some(l=>l.sid===stu.id&&l.date===ds)))||T.some(t=>t.name===parsed.name&&t.date===ds);
-    let pendIdx=-1;
-    if(!settled&&!signed){
-      const guess=gcGuessFee(teacher,parsed.type);
-      pendIdx=_gcPendArr.length;
-      _gcPendArr.push({date:ds,time,teacher,name:parsed.name,course:guess.course,ratio:guess.ratio,fee:guess.fee,gcKey:key});
+    const blocked=!settled&&gcAlreadyPaidElsewhere(name,parsed.phone,ds);
+    let displayTeacher=teacher;
+    if(settled){
+      displayTeacher=settled.teacher;
+    }else if(!blocked){
+      const ov=_gcOverride[key]||{};
+      const effTeacher=ov.teacher||teacher;
+      const g=gcGuessFee(effTeacher,parsed.type);
+      const fee=(ov.fee!=null)?ov.fee:g.fee;
+      _gcPend[key]={date:ds,time,teacher:effTeacher,name,course:g.course,ratio:g.ratio,fee,gcKey:key,type:parsed.type};
+      displayTeacher=effTeacher;
     }
-    rows.push({teacher,time,name:parsed.name,type:parsed.type,settled,signed,pendIdx});
+    rows.push({key,teacher:displayTeacher,time,name,type:parsed.type,settled,blocked});
   });
   const orphanGW=dayGW.filter(g=>!evs.some(({ev})=>(ev.iCalUID||ev.id)===g.gcKey));
   if(!rows.length&&!orphanGW.length){
-    cur.innerHTML=`<div style="text-align:center;font-size:12px;color:var(--ink3);padding:12px 0">📅 Google 日曆這天沒有課程</div>`;
+    cur.innerHTML=`<div id="gcUnsettledReminder" style="padding:0 0 8px"></div><div style="text-align:center;font-size:12px;color:var(--ink3);padding:12px 0">📅 Google 日曆這天沒有課程</div>`;
+    renderUnsettledReminder();
     return;
   }
-  const pendCount=_gcPendArr.length;
+  const pendKeys=Object.keys(_gcPend);
   cur.innerHTML=`<div class="daily-tc" style="border:1.5px dashed var(--gold2)">
+    <div id="gcUnsettledReminder" style="padding:0 14px 10px"></div>
     <div class="daily-tc-hd">
-      <div><div class="daily-tc-name">📅 Google 日曆核銷</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">日曆 ${rows.length} 堂${pendCount?' ・ 可核銷 '+pendCount+' 堂':''}・學員不需建檔</div></div>
-      ${pendCount?`<button onclick="gcSettleAll()" style="background:var(--gold);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:500;font-family:'Noto Sans TC',sans-serif">全部核銷</button>`:''}
+      <div><div class="daily-tc-name">📅 Google 日曆核銷</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">日曆 ${rows.length} 堂${pendKeys.length?' ・ 可核銷 '+pendKeys.length+' 堂':''}</div></div>
+      ${pendKeys.length?`<button onclick="gcSettleAll()" style="background:var(--gold);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:500;font-family:'Noto Sans TC',sans-serif">全部核銷</button>`:''}
     </div>
     ${rows.sort((a,b)=>(a.time||'').localeCompare(b.time||'')).map(r=>{
-      const p=r.pendIdx>=0?_gcPendArr[r.pendIdx]:null;
-      return`<div class="cr" style="background:${r.signed?'var(--white)':r.settled?'var(--green2)':'#FFFDF0'}">
+      const p=_gcPend[r.key];
+      const kq=jsQ(r.key);
+      const pickCall=r.blocked?'':(r.settled?`gcPickTeacher('${jsQ(r.settled.id)}',true)`:`gcPickTeacher('${kq}',false)`);
+      return`<div class="cr" style="background:${r.blocked?'var(--white)':r.settled?'var(--green2)':'#FFFDF0'}">
         <div class="cr-time">${r.time||'—'}</div>
-        <div class="cr-info"><div class="cr-name">${hEsc(r.name)}</div><div class="cr-course">${hEsc(r.type||'')}・${hEsc(r.teacher)} 老師</div></div>
+        <div class="cr-info"><div class="cr-name">${hEsc(r.name)}</div><div class="cr-course">${hEsc(r.type||'')}・<span ${r.blocked?'':`onclick="${pickCall}" style="cursor:pointer;text-decoration:underline dotted"`}>${hEsc(r.teacher)} 老師${r.blocked?'':' ✏️'}</span></div></div>
         <div style="display:flex;align-items:center;gap:6px">
-          ${r.signed?'<span class="chip chip-done">已簽到（上方核對）</span>':
-            r.settled?`<span style="font-size:13px;color:var(--green)">$${(r.settled.fee||0).toLocaleString()}</span><span style="font-size:11px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:2px 9px;cursor:pointer" onclick="gcUnsettle('${r.settled.id}')">已核銷 ✓</span>`:
-            `<span style="font-size:13px;color:var(--orange);cursor:pointer" onclick="gcEditFee(${r.pendIdx})" title="點擊調整金額">$<span id="gcFee_${r.pendIdx}">${p.fee.toLocaleString()}</span> ✏️</span>
-             <button onclick="gcSettle(${r.pendIdx})" style="background:var(--ink);color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">核銷</button>`}
+          ${r.blocked?'<span class="chip chip-done">已由簽到確認消課</span>':
+            r.settled?`<span style="font-size:13px;color:var(--green);cursor:pointer" onclick="gcEditSettledFee('${jsQ(r.settled.id)}')" title="點擊調整金額">$${(r.settled.fee||0).toLocaleString()} ✏️</span><span style="font-size:11px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:2px 9px;cursor:pointer" onclick="gcUnsettle('${jsQ(r.settled.id)}')">已核銷 ✓</span>`:
+            `<span style="font-size:13px;color:var(--orange);cursor:pointer" onclick="gcEditFee('${kq}')" title="點擊調整金額">$<span id="${gcDomId(r.key)}">${(p?p.fee:0).toLocaleString()}</span> ✏️</span>
+             <button onclick="gcSettle('${kq}')" style="background:var(--ink);color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">核銷</button>`}
         </div>
       </div>`;
     }).join('')}
     ${orphanGW.map(g=>`<div class="cr" style="background:var(--green2)">
       <div class="cr-time">${g.time||'—'}</div>
       <div class="cr-info"><div class="cr-name">${hEsc(g.name)}</div><div class="cr-course">${hEsc(g.course)} ${hEsc(g.ratio)}・${hEsc(g.teacher)} 老師（日曆事件已移除）</div></div>
-      <div style="display:flex;align-items:center;gap:6px"><span style="font-size:13px;color:var(--green)">$${(g.fee||0).toLocaleString()}</span><span style="font-size:11px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:2px 9px;cursor:pointer" onclick="gcUnsettle('${g.id}')">已核銷 ✓</span></div>
+      <div style="display:flex;align-items:center;gap:6px"><span style="font-size:13px;color:var(--green)">$${(g.fee||0).toLocaleString()}</span><span style="font-size:11px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:2px 9px;cursor:pointer" onclick="gcUnsettle('${jsQ(g.id)}')">已核銷 ✓</span></div>
     </div>`).join('')}
   </div>`;
+  renderUnsettledReminder();
 }
 function _gcGwOnlyHTML(dayGW){
   return`<div class="daily-tc" style="border:1.5px dashed var(--gold2)"><div class="daily-tc-hd"><div class="daily-tc-name">📅 Google 日曆核銷</div><div class="daily-tc-fee">$${dayGW.reduce((a,g)=>a+(g.fee||0),0).toLocaleString()}</div></div>
-  ${dayGW.map(g=>`<div class="cr" style="background:var(--green2)"><div class="cr-time">${g.time||'—'}</div><div class="cr-info"><div class="cr-name">${hEsc(g.name)}</div><div class="cr-course">${hEsc(g.course)} ${hEsc(g.ratio)}・${hEsc(g.teacher)} 老師</div></div><div style="display:flex;align-items:center;gap:6px"><span style="font-size:13px;color:var(--green)">$${(g.fee||0).toLocaleString()}</span><span style="font-size:11px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:2px 9px;cursor:pointer" onclick="gcUnsettle('${g.id}')">已核銷 ✓</span></div></div>`).join('')}</div>`;
+  ${dayGW.map(g=>`<div class="cr" style="background:var(--green2)"><div class="cr-time">${g.time||'—'}</div><div class="cr-info"><div class="cr-name">${hEsc(g.name)}</div><div class="cr-course">${hEsc(g.course)} ${hEsc(g.ratio)}・${hEsc(g.teacher)} 老師</div></div><div style="display:flex;align-items:center;gap:6px"><span style="font-size:13px;color:var(--green)">$${(g.fee||0).toLocaleString()}</span><span style="font-size:11px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:2px 9px;cursor:pointer" onclick="gcUnsettle('${jsQ(g.id)}')">已核銷 ✓</span></div></div>`).join('')}</div>`;
 }
-function gcEditFee(idx){
-  const p=_gcPendArr[idx];if(!p)return;
+function gcEditFee(key){
+  const p=_gcPend[key];if(!p)return;
   const v=prompt('調整「'+p.name+'」這堂的師資費',p.fee);
   if(v==null)return;
   const n=parseInt(v);
   if(isNaN(n)||n<0){showToast('金額不正確','r');return;}
   p.fee=n;
-  const fe=document.getElementById('gcFee_'+idx);if(fe)fe.textContent=n.toLocaleString();
+  _gcOverride[key]={..._gcOverride[key],fee:n};
+  const fe=document.getElementById(gcDomId(key));if(fe)fe.textContent=n.toLocaleString();
 }
-function gcSettle(idx){
-  const p=_gcPendArr[idx];if(!p)return;
+function gcEditSettledFee(id){
+  const g=GW.find(x=>x.id===id);if(!g)return;
+  const v=prompt('調整「'+g.name+'」這堂的師資費',g.fee);
+  if(v==null)return;
+  const n=parseInt(v);
+  if(isNaN(n)||n<0){showToast('金額不正確','r');return;}
+  g.fee=n;saveGW();
+  renderDaily();
+  if(document.getElementById('ap-wage')?.classList.contains('active')&&document.getElementById('wageSubWage')?.style.display!=='none')renderWage();
+  showToast('✓ 金額已調整為 $'+n.toLocaleString());
+}
+// 指定實際授課老師（代課、換人上課等情況）；pending 用 gcKey、已核銷用 GW.id 當識別碼
+function gcPickTeacher(ident,isSettled){
+  window._gcPickIdent=ident;window._gcPickSettled=isSettled;
+  const cur=isSettled?(GW.find(g=>g.id===ident)?.teacher||''):((_gcPend[ident]||{}).teacher||'');
+  document.getElementById('gcPickTeacherOv')?.remove();
+  const opts=ALL_TEACHERS.map(t=>`<option value="${hEsc(t)}" ${t===cur?'selected':''}>${hEsc(t)}</option>`).join('');
+  const html=`<div id="gcPickTeacherOv" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:16px;padding:20px;max-width:340px;width:88%">
+      <div style="font-size:15px;font-weight:500;margin-bottom:12px;color:var(--ink)">指定實際授課老師</div>
+      <select id="gcPickTeacherSel" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:9px;font-size:14px;margin-bottom:14px;background:#fff">${opts}</select>
+      <div style="display:flex;gap:8px">
+        <button onclick="document.getElementById('gcPickTeacherOv').remove()" style="flex:1;padding:11px;background:var(--bg2);color:var(--ink2);border:none;border-radius:9px;font-size:14px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">取消</button>
+        <button onclick="gcApplyTeacherPick()" style="flex:1;padding:11px;background:var(--ink);color:#fff;border:none;border-radius:9px;font-size:14px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">儲存</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+function gcApplyTeacherPick(){
+  const sel=document.getElementById('gcPickTeacherSel');if(!sel)return;
+  const newTeacher=sel.value;
+  const ident=window._gcPickIdent;
+  if(window._gcPickSettled){
+    const g=GW.find(x=>x.id===ident);
+    if(g){g.teacher=newTeacher;saveGW();}
+  }else{
+    const p=_gcPend[ident];
+    if(p){
+      const guess=gcGuessFee(newTeacher,p.type||'');
+      p.teacher=newTeacher;p.fee=guess.fee;p.course=guess.course;p.ratio=guess.ratio;
+      _gcOverride[ident]={teacher:newTeacher,fee:guess.fee};
+    }
+  }
+  document.getElementById('gcPickTeacherOv')?.remove();
+  renderDaily();
+  showToast('✓ 已更新授課老師'+(window._gcPickSettled?'':'（金額已依新老師費率重新計算，可再點擊調整）'));
+}
+function gcSettle(key){
+  const p=_gcPend[key];if(!p)return;
   if(GW.some(g=>g.gcKey===p.gcKey)){showToast('這堂已核銷過','r');return;}
-  GW.push({id:'gw'+Date.now()+'_'+idx,...p,createdAt:todayStr()});
+  const rec={...p};delete rec.type;
+  GW.push({id:'gw'+Date.now(),...rec,createdAt:todayStr()});
+  delete _gcOverride[key];
   saveGW();
   showToast('✓ 已核銷 '+p.name+'（'+p.teacher+'）$'+p.fee.toLocaleString());
   renderDaily();
 }
 function gcSettleAll(){
-  if(!_gcPendArr.length)return;
-  if(!confirm('確定核銷 '+_gcPendArr.length+' 堂課？'))return;
+  const keys=Object.keys(_gcPend);
+  if(!keys.length)return;
+  if(!confirm('確定核銷 '+keys.length+' 堂課？'))return;
   const now=Date.now();
-  _gcPendArr.forEach((p,i)=>{
-    if(!GW.some(g=>g.gcKey===p.gcKey))GW.push({id:'gw'+now+'_'+i,...p,createdAt:todayStr()});
+  keys.forEach((key,i)=>{
+    const p=_gcPend[key];
+    if(!GW.some(g=>g.gcKey===p.gcKey)){
+      const rec={...p};delete rec.type;
+      GW.push({id:'gw'+now+'_'+i,...rec,createdAt:todayStr()});
+    }
+    delete _gcOverride[key];
   });
   saveGW();
-  showToast('✓ 已核銷 '+_gcPendArr.length+' 堂');
+  showToast('✓ 已核銷 '+keys.length+' 堂');
   renderDaily();
 }
 function gcUnsettle(id){
@@ -3482,7 +3575,66 @@ function gcUnsettle(id){
   saveGW();
   showToast('已取消核銷');
   renderDaily();
-  if(document.getElementById('ap-wage')?.classList.contains('active'))renderWage();
+  if(document.getElementById('ap-wage')?.classList.contains('active')&&document.getElementById('wageSubWage')?.style.display!=='none')renderWage();
+}
+// ── 未核銷提醒：每位老師日曆只查一次整個區間，前端依日期分桶（比逐日查快很多）──
+async function computeUnsettledDays(daysBack){
+  daysBack=daysBack||13;
+  if(typeof GC==='undefined'||!GC.ok())return[];
+  const calMap=GC.calMap||{};
+  const teachers=Object.keys(calMap).filter(t=>calMap[t]);
+  if(!teachers.length)return[];
+  const now=new Date();
+  const start=new Date(now.getFullYear(),now.getMonth(),now.getDate()-daysBack);
+  const end=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
+  const tMin=encodeURIComponent(start.toISOString());
+  const tMax=encodeURIComponent(end.toISOString());
+  const buckets={};
+  await Promise.all(teachers.map(async teacher=>{
+    const calId=calMap[teacher];
+    try{
+      const data=await GC.api(`/calendars/${encodeURIComponent(calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=250`);
+      (data.items||[]).forEach(ev=>{
+        if(ev.status==='cancelled')return;
+        const parsed=GC.parseTitle(ev.summary||'');if(!parsed)return;
+        const evDate=fmt(new Date(ev.start&&(ev.start.dateTime||ev.start.date)||now));
+        const key=ev.iCalUID||ev.id;
+        const settled=GW.some(g=>g.gcKey===key);
+        const blocked=!settled&&gcAlreadyPaidElsewhere(cleanGcName(parsed.name),parsed.phone,evDate);
+        if(!buckets[evDate])buckets[evDate]={pending:0,total:0};
+        buckets[evDate].total++;
+        if(!settled&&!blocked)buckets[evDate].pending++;
+      });
+    }catch(e){console.warn('未核銷提醒讀取失敗:',teacher,e);}
+  }));
+  const days=[];
+  for(let i=daysBack;i>=0;i--){
+    const dt=new Date(now.getFullYear(),now.getMonth(),now.getDate()-i);
+    const ds=fmt(dt);
+    const b=buckets[ds]||{pending:0,total:0};
+    days.push({date:ds,pending:b.pending,total:b.total});
+  }
+  return days;
+}
+async function renderUnsettledReminder(){
+  const el=document.getElementById('gcUnsettledReminder');if(!el)return;
+  if(typeof GC==='undefined'||!GC.ok()){el.innerHTML='';return;}
+  const days=await computeUnsettledDays(13);
+  if(document.getElementById('gcUnsettledReminder')!==el)return; // 已離開此畫面
+  const pendDays=days.filter(d=>d.pending>0&&d.date!==fmt(getAdminDate()));
+  if(!pendDays.length){el.innerHTML='';return;}
+  el.innerHTML=`<div style="font-size:11px;color:var(--ink3);margin-bottom:6px">⚠️ 其他日期尚有未核銷課程：</div>
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:2px">
+    ${pendDays.map(d=>`<div onclick="jumpToAdminDate('${d.date}')" style="flex-shrink:0;background:#FFF4E5;border:1px solid #F0C989;border-radius:10px;padding:6px 11px;text-align:center;cursor:pointer">
+      <div style="font-size:12px;color:#B9770E;font-weight:600">${d.date.slice(5)}</div>
+      <div style="font-size:10px;color:#B9770E">${d.pending} 堂待核銷</div>
+    </div>`).join('')}
+  </div>`;
+}
+function jumpToAdminDate(ds){
+  const target=parseDate(ds);const today=new Date();today.setHours(0,0,0,0);target.setHours(0,0,0,0);
+  adminOffset=Math.round((target-today)/864e5);
+  renderDaily();
 }
 
 function toggleConfirm(id, type){
@@ -6184,6 +6336,20 @@ async function runDataCheck(){
   el.innerHTML=(issues.length?`<div style="font-size:12px;color:var(--ink3);margin-bottom:8px">檢查完成：${errN} 個異常・${warnN} 個提醒</div>`+issues.map(i=>`<div style="background:${ic[i.lv][1]};border-radius:9px;padding:9px 12px;margin-bottom:6px;font-size:12.5px;color:${ic[i.lv][2]};line-height:1.6">${ic[i.lv][0]} ${hEsc(i.msg)}</div>`).join(''):`<div style="text-align:center;padding:14px;font-size:14px;color:var(--green)">✅ 太棒了！資料全部正常</div>`);
 }
 
+async function helperCheckGcSettle(){
+  const el=document.getElementById('helperGcSettleResult');if(!el)return;
+  el.innerHTML='<div style="font-size:13px;color:var(--ink3);padding:8px 0">🔍 檢查中…</div>';
+  if(typeof GC==='undefined'||!GC.ok()){el.innerHTML='<div style="font-size:13px;color:var(--orange)">請先在「Google日曆」分頁連接帳號</div>';return;}
+  const days=await computeUnsettledDays(13);
+  const pend=days.filter(d=>d.pending>0);
+  if(!pend.length){el.innerHTML='<div style="text-align:center;padding:10px;font-size:14px;color:var(--green)">✅ 近 14 天日曆課程都已核銷</div>';return;}
+  el.innerHTML=pend.map(d=>`<div style="display:flex;justify-content:space-between;align-items:center;background:#FFF4E5;border-radius:9px;padding:8px 12px;margin-bottom:6px"><span style="font-size:12.5px;color:#B9770E">${d.date}・${d.pending} 堂待核銷</span><button onclick="helperJumpToSettleDate('${d.date}')" style="background:var(--ink);color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:11px;cursor:pointer;flex-shrink:0;margin-left:8px">前往核銷 →</button></div>`).join('');
+}
+function helperJumpToSettleDate(ds){
+  openDailyConfirm();
+  setTimeout(()=>jumpToAdminDate(ds),80);
+}
+
 function renderHelper(){
   const el=document.getElementById('helperContent');if(!el)return;
   const td=todayStr();const d=new Date();
@@ -6255,6 +6421,7 @@ function renderHelper(){
     </div>`).join(''):'<div style="text-align:center;padding:10px;font-size:13px;color:var(--ink3)">今天沒有排課 🌿</div>')}
   ${card('💬 明日上課提醒',`<div style="font-size:12.5px;color:var(--ink2);line-height:1.8">自動抓明天 Google 日曆課表，逐一產生 LINE 提醒訊息。</div><button onclick="aTab('notify')" style="width:100%;margin-top:8px;background:var(--ink);color:#fff;border:none;border-radius:9px;padding:10px;font-size:13px;cursor:pointer">產生明日提醒訊息 →</button>`)}
   ${card('📊 本月營運',`<div id="helperMonthCard"></div>`,`<select onchange="helperMonthChange(this.value)" style="width:auto;margin-bottom:0;font-size:12px;border:1px solid var(--border);border-radius:8px;padding:4px 8px;background:var(--white);color:var(--ink2);outline:none">${mkOpts}</select>`)}
+  ${card('📅 Google 日曆核銷提醒',`<div style="font-size:12.5px;color:var(--ink2);line-height:1.8">檢查近 14 天日曆課程是否都已核銷師資費，列出還沒核銷的日期。</div><button onclick="helperCheckGcSettle()" style="width:100%;margin-top:8px;background:var(--white);color:var(--ink);border:1.5px solid var(--ink);border-radius:9px;padding:10px;font-size:13px;cursor:pointer;font-weight:500">檢查未核銷課程</button><div id="helperGcSettleResult" style="margin-top:10px"></div>`)}
   ${card('🔍 資料健康檢查',`<div style="font-size:12.5px;color:var(--ink2);line-height:1.8">檢查堂數異常、過期課程、重複簽到，並比對 Google 日曆找出漏簽。</div><button onclick="runDataCheck()" style="width:100%;margin-top:8px;background:var(--white);color:var(--ink);border:1.5px solid var(--ink);border-radius:9px;padding:10px;font-size:13px;cursor:pointer;font-weight:500">開始檢查</button><div id="dataCheckResult" style="margin-top:10px"></div>`)}
   <div style="height:20px"></div>`;
   renderHelperMonth();
