@@ -622,7 +622,6 @@ const db={
       <div class="success-lbl" id="successLbl">堂課程可用</div>
       <div id="nextBookingArea" style="margin-top:20px;max-width:320px;width:100%"></div>
       <div id="successUpcomingArea" style="margin-top:14px;width:100%;max-width:380px"></div>
-      <div id="gcBookNextArea" style="width:100%;max-width:320px;margin-top:10px"></div>
       <div id="lineMessageArea" style="margin-top:14px;width:100%;max-width:380px"></div>
       <div style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:14px;width:100%;max-width:320px">
         <button class="btn btn-ink" style="width:100%;font-size:16px;padding:14px" onclick="document.getElementById('searchInp').value='';document.getElementById('searchResultArea').style.display='none';document.getElementById('searchClear').classList.remove('show');renderStuList();goScreen('sc-students')">← 繼續下一位</button>
@@ -1806,44 +1805,6 @@ function gcSyncTodayFromHome(){
   }).catch(()=>{if(lbl)lbl.textContent='同步課表';});
 }
 
-// GC 下次上課預約
-function showGcBookNext(sid){
-  const el=document.getElementById('gcBookNextArea');if(!el)return;
-  const s=S.find(x=>x.id===sid);if(!s)return;
-  if(typeof GC==='undefined'||!GC.ok()){el.innerHTML='';return;}
-  const calId=(GC.calMap||{})[s.teacher];if(!calId){el.innerHTML='';return;}
-  const now=new Date();
-  const nextWeek=new Date(now.getTime()+7*864e5);
-  const defaultDate=fmt(nextWeek).replace(/\//g,'-');
-  const defaultTime=nowTime();
-  el.innerHTML=`<div style="background:#fff;border:0.5px solid var(--brown4);border-radius:14px;padding:14px;width:100%">
-    <div style="font-size:13px;font-weight:500;color:var(--brown);margin-bottom:10px">📅 安排 ${s.name} 下次課程</div>
-    <div style="display:flex;gap:8px;margin-bottom:10px">
-      <input type="date" id="gcNextDate" value="${defaultDate}" style="flex:1;padding:8px 10px;border:0.5px solid var(--brown4);border-radius:8px;font-size:13px;font-family:'Noto Sans TC',sans-serif;background:var(--cream)">
-      <select id="gcNextHour" style="padding:8px;border:0.5px solid var(--brown4);border-radius:8px;font-size:13px;background:var(--cream)">
-        ${Array.from({length:14},(_,i)=>i+7).map(h=>`<option value="${String(h).padStart(2,'0')}" ${String(h).padStart(2,'0')===defaultTime.slice(0,2)?'selected':''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
-      </select>
-    </div>
-    <button onclick="doGcBookNext('${sid}','${s.teacher}')" style="width:100%;padding:11px;background:var(--brown);color:var(--cream);border:none;border-radius:10px;font-size:14px;font-weight:500;font-family:'Noto Sans TC',sans-serif;cursor:pointer">加入 ${s.teacher} 的 Google 日曆</button>
-  </div>`;
-}
-function doGcBookNext(sid,teacher){
-  const s=S.find(x=>x.id===sid);if(!s)return;
-  const calId=(GC.calMap||{})[teacher];if(!calId){showToast('找不到老師的 Google 日曆','r');return;}
-  const date=document.getElementById('gcNextDate')?.value;
-  const hour=document.getElementById('gcNextHour')?.value;
-  if(!date||!hour){showToast('請選擇日期和時間','r');return;}
-  const time=hour+':00';
-  const parts=s.course.split(' ');
-  const title=`${parts[0]||'1on1'} | ${s.name}${s.phone?' '+s.phone:''}`;
-  GC.createEvent(calId,title,date.replace(/-/g,'/'),time,60)
-    .then(()=>{
-      showToast('✓ 已加入 '+teacher+' 的 Google 日曆');
-      document.getElementById('gcBookNextArea').innerHTML=`<div style="background:#E8F7EF;border:0.5px solid #9FD4BC;border-radius:12px;padding:12px 14px;text-align:center;font-size:13px;color:#1F6B4A">✓ 已排入 ${date} ${time} Google 日曆</div>`;
-    })
-    .catch(e=>showToast('日曆寫入失敗：'+e.message,'r'));
-}
-
 let curTeacher='';
 function selectTeacher(t){
   curTeacher=t;
@@ -2333,7 +2294,6 @@ function confirmLeave(){
   document.getElementById('successLbl').textContent='堂課程可用（堂數未扣）';
   document.getElementById('nextBookingArea').innerHTML='';
   renderUpcomingArea(s.id,'successUpcomingArea');
-  try{showGcBookNext(curSid);}catch(e){}
   goScreen('sc-success');
 }
 function cancelLeave(sid){
@@ -2464,13 +2424,12 @@ function confirmSig(){
   document.getElementById('successSub').textContent='第 '+s.used+' 堂完成簽到\n'+todayStr()+' '+nowTime()+(isUpgraded?'\n＋1人｜'+parts[1]+'→'+curUpgradeRatio:'')+(isSub?'\n代課老師：'+subTeacher:'');
   document.getElementById('successRemain').textContent=remain;
   document.getElementById('successLbl').textContent='堂課程可用';
-  renderNextBookingArea(s.id, remain);
+  document.getElementById('nextBookingArea').innerHTML=''; // 清掉上一次體驗課簽到留下的「轉為正式學員」按鈕
   renderUpcomingArea(s.id, 'successUpcomingArea');
   renderLineMessage(s, remain, isUpgraded, curUpgradeRatio, isSub, subTeacher);
   curUpgradeRatio='';curUpgradeDiff=0; // ✅ 在 renderLineMessage 之後才歸零，否則 LINE 訊息會顯示空白比例和 $0
   startUndoTimer();
   goScreen('sc-success');
-  try{showGcBookNext(curSid);}catch(e){}
 }
 
 function showRetroModal(sid){
@@ -4223,81 +4182,6 @@ function renderUpcomingArea(sid, targetId){
       }
     });
   }
-}
-
-function renderNextBookingArea(sid, remain){
-  const el=document.getElementById('nextBookingArea');
-  if(!el)return;
-  const s=S.find(x=>x.id===sid);
-  if(!s||remain<=0){el.innerHTML='';return}
-  // Suggest next occurrence based on recurring
-  const today=new Date();
-  let suggestions=[];
-  if(s.recurring&&s.recurring.length){
-    s.recurring.forEach(r=>{
-      // Find next date for this day of week
-      const d=new Date(today);
-      d.setDate(d.getDate()+1); // start from tomorrow
-      while(d.getDay()!==r.day)d.setDate(d.getDate()+1);
-      suggestions.push({date:fmt(d),time:r.time,label:'下次'+WD_NAMES[r.day]+'・'+r.time});
-    });
-  }
-  // Also allow custom date
-  const suggHTML=suggestions.map(sg=>`<button onclick="bookApptAndSync('${sid}','${sg.date}','${sg.time}')" style="display:block;width:100%;padding:9px 14px;margin-bottom:6px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:9px;font-size:13px;cursor:pointer;text-align:left">✓ 預排 ${sg.date} ${sg.time}</button>`).join('');
-  el.innerHTML=`<div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
-    <div style="font-size:13px;letter-spacing:1px;color:var(--ink2);margin-bottom:10px">預排下次上課時間</div>
-    ${suggHTML}
-    <div style="margin-top:4px">
-      ${mkDateSelects('customBookDate',fmt(new Date(today.getFullYear(),today.getMonth(),today.getDate()+7)),'margin-bottom:6px')}
-      <div style="display:flex;gap:7px;align-items:center">
-        ${mkTimeSelects('customBookTime','10:00','margin:0 auto 0 0')}
-        <button onclick="confirmCustomBook('${sid}')" style="padding:9px 14px;background:var(--ink);color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-family:'Noto Sans TC',sans-serif;flex-shrink:0">確定</button>
-      </div>
-    </div>
-    <div style="font-size:11px;color:var(--ink3);margin-top:6px">或選擇自訂日期時間</div>
-    <div id="bookConfirmedMsg" style="display:none;margin-top:10px;background:var(--green2);border:1px solid #90D4B0;border-radius:9px;padding:10px 14px;font-size:13px;color:var(--green)"></div>
-  </div>`;
-}
-
-// 預排確認：同步存資料 + 更新LINE + 寫入行事曆
-function bookApptAndSync(sid, date, time){
-  const s=S.find(x=>x.id===sid);if(!s)return;
-  // 1. 存 nextBooking
-  s.nextBooking={date,time};save();
-  // 2. 更新 LINE 訊息
-  updateLineMsgWithAppt(date,time);
-  // 3. 寫入行事曆 SCH（若當日該老師尚未有此學員）
-  if(s.teacher&&date){
-    if(!SCH[date])SCH[date]={};
-    if(!SCH[date][s.teacher])SCH[date][s.teacher]=[];
-    if(!SCH[date][s.teacher].find(sl=>sl.sid===sid)){
-      SCH[date][s.teacher].push({sid,time});
-      markSchChanged();save();
-    }
-  }
-  // 4. 若已連接 Google 日曆，寫入對應老師的 Google Calendar
-  if(typeof GC!=='undefined'&&GC.ok()&&s.teacher){
-    const calId=(GC.calMap||{})[s.teacher];
-    if(calId){
-      const phone=s.phone?s.phone.replace(/[\s-]/g,''):'';
-      // 格式：「器械皮拉提斯 1on1 | 姓名 電話」（完整課程+比例）
-      const gcTitle=(s.course||'課程')+' | '+s.name+(phone?' '+phone:'');
-      GC.createEvent(calId,gcTitle,date,time,60)
-        .then(()=>showToast('✓ 已同步至 Google 日曆'))
-        .catch(e=>showToast('Google 日曆寫入失敗：'+e.message,'r'));
-    }
-  }
-  // 5. 顯示成功訊息
-  const msg=document.getElementById('bookConfirmedMsg');
-  if(msg){msg.style.display='block';msg.textContent='✓ 已預排 '+date+' '+time+'，行事曆＆LINE 已更新';}
-  showToast('✓ 已預排：'+date+' '+time);
-}
-
-function confirmCustomBook(sid){
-  const date=getDateSel('customBookDate');
-  const time=getTimeSel('customBookTime');
-  if(!date||!time){showToast('請選擇日期和時間','r');return}
-  bookApptAndSync(sid,date,time);
 }
 
 // ── 固定排課設定（在學員管理）──
