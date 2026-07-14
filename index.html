@@ -3394,7 +3394,7 @@ async function renderGcSettle(ds){
     ${rows.sort((a,b)=>(a.time||'').localeCompare(b.time||'')).map(r=>{
       const p=_gcPend[r.key];
       const kq=jsQ(r.key);
-      const pickCall=r.blocked?'':(r.settled?`gcPickTeacher('${jsQ(r.settled.id)}',true)`:`gcPickTeacher('${kq}',false)`);
+      const pickCall=r.blocked?'':(r.settled?`gcPickTeacher('${jsQ(r.settled.id)}','settled')`:`gcPickTeacher('${kq}','pending')`);
       return`<div class="cr" style="background:${r.blocked?'var(--white)':r.settled?'var(--green2)':'#FFFDF0'}">
         <div class="cr-time">${r.time||'—'}</div>
         <div class="cr-info"><div class="cr-name">${hEsc(r.name)}</div><div class="cr-course">${hEsc(r.type||'')}・<span ${r.blocked?'':`onclick="${pickCall}" style="cursor:pointer;text-decoration:underline dotted"`}>${hEsc(r.teacher)} 老師${r.blocked?'':' ✏️'}</span></div></div>
@@ -3512,9 +3512,16 @@ function gcEditSettledFee(id){
   showToast('✓ 金額已調整為 $'+n.toLocaleString());
 }
 // 指定實際授課老師（代課、換人上課等情況）；pending 用 gcKey、已核銷用 GW.id 當識別碼
-function gcPickTeacher(ident,isSettled){
-  window._gcPickIdent=ident;window._gcPickSettled=isSettled;
-  const cur=isSettled?(GW.find(g=>g.id===ident)?.teacher||''):((_gcPend[ident]||{}).teacher||'');
+// kind: 'settled'（已核銷 GW）｜'pending'（待核銷 GC 事件）｜'regular'（前台簽到記錄，代課歸屬修正）
+function gcPickTeacher(ident,kind){
+  window._gcPickIdent=ident;window._gcPickKind=kind;
+  let cur='';
+  if(kind==='settled')cur=GW.find(g=>g.id===ident)?.teacher||'';
+  else if(kind==='pending')cur=(_gcPend[ident]||{}).teacher||'';
+  else if(kind==='regular'){
+    const r=R.find(x=>x.id===ident);const s=r&&S.find(x=>x.id===r.sid);
+    cur=r?(r.isSub?r.subTeacher:(s?.teacher||'')):'';
+  }
   document.getElementById('gcPickTeacherOv')?.remove();
   const opts=ALL_TEACHERS.map(t=>`<option value="${hEsc(t)}" ${t===cur?'selected':''}>${hEsc(t)}</option>`).join('');
   const html=`<div id="gcPickTeacherOv" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center">
@@ -3533,20 +3540,33 @@ function gcApplyTeacherPick(){
   const sel=document.getElementById('gcPickTeacherSel');if(!sel)return;
   const newTeacher=sel.value;
   const ident=window._gcPickIdent;
-  if(window._gcPickSettled){
+  const kind=window._gcPickKind;
+  if(kind==='settled'){
     const g=GW.find(x=>x.id===ident);
     if(g){g.teacher=newTeacher;saveGW();}
-  }else{
+  }else if(kind==='pending'){
     const p=_gcPend[ident];
     if(p){
       const guess=gcGuessFee(newTeacher,p.type||'');
       p.teacher=newTeacher;p.fee=guess.fee;p.course=guess.course;p.ratio=guess.ratio;
       _gcOverride[ident]={teacher:newTeacher,fee:guess.fee};
     }
+  }else if(kind==='regular'){
+    const r=R.find(x=>x.id===ident);const s=r&&S.find(x=>x.id===r.sid);
+    if(r&&s){
+      if(newTeacher===(s.teacher||'')){r.isSub=false;r.subTeacher='';}
+      else{r.isSub=true;r.subTeacher=newTeacher;}
+      save();
+    }
   }
   document.getElementById('gcPickTeacherOv')?.remove();
-  renderDaily();
-  showToast('✓ 已更新授課老師'+(window._gcPickSettled?'':'（金額已依新老師費率重新計算，可再點擊調整）'));
+  if(kind==='regular'){
+    renderDaily();
+    if(document.getElementById('ap-wage')?.classList.contains('active')&&document.getElementById('wageSubWage')?.style.display!=='none')renderWage();
+  }else{
+    renderDaily();
+  }
+  showToast('✓ 已更新授課老師'+(kind==='pending'?'（金額已依新老師費率重新計算，可再點擊調整）':''));
 }
 function gcSettle(key){
   const p=_gcPend[key];if(!p)return;
@@ -3754,27 +3774,33 @@ function renderWage(){
     const sessions=tMap[t]||[];const total=sessions.reduce((a,x)=>a+x.fee,0);
     const teacherRentDeduct=monthRentDeduct.filter(r=>r.teacher===t);
     const rentDeductTotal=teacherRentDeduct.reduce((a,r)=>a+(r.fee||0),0);
+    const teacherBonus=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.teacher===t&&(l.bonus||0)>0);
     if(!sessions.length){
-      if(!teacherRentDeduct.length)return`<div class="wage-card no-data"><div class="wc-header"><div class="wc-name">${t}</div><div class="wc-no-data-lbl">尚無記錄</div></div><div class="wc-body"><div class="wc-no-record">本月尚無課堂</div></div></div>`;
-      return`<div class="wage-card"><div class="wc-header"><div class="wc-name">${t}</div><div class="wc-total" style="color:var(--red)">－$${rentDeductTotal.toLocaleString()}</div></div><div class="wc-divider"></div><div class="wc-body">
+      if(!teacherRentDeduct.length&&!teacherBonus.length)return`<div class="wage-card no-data"><div class="wc-header"><div class="wc-name">${t}</div><div class="wc-no-data-lbl">尚無記錄</div></div><div class="wc-body"><div class="wc-no-record">本月尚無課堂</div></div></div>`;
+      const bonusPaid=teacherBonus.filter(l=>l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
+      const bonusPend=teacherBonus.filter(l=>!l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
+      const only=bonusPaid-rentDeductTotal;
+      return`<div class="wage-card"><div class="wc-header"><div class="wc-name">${t}</div><div class="wc-total" style="color:${only<0?'var(--red)':'var(--green)'}">${only<0?'－':''}$${Math.abs(only).toLocaleString()}</div></div><div class="wc-divider"></div><div class="wc-body">
         ${teacherRentDeduct.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${r.date.slice(5)} ${r.time||''}</div><div style="flex:1;color:var(--red)">🏠 場租扣款${r.label?'・'+hEsc(r.label):''}</div><div style="color:var(--red);flex-shrink:0">－$${(r.fee||0).toLocaleString()}</div></div>`).join('')}
-        <div class="wc-note" style="margin-top:6px">本月無課堂，僅場租扣款</div>
+        ${teacherBonus.map(l=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${(l.createdAt||'').slice(5)}</div><div style="flex:1;color:var(--teal)">🎁 續課獎金・${hEsc(l.name)}</div><div style="color:${l.bonusPaid?'var(--teal)':'var(--orange)'};flex-shrink:0">$${(l.bonus||0).toLocaleString()}${l.bonusPaid?'':'（待撥）'}</div></div>`).join('')}
+        <div class="wc-note" style="margin-top:6px">本月無課堂${teacherRentDeduct.length?'・已扣場租 $'+rentDeductTotal.toLocaleString():''}${bonusPend?'・獎金待撥 $'+bonusPend.toLocaleString():''}</div>
       </div></div>`;
     }
     // 逐堂明細：對帳要看誰、哪天哪個時段，不是只看課種小計
     const detailRows=sessions.map(item=>{
       if(item.type==='regular'){
         const label=item.r.isUpgraded?item.s.course.split(' ')[0]+' ＋1人｜'+item.r.upgradedTo:item.s.course;
-        return{date:item.r.date,time:item.r.time,name:item.s.name,label,fee:item.fee,adj:isAdj(item.r)};
+        return{date:item.r.date,time:item.r.time,name:item.s.name,label,fee:item.fee,adj:isAdj(item.r),rid:item.r.id,editable:true};
       }
       if(item.type==='trial'){
-        return{date:item.tr.date,time:item.tr.time,name:item.tr.name,label:item.tr.course+' '+item.tr.ratio+'（體驗）',fee:item.fee,adj:item.tr.manualFee!=null};
+        return{date:item.tr.date,time:item.tr.time,name:item.tr.name,label:item.tr.course+' '+item.tr.ratio+'（體驗）',fee:item.fee,adj:item.tr.manualFee!=null,editable:false};
       }
-      return{date:item.g.date,time:item.g.time,name:cleanGcName(item.g.name),label:item.g.course+' '+item.g.ratio+'（GC核銷）',fee:item.fee,adj:false};
+      return{date:item.g.date,time:item.g.time,name:cleanGcName(item.g.name),label:item.g.course+' '+item.g.ratio+'（GC核銷）',fee:item.fee,adj:false,editable:false};
     }).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
-    // 計算續課獎金 - 從流水帳讀取該老師已撥款的獎金
-    const bonusTotal=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.teacher===t&&l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
-    const bonusPending=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.teacher===t&&!l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
+    // 續課獎金：逐筆列出是哪位學員續課觸發的，不是只看總額
+    const bonusEntries=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.teacher===t&&(l.bonus||0)>0);
+    const bonusTotal=bonusEntries.filter(l=>l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
+    const bonusPending=bonusEntries.filter(l=>!l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
     const adjSessions=sessions.filter(x=>x.type==='regular'?isAdj(x.r):x.type==='trial'?(x.tr.manualFee!=null):false);
     const trialCount=sessions.filter(x=>x.type==='trial').length;
     const gcCount=sessions.filter(x=>x.type==='gc').length;
@@ -3786,7 +3812,7 @@ function renderWage(){
       <div class="wc-body">
         ${detailRows.map(d=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px">
           <div style="color:var(--ink3);width:78px;flex-shrink:0">${d.date.slice(5)} ${d.time||''}</div>
-          <div style="flex:1;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${hEsc(d.name)}<span style="color:var(--ink3)"> ・ ${hEsc(d.label)}</span></div>
+          <div style="flex:1;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${hEsc(d.name)}<span style="color:var(--ink3)"> ・ ${hEsc(d.label)}</span>${d.editable?` <span onclick="gcPickTeacher('${jsQ(d.rid)}','regular')" style="cursor:pointer;color:var(--ink3);text-decoration:underline dotted;white-space:nowrap">✏️改老師</span>`:''}</div>
           <div style="color:${d.adj?'var(--orange)':'var(--ink2)'};flex-shrink:0">$${d.fee.toLocaleString()}</div>
         </div>`).join('')}
         ${teacherRentDeduct.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px">
@@ -3794,7 +3820,12 @@ function renderWage(){
           <div style="flex:1;color:var(--red)">🏠 場租扣款${r.label?'・'+hEsc(r.label):''}</div>
           <div style="color:var(--red);flex-shrink:0">－$${(r.fee||0).toLocaleString()}</div>
         </div>`).join('')}
-        <div class="wc-note" style="margin-top:6px">${sessions.length} 堂${tp?' ・ '+tp+' 人次':''}${trialCount?' ・ 含體驗 '+trialCount+' 堂':''}${gcCount?' ・ 含GC核銷 '+gcCount+' 堂':''}${adjSessions.length?' ・ 含 '+adjSessions.length+' 筆調整':''}${teacherRentDeduct.length?' ・ 已扣場租 $'+rentDeductTotal.toLocaleString():''}</div>${bonusTotal>0?`<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--teal)">續課獎金（已撥）</span><span style="color:var(--teal);font-weight:500">$${bonusTotal.toLocaleString()}</span></div>`:''}${bonusPending>0?`<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px"><span style="color:var(--orange)">續課獎金（待撥）</span><span style="color:var(--orange)">$${bonusPending.toLocaleString()}</span></div>`:''}
+        ${bonusEntries.map(l=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px">
+          <div style="color:var(--ink3);width:78px;flex-shrink:0">${(l.createdAt||'').slice(5)}</div>
+          <div style="flex:1;color:var(--teal)">🎁 續課獎金・${hEsc(l.name)}</div>
+          <div style="color:${l.bonusPaid?'var(--teal)':'var(--orange)'};flex-shrink:0">$${(l.bonus||0).toLocaleString()}${l.bonusPaid?'':'（待撥）'}</div>
+        </div>`).join('')}
+        <div class="wc-note" style="margin-top:6px">${sessions.length} 堂${tp?' ・ '+tp+' 人次':''}${trialCount?' ・ 含體驗 '+trialCount+' 堂':''}${gcCount?' ・ 含GC核銷 '+gcCount+' 堂':''}${adjSessions.length?' ・ 含 '+adjSessions.length+' 筆調整':''}${teacherRentDeduct.length?' ・ 已扣場租 $'+rentDeductTotal.toLocaleString():''}${bonusPending>0?' ・ 獎金待撥 $'+bonusPending.toLocaleString():''}</div>
       </div>
       <div class="wc-footer"><button class="wc-btn wc-btn-copy" onclick="copyTeacher('${t}','${mk}')">📋 複製薪資</button></div>
     </div>`;
@@ -3872,12 +3903,15 @@ function copyTeacher(teacher,mk){
   ];
   const rentDeduct=RENT.filter(r=>wageInRange(r.date,mk)&&r.teacher===teacher&&r.mode==='deduct');
   const rentTotal=rentDeduct.reduce((a,r)=>a+(r.fee||0),0);
-  const total=sessions.reduce((a,x)=>a+x.fee,0)-rentTotal;
+  const bonusEntries=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.teacher===teacher&&(l.bonus||0)>0);
+  const bonusPaidTotal=bonusEntries.filter(l=>l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
+  const total=sessions.reduce((a,x)=>a+x.fee,0)-rentTotal+bonusPaidTotal;
   const byType={};sessions.forEach(x=>{const k=x.type==='gc'?`${x.g.course} ${x.g.ratio}（GC核銷）`:x.type==='trial'?`${x.tr.course} ${x.tr.ratio}（體驗）`:(x.r?.isUpgraded?x.s.course.split(' ')[0]+' ＋1人｜'+x.r.upgradedTo:x.s.course);if(!byType[k])byType[k]={count:0,fee:0};byType[k].count++;byType[k].fee+=x.fee});
   const period=(_wageMode==='range'&&_wageStart&&_wageEnd)?`${_wageStart}～${_wageEnd}（週結）`:`${y}年${parseInt(mo)}月`;
   let text=`輕境運動工作室 ${period} 師資費用\n老師：${teacher}\n────────────\n`;
   Object.entries(byType).forEach(([c,d])=>{text+=`${c}：${d.count}堂 / $${d.fee.toLocaleString()}\n`});
   if(rentDeduct.length)text+=`場租扣款：${rentDeduct.length}筆 / －$${rentTotal.toLocaleString()}\n`;
+  if(bonusPaidTotal>0)text+=`續課獎金（已撥）：${bonusEntries.filter(l=>l.bonusPaid).length}筆 / $${bonusPaidTotal.toLocaleString()}\n`;
   text+=`────────────\n合計：$${total.toLocaleString()}\n`;
   const adjRecs=sessions.filter(x=>x.type==='regular'?isAdj(x.r):x.type==='trial'?(x.tr.manualFee!=null):false);
   if(adjRecs.length)text+=`（含 ${adjRecs.length} 筆手動調整）\n`;
@@ -3891,6 +3925,10 @@ function copyTeacher(teacher,mk){
     text+=`\n場租扣款明細：\n`;
     rentDeduct.sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{text+=`${r.date.slice(5)} ${r.time||''} 場租${r.label?'・'+r.label:''} －$${(r.fee||0).toLocaleString()}\n`});
   }
+  if(bonusEntries.length){
+    text+=`\n續課獎金明細：\n`;
+    bonusEntries.sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||'')).forEach(l=>{text+=`${(l.createdAt||'').slice(5)} ${l.name} $${(l.bonus||0).toLocaleString()}${l.bonusPaid?'':'（待撥）'}\n`});
+  }
   copyText(text,`${teacher} 薪資已複製`);
 }
 function copyAll(){
@@ -3902,6 +3940,7 @@ function copyAll(){
   T.filter(t=>t.date&&wageInRange(t.date,mk)).forEach(t=>{if(!tMap[t.teacher])tMap[t.teacher]=0;tMap[t.teacher]+=(t.manualFee!=null?t.manualFee:t.teacherFee)});
   GW.filter(g=>g.date&&wageInRange(g.date,mk)).forEach(g=>{const t=g.teacher||'其他';if(!tMap[t])tMap[t]=0;tMap[t]+=(g.fee||0)});
   RENT.filter(r=>r.date&&wageInRange(r.date,mk)&&r.mode==='deduct').forEach(r=>{const t=r.teacher||'其他';if(!tMap[t])tMap[t]=0;tMap[t]-=(r.fee||0)});
+  LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.bonusPaid&&(l.bonus||0)>0).forEach(l=>{const t=l.teacher||'其他';if(!tMap[t])tMap[t]=0;tMap[t]+=(l.bonus||0)});
   let grand=0;
   Object.entries(tMap).forEach(([t,total])=>{grand+=total;text+=`${t}：$${total.toLocaleString()}\n`});
   text+=`────────────\n合計：$${grand.toLocaleString()}\n`;
