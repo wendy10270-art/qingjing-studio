@@ -693,8 +693,6 @@ const db={
   </div>
   <div class="admin-tabs">
     <div class="a-tab active" onclick="aTab(&#39;helper&#39;)">✨小幫手</div>
-    <div class="a-tab" onclick="aTab(&#39;sch&#39;)">今日開課</div>
-    <div class="a-tab" onclick="aTab(&#39;cal&#39;)">預排行事曆</div>
     <div class="a-tab" onclick="aTab(&#39;ledger&#39;)">流水帳</div>
     <div class="a-tab" onclick="aTab(&#39;wage&#39;)">薪資結算</div>
     <div class="a-tab" onclick="aTab(&#39;mgr&#39;)">學員管理</div>
@@ -705,8 +703,6 @@ const db={
   </div>
   <div class="admin-scroll">
     <div class="a-page active" id="ap-helper"><div id="helperContent" style="padding:4px 0"></div></div>
-    <div class="a-page" id="ap-sch"><div id="schEditor"></div></div>
-    <div class="a-page" id="ap-cal"><div id="calContent"></div></div>
     <div class="a-page" id="ap-ledger"><div id="ledgerContent"></div></div>
     <div class="a-page" id="ap-wage">
       <div style="display:flex;gap:8px;padding:12px 0 4px">
@@ -1447,10 +1443,7 @@ function applyRemoteData(data){
   localStorage.setItem('qjf_t',JSON.stringify(T));
   localStorage.setItem('qjf_l',JSON.stringify(L));
   renderTeachers();
-  // 用 false 保留使用者正在編輯的 tmpSch，避免同步蓋掉未儲存的新增
-  if(document.getElementById('ap-sch')?.classList.contains('active'))renderSchEditor(false);
   if((document.getElementById('ap-wage')?.classList.contains('active')&&document.getElementById('wageSubDaily')?.style.display!=='none'))renderDaily();
-  if(document.getElementById('ap-cal')?.classList.contains('active')){calMonthOffset=calMonthOffset;renderCalendar();}
   if(document.getElementById('ap-ledger')?.classList.contains('active'))renderLedger();
   if(document.getElementById('ap-mgr')?.classList.contains('active'))renderMgrList();
   showToast('🔄 資料已從其他裝置同步');
@@ -1519,12 +1512,10 @@ function startPeriodicSync(){
       try{renderDashboard();}catch(e){}
       const adminActive=document.getElementById('sc-admin')?.classList.contains('active-admin');
       if(adminActive){
-        try{if(document.getElementById('ap-sch')?.classList.contains('active'))renderSchEditor(false);}catch(e){}
         try{if(document.getElementById('ap-wage')?.classList.contains('active')){
           if(document.getElementById('wageSubDaily')?.style.display!=='none')renderDaily();
           else renderWage();
         }}catch(e){}
-        try{if(document.getElementById('ap-cal')?.classList.contains('active'))renderCalendar();}catch(e){}
         try{if(document.getElementById('ap-ledger')?.classList.contains('active'))renderLedger();}catch(e){}
       }
       });
@@ -1548,7 +1539,6 @@ function startPeriodicSync(){
           try{renderDashboard();}catch(e){}
           const adminActive=document.getElementById('sc-admin')?.classList.contains('active-admin');
           if(adminActive){
-            try{if(document.getElementById('ap-sch')?.classList.contains('active'))renderSchEditor(false);}catch(e){}
             try{if(document.getElementById('ap-wage')?.classList.contains('active')){
               if(document.getElementById('wageSubDaily')?.style.display!=='none')renderDaily();
               else renderWage();
@@ -2756,11 +2746,7 @@ function pConfirm(){
     const bn=document.getElementById('bottomNav');if(bn)bn.style.display='none';
     document.getElementById('mainScroll').style.display='none';
     document.getElementById('sc-admin').classList.add('active-admin');
-    renderSchEditor();renderDaily();buildMonthSelect();renderWage();renderMgrList();renderBackupBar();renderDashboard();try{renderHelper();}catch(e){console.warn('helper render error:',e);}
-    if(window._adminTargetTab){
-      setTimeout(()=>aTab(window._adminTargetTab==='sch'?'cal':'cal'),100);
-      window._adminTargetTab=null;
-    }
+    renderDaily();buildMonthSelect();renderWage();renderMgrList();renderBackupBar();renderDashboard();try{renderHelper();}catch(e){console.warn('helper render error:',e);}
   } else {document.getElementById('pinErr').textContent='密碼錯誤，請再試一次';pinStr='';updPinDots()}
 }
 
@@ -2838,11 +2824,10 @@ function wageSub(v){
 function openDailyConfirm(){aTab('wage');wageSub('daily');}
 function aTab(t){
   renderDashboard();
-  const ns=['helper','sch','cal','ledger','wage','mgr','tch','gcal','notify'];
+  const ns=['helper','ledger','wage','mgr','tch','gcal','notify'];
   document.querySelectorAll('.a-tab').forEach((el,i)=>el.classList.toggle('active',ns[i]===t));
   ns.forEach(n=>document.getElementById('ap-'+n).classList.toggle('active',n===t));
   if(t==='helper')renderHelper();
-  if(t==='cal')renderCalendar();
   if(t==='ledger')renderLedger();
   if(t==='wage')wageSub(_wageSub);
   if(t==='mgr')renderMgrList();
@@ -3119,6 +3104,7 @@ function setNextBooking(sid,date,time){
 // ── 今日開課設定 ──
 let tmpSch={};
 function renderSchEditor(resetTmp){
+  if(!document.getElementById('schEditor'))return; // 分頁已移除（改用 Google 日曆管理排課）
   const td=todayStr();
   if(resetTmp!==false)tmpSch=JSON.parse(JSON.stringify(SCH[td]||{}));
   const d=new Date();const saved=!!(SCH[td]&&Object.keys(SCH[td]).length);
