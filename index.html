@@ -1230,6 +1230,9 @@ let LEDGER=JSON.parse(localStorage.getItem('qjf_ledger')||'[]');
 // GW: Google 日曆核銷紀錄 {id,date,time,teacher,name,course,ratio,fee,gcKey,createdAt}
 // 學員未建檔也能核銷師資費，計入月薪資
 let GW=JSON.parse(localStorage.getItem('qjf_gw')||'[]');
+// RENT: 場租紀錄 {id,date,time,teacher,label,fee,mode:'deduct'|'cash',gcKey,createdAt}
+// mode='deduct'：從該老師薪資扣除；mode='cash'：老師已當面付清，只留紀錄不影響薪資
+let RENT=JSON.parse(localStorage.getItem('qjf_rent')||'[]');
 let TL=JSON.parse(localStorage.getItem('qjf_tl')||'[]');
 function save(){
   // 本地備份
@@ -1313,6 +1316,7 @@ function manualSync(){
   showSyncStatus('syncing');
   loadFromFirebase(()=>{
     loadGwFromFB();
+    loadRentFromFB();
     loadLedgerFromFB(()=>{
       renderTeachers();
       showSyncStatus('synced');
@@ -1390,6 +1394,16 @@ function loadGwFromFB(){
   db.ref('qingjing_gw').once('value').then(snap=>{
     const d=snap.val();
     if(d&&Array.isArray(d)){GW=d;localStorage.setItem('qjf_gw',JSON.stringify(GW));}
+  }).catch(e=>{});
+}
+function saveRent(){
+  localStorage.setItem('qjf_rent',JSON.stringify(RENT));
+  db.ref('qingjing_rent').set(RENT).catch(e=>console.warn('Rent sync error:',e));
+}
+function loadRentFromFB(){
+  db.ref('qingjing_rent').once('value').then(snap=>{
+    const d=snap.val();
+    if(d&&Array.isArray(d)){RENT=d;localStorage.setItem('qjf_rent',JSON.stringify(RENT));}
   }).catch(e=>{});
 }
 
@@ -1471,6 +1485,7 @@ window.addEventListener('load', ()=>{
   loadFromFirebase(()=>{
     loadCustomTeachersFromFirebase();
     loadGwFromFB();
+    loadRentFromFB();
     loadLedgerFromFB(()=>{
       renderTeachers();
       showSyncStatus('synced');
@@ -1494,9 +1509,10 @@ function startPeriodicSync(){
   _periodicSyncTimer=setInterval(()=>{
     if(Date.now()-_lastSaveMs<5000)return;
     loadFromFirebase(()=>{
-      // GW（GC核銷）與流水帳不在即時 SSE 監聽範圍內，必須跟著這裡一起拉，
+      // GW（GC核銷）、場租、流水帳不在即時 SSE 監聽範圍內，必須跟著這裡一起拉，
       // 否則「這台裝置核銷、另一台裝置看不到」（要等下次整頁重新載入才會出現）
       loadGwFromFB();
+      loadRentFromFB();
       loadLedgerFromFB(()=>{
       try{renderTeachers();}catch(e){console.warn('renderTeachers error:',e);}
       try{renderDashboard();}catch(e){}
@@ -1522,6 +1538,7 @@ function startPeriodicSync(){
       showSyncStatus('syncing');
       loadFromFirebase(()=>{
         loadGwFromFB();
+        loadRentFromFB();
         loadLedgerFromFB(()=>{
           _syncing=false;
           try{renderTeachers();}catch(e){console.warn('renderTeachers error:',e);}
@@ -3200,13 +3217,14 @@ function renderDaily(){
   });
 
   const dayGwFee=GW.filter(g=>g.date===ds).reduce((a,g)=>a+(g.fee||0),0);
+  const dayRentDeduct=RENT.filter(r=>r.date===ds&&r.mode==='deduct').reduce((a,r)=>a+(r.fee||0),0);
   const confirmedFeeTotal=Object.entries(tMap).reduce((sum,[teacher,items])=>{
     return sum+items.reduce((a,item)=>{
       if(item.type==='leave')return a;
       if(item.type==='trial')return a+(item.tr.confirmed?(item.tr.manualFee!=null?item.tr.manualFee:item.tr.teacherFee):0);
       return a+(item.r.confirmed?getRecFee(item.r,item.s):0);
     },0);
-  },0)+dayGwFee;
+  },0)+dayGwFee-dayRentDeduct;
   const pendingCount=Object.values(tMap).flat().filter(x=>x.type==='regular'&&!x.r.confirmed||x.type==='trial'&&!x.tr.confirmed).length;
 
   el.innerHTML=`<div style="background:var(--ink);border-radius:12px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
@@ -3277,6 +3295,9 @@ function renderDaily(){
 function jsQ(x){return String(x==null?'':x).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
 function gcDomId(k){return 'k'+String(k).replace(/[^a-zA-Z0-9_]/g,'_')}
 function cleanGcName(n){return String(n||'').replace(/[，,、\s]+$/,'').trim()}
+// 場租辨識：標題（| 前）只要包含「場租」二字，| 後面接的其實是老師本人名字，不是學員
+function gcIsRent(type){return /場租/.test(type||'')}
+function gcRentLabel(type){const t=(type||'').replace(/場租/g,'').trim();return t||'場租'}
 function gcGuessFee(teacher,type){
   const t=type||'';
   const ratio=(t.match(/1on\d/)||['1on1'])[0];
@@ -3300,6 +3321,7 @@ function gcAlreadyPaidElsewhere(name,phone,ds){
   return false;
 }
 let _gcPend={};      // key(gcKey) → 待核銷資料，每次 renderGcSettle 重新整理
+let _rentEvents=[];  // 當天日曆偵測到的場租事件，每次 renderGcSettle 重新整理
 let _gcOverride={};  // key(gcKey) → 使用者手動調整過的老師／金額，跨次重新整理仍保留，直到核銷或離開此天
 async function renderGcSettle(ds){
   const el=document.getElementById('gcSettleArea');if(!el)return;
@@ -3307,7 +3329,8 @@ async function renderGcSettle(ds){
   const calMap=gcOK?(GC.calMap||{}):{};
   const dayGW=GW.filter(g=>g.date===ds);
   if(!gcOK||!Object.keys(calMap).length){
-    el.innerHTML=(dayGW.length?_gcGwOnlyHTML(dayGW):'')+
+    _rentEvents=[];
+    el.innerHTML=(dayGW.length?_gcGwOnlyHTML(dayGW):'')+_buildRentCardHTML(ds,[])+
       `<div style="text-align:center;font-size:12px;color:var(--ink3);padding:12px 0">💡 連接 Google 日曆後（後台→Google日曆），可直接從日曆核銷師資費，不需要學員先簽到或建檔</div>`;
     return;
   }
@@ -3328,10 +3351,15 @@ async function renderGcSettle(ds){
   const cur=document.getElementById('gcSettleArea');if(!cur)return;
   _gcPend={};
   const rows=[];
+  const rentEvents=[];
   evs.forEach(({teacher,ev})=>{
     const parsed=GC.parseTitle(ev.summary||'');if(!parsed)return;
     const key=ev.iCalUID||ev.id;
     const time=GC.getTime(ev);
+    if(gcIsRent(parsed.type)){
+      rentEvents.push({key,teacher,time,label:gcRentLabel(parsed.type),note:(parsed.notes||[]).join('・')});
+      return;
+    }
     const name=cleanGcName(parsed.name);
     const settled=GW.find(g=>g.gcKey===key);
     const blocked=!settled&&gcAlreadyPaidElsewhere(name,parsed.phone,ds);
@@ -3349,8 +3377,10 @@ async function renderGcSettle(ds){
     rows.push({key,teacher:displayTeacher,time,name,type:parsed.type,settled,blocked});
   });
   const orphanGW=dayGW.filter(g=>!evs.some(({ev})=>(ev.iCalUID||ev.id)===g.gcKey));
+  _rentEvents=rentEvents;
+  const rentHTML=_buildRentCardHTML(ds,rentEvents);
   if(!rows.length&&!orphanGW.length){
-    cur.innerHTML=`<div id="gcUnsettledReminder" style="padding:0 0 8px"></div><div style="text-align:center;font-size:12px;color:var(--ink3);padding:12px 0">📅 Google 日曆這天沒有課程</div>`;
+    cur.innerHTML=`<div id="gcUnsettledReminder" style="padding:0 0 8px"></div><div style="text-align:center;font-size:12px;color:var(--ink3);padding:12px 0">📅 Google 日曆這天沒有課程</div>`+rentHTML;
     renderUnsettledReminder();
     return;
   }
@@ -3381,8 +3411,80 @@ async function renderGcSettle(ds){
       <div class="cr-info"><div class="cr-name">${hEsc(g.name)}</div><div class="cr-course">${hEsc(g.course)} ${hEsc(g.ratio)}・${hEsc(g.teacher)} 老師（日曆事件已移除）</div></div>
       <div style="display:flex;align-items:center;gap:6px"><span style="font-size:13px;color:var(--green)">$${(g.fee||0).toLocaleString()}</span><span style="font-size:11px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:2px 9px;cursor:pointer" onclick="gcUnsettle('${jsQ(g.id)}')">已核銷 ✓</span></div>
     </div>`).join('')}
-  </div>`;
+  </div>`+rentHTML;
   renderUnsettledReminder();
+}
+// ── 場租：辨識標題含「場租」的日曆事件，金額手動輸入，可標記「扣薪資」或「已付現金」──
+function _buildRentCardHTML(ds,rentEvents){
+  const dayRent=RENT.filter(r=>r.date===ds);
+  const orphanRent=dayRent.filter(r=>!rentEvents.some(e=>e.key===r.gcKey));
+  if(!rentEvents.length&&!orphanRent.length)return'';
+  const modeChip=r=>r.mode==='deduct'
+    ?`<span style="font-size:13px;color:var(--red)">－$${(r.fee||0).toLocaleString()}</span><span style="font-size:11px;background:#FDECEA;color:var(--red);border:1px solid #F7C1C1;border-radius:20px;padding:2px 9px">扣薪資</span>`
+    :`<span style="font-size:13px;color:var(--ink3)">$${(r.fee||0).toLocaleString()}</span><span style="font-size:11px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:2px 9px">已付現金</span>`;
+  return`<div class="daily-tc" style="border:1.5px dashed #E8B27D;margin-top:12px">
+    <div class="daily-tc-hd">
+      <div><div class="daily-tc-name">🏠 場租</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">日曆偵測到 ${rentEvents.length} 筆場租，金額需手動填寫</div></div>
+    </div>
+    ${rentEvents.sort((a,b)=>(a.time||'').localeCompare(b.time||'')).map(e=>{
+      const handled=dayRent.find(r=>r.gcKey===e.key);
+      const kq=jsQ(e.key);
+      const domId=gcDomId(e.key);
+      if(handled){
+        return`<div class="cr" style="background:${handled.mode==='deduct'?'#FDECEA':'var(--green2)'}">
+          <div class="cr-time">${e.time||'—'}</div>
+          <div class="cr-info"><div class="cr-name">${hEsc(e.teacher)} 老師</div><div class="cr-course">${hEsc(e.label)}${e.note?'・'+hEsc(e.note):''}</div></div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="cursor:pointer" onclick="gcRentEditFee('${jsQ(handled.id)}')" title="點擊調整金額">${modeChip(handled)}</span>
+            <span style="font-size:11px;color:var(--ink3);cursor:pointer;text-decoration:underline" onclick="gcRentUnmark('${jsQ(handled.id)}')">取消</span>
+          </div>
+        </div>`;
+      }
+      return`<div class="cr" style="background:#FFF9F2">
+        <div class="cr-time">${e.time||'—'}</div>
+        <div class="cr-info"><div class="cr-name">${hEsc(e.teacher)} 老師</div><div class="cr-course">${hEsc(e.label)}${e.note?'・'+hEsc(e.note):''}</div></div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="number" id="rentFee_${domId}" placeholder="金額" style="width:64px;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+          <button onclick="gcRentSave('${kq}','deduct')" style="background:var(--red);color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">扣薪資</button>
+          <button onclick="gcRentSave('${kq}','cash')" style="background:var(--ink);color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">已付現金</button>
+        </div>
+      </div>`;
+    }).join('')}
+    ${orphanRent.map(r=>`<div class="cr" style="background:${r.mode==='deduct'?'#FDECEA':'var(--green2)'}">
+      <div class="cr-time">${r.time||'—'}</div>
+      <div class="cr-info"><div class="cr-name">${hEsc(r.teacher)} 老師</div><div class="cr-course">${hEsc(r.label||'場租')}（日曆事件已移除）</div></div>
+      <div style="display:flex;align-items:center;gap:6px">${modeChip(r)}<span style="font-size:11px;color:var(--ink3);cursor:pointer;text-decoration:underline" onclick="gcRentUnmark('${jsQ(r.id)}')">取消</span></div>
+    </div>`).join('')}
+  </div>`;
+}
+function gcRentSave(key,mode){
+  const el=document.getElementById('rentFee_'+gcDomId(key));
+  const fee=parseInt(el?.value);
+  if(isNaN(fee)||fee<0){showToast('請輸入場租金額','r');return;}
+  if(RENT.some(r=>r.gcKey===key)){showToast('這筆場租已經標記過','r');return;}
+  const e=_rentEvents.find(x=>x.key===key);if(!e)return;
+  const ds=fmt(getAdminDate());
+  RENT.push({id:'rent'+Date.now(),date:ds,time:e.time||'',teacher:e.teacher,label:e.label,fee,mode,gcKey:key,createdAt:todayStr()});
+  saveRent();
+  showToast((mode==='deduct'?'✓ 已標記扣薪資 $':'✓ 已標記收現金 $')+fee.toLocaleString());
+  renderDaily();
+}
+function gcRentEditFee(id){
+  const r=RENT.find(x=>x.id===id);if(!r)return;
+  const v=prompt('調整「'+r.teacher+'」場租金額',r.fee);
+  if(v==null)return;
+  const n=parseInt(v);
+  if(isNaN(n)||n<0){showToast('金額不正確','r');return;}
+  r.fee=n;saveRent();renderDaily();
+  if(document.getElementById('ap-wage')?.classList.contains('active')&&document.getElementById('wageSubWage')?.style.display!=='none')renderWage();
+  showToast('✓ 場租金額已調整為 $'+n.toLocaleString());
+}
+function gcRentUnmark(id){
+  if(!confirm('取消這筆場租標記？'))return;
+  RENT=RENT.filter(x=>x.id!==id);
+  saveRent();renderDaily();
+  if(document.getElementById('ap-wage')?.classList.contains('active')&&document.getElementById('wageSubWage')?.style.display!=='none')renderWage();
+  showToast('已取消標記');
 }
 function _gcGwOnlyHTML(dayGW){
   return`<div class="daily-tc" style="border:1.5px dashed var(--gold2)"><div class="daily-tc-hd"><div class="daily-tc-name">📅 Google 日曆核銷</div><div class="daily-tc-fee">$${dayGW.reduce((a,g)=>a+(g.fee||0),0).toLocaleString()}</div></div>
@@ -3504,9 +3606,13 @@ async function computeUnsettledDays(daysBack){
         const parsed=GC.parseTitle(ev.summary||'');if(!parsed)return;
         const evDate=fmt(new Date(ev.start&&(ev.start.dateTime||ev.start.date)||now));
         const key=ev.iCalUID||ev.id;
+        if(!buckets[evDate])buckets[evDate]={pending:0,total:0,rentPending:0};
+        if(gcIsRent(parsed.type)){
+          if(!RENT.some(r=>r.gcKey===key))buckets[evDate].rentPending++;
+          return;
+        }
         const settled=GW.some(g=>g.gcKey===key);
         const blocked=!settled&&gcAlreadyPaidElsewhere(cleanGcName(parsed.name),parsed.phone,evDate);
-        if(!buckets[evDate])buckets[evDate]={pending:0,total:0};
         buckets[evDate].total++;
         if(!settled&&!blocked)buckets[evDate].pending++;
       });
@@ -3516,8 +3622,8 @@ async function computeUnsettledDays(daysBack){
   for(let i=daysBack;i>=0;i--){
     const dt=new Date(now.getFullYear(),now.getMonth(),now.getDate()-i);
     const ds=fmt(dt);
-    const b=buckets[ds]||{pending:0,total:0};
-    days.push({date:ds,pending:b.pending,total:b.total});
+    const b=buckets[ds]||{pending:0,total:0,rentPending:0};
+    days.push({date:ds,pending:b.pending,total:b.total,rentPending:b.rentPending||0});
   }
   return days;
 }
@@ -3526,13 +3632,13 @@ async function renderUnsettledReminder(){
   if(typeof GC==='undefined'||!GC.ok()){el.innerHTML='';return;}
   const days=await computeUnsettledDays(13);
   if(document.getElementById('gcUnsettledReminder')!==el)return; // 已離開此畫面
-  const pendDays=days.filter(d=>d.pending>0&&d.date!==fmt(getAdminDate()));
+  const pendDays=days.filter(d=>(d.pending>0||d.rentPending>0)&&d.date!==fmt(getAdminDate()));
   if(!pendDays.length){el.innerHTML='';return;}
-  el.innerHTML=`<div style="font-size:11px;color:var(--ink3);margin-bottom:6px">⚠️ 其他日期尚有未核銷課程：</div>
+  el.innerHTML=`<div style="font-size:11px;color:var(--ink3);margin-bottom:6px">⚠️ 其他日期尚有未核銷課程／場租：</div>
   <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:2px">
     ${pendDays.map(d=>`<div onclick="jumpToAdminDate('${d.date}')" style="flex-shrink:0;background:#FFF4E5;border:1px solid #F0C989;border-radius:10px;padding:6px 11px;text-align:center;cursor:pointer">
       <div style="font-size:12px;color:#B9770E;font-weight:600">${d.date.slice(5)}</div>
-      <div style="font-size:10px;color:#B9770E">${d.pending} 堂待核銷</div>
+      <div style="font-size:10px;color:#B9770E">${[d.pending?d.pending+' 堂':'',d.rentPending?d.rentPending+' 場租':''].filter(Boolean).join('・')}</div>
     </div>`).join('')}
   </div>`;
 }
@@ -3623,16 +3729,18 @@ function renderWage(){
   const monthR=R.filter(r=>r.date&&wageInRange(r.date,mk)&&r.confirmed!==false);
   const monthT=T.filter(t=>t.date&&wageInRange(t.date,mk)&&t.confirmed===true);
   const monthG=GW.filter(g=>g.date&&wageInRange(g.date,mk));
+  const monthRentDeduct=RENT.filter(r=>r.date&&wageInRange(r.date,mk)&&r.mode==='deduct');
   const totalFee=monthR.reduce((a,r)=>{const s=S.find(x=>x.id===r.sid);return a+getRecFee(r,s)},0)
     +monthT.reduce((a,t)=>a+(t.manualFee!=null?t.manualFee:t.teacherFee),0)
-    +monthG.reduce((a,g)=>a+(g.fee||0),0);
+    +monthG.reduce((a,g)=>a+(g.fee||0),0)
+    -monthRentDeduct.reduce((a,r)=>a+(r.fee||0),0);
   const totalBonusPaid=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
   const totalBonusPending=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&!l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
   const activeT=new Set([...monthR.map(r=>{const s=S.find(x=>x.id===r.sid);return r.isSub?r.subTeacher:(s?.teacher||'其他')}),...monthT.map(t=>t.teacher)]).size;
   const adjCount=monthR.filter(r=>isAdj(r)).length+monthT.filter(t=>t.manualFee!=null).length;
   document.getElementById('statRow').innerHTML=`
     <div class="stat-card"><div class="stat-label">已確認課堂</div><div class="stat-value">${monthR.length+monthT.length+monthG.length}${monthG.length?`<span style="font-size:12px;color:var(--gold);margin-left:8px">含 GC ${monthG.length}</span>`:''}${adjCount?`<span style="font-size:12px;color:var(--orange);margin-left:8px">含 ${adjCount} 筆調整</span>`:''}</div></div>
-    <div class="stat-card"><div class="stat-label">師資費用總計</div><div class="stat-value green">$${totalFee.toLocaleString()}</div></div>
+    <div class="stat-card"><div class="stat-label">師資費用總計</div><div class="stat-value green">$${totalFee.toLocaleString()}${monthRentDeduct.length?`<span style="font-size:11px;color:var(--red);display:block;margin-top:3px">已扣場租 $${monthRentDeduct.reduce((a,r)=>a+(r.fee||0),0).toLocaleString()}</span>`:''}</div></div>
     <div class="stat-card"><div class="stat-label">已撥獎金</div><div class="stat-value" style="color:var(--teal)">$${totalBonusPaid.toLocaleString()}${totalBonusPending>0?`<span style="font-size:11px;color:var(--orange);display:block;margin-top:3px">待撥 $${totalBonusPending.toLocaleString()}</span>`:''}</div></div>`;
   document.getElementById('wageSectionLabel').innerHTML=isRange
     ?`📆 ${_wageStart.slice(5)}～${_wageEnd.slice(5)}　各老師薪資明細（週結）<span onclick="wageBackToMonth()" style="margin-left:10px;font-size:12px;color:var(--blue);cursor:pointer;text-decoration:underline">回月結</span>`
@@ -3644,8 +3752,14 @@ function renderWage(){
   const allT=[...new Set([...Object.keys(tMap),...ALL_TEACHERS])];
   document.getElementById('teacherWageGrid').innerHTML=allT.map(t=>{
     const sessions=tMap[t]||[];const total=sessions.reduce((a,x)=>a+x.fee,0);
+    const teacherRentDeduct=monthRentDeduct.filter(r=>r.teacher===t);
+    const rentDeductTotal=teacherRentDeduct.reduce((a,r)=>a+(r.fee||0),0);
     if(!sessions.length){
-      return`<div class="wage-card no-data"><div class="wc-header"><div class="wc-name">${t}</div><div class="wc-no-data-lbl">尚無記錄</div></div><div class="wc-body"><div class="wc-no-record">本月尚無課堂</div></div></div>`;
+      if(!teacherRentDeduct.length)return`<div class="wage-card no-data"><div class="wc-header"><div class="wc-name">${t}</div><div class="wc-no-data-lbl">尚無記錄</div></div><div class="wc-body"><div class="wc-no-record">本月尚無課堂</div></div></div>`;
+      return`<div class="wage-card"><div class="wc-header"><div class="wc-name">${t}</div><div class="wc-total" style="color:var(--red)">－$${rentDeductTotal.toLocaleString()}</div></div><div class="wc-divider"></div><div class="wc-body">
+        ${teacherRentDeduct.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${r.date.slice(5)} ${r.time||''}</div><div style="flex:1;color:var(--red)">🏠 場租扣款${r.label?'・'+hEsc(r.label):''}</div><div style="color:var(--red);flex-shrink:0">－$${(r.fee||0).toLocaleString()}</div></div>`).join('')}
+        <div class="wc-note" style="margin-top:6px">本月無課堂，僅場租扣款</div>
+      </div></div>`;
     }
     // 逐堂明細：對帳要看誰、哪天哪個時段，不是只看課種小計
     const detailRows=sessions.map(item=>{
@@ -3665,7 +3779,7 @@ function renderWage(){
     const trialCount=sessions.filter(x=>x.type==='trial').length;
     const gcCount=sessions.filter(x=>x.type==='gc').length;
     const tp=sessions.filter(x=>x.type==='regular').reduce((a,{s})=>{const ratio=(s.course||'').split(' ')[1]||'';return a+({'1on1':1,'1on2':2,'1on3':3}[ratio]||1)},0);
-    const grandTotal=total+bonusTotal;
+    const grandTotal=total+bonusTotal-rentDeductTotal;
     return`<div class="wage-card">
       <div class="wc-header"><div class="wc-name">${t}${adjSessions.length?`<span class="adjusted-badge">含調整</span>`:''}</div><div class="wc-total">$${grandTotal.toLocaleString()}</div></div>
       <div class="wc-divider"></div>
@@ -3675,7 +3789,12 @@ function renderWage(){
           <div style="flex:1;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${hEsc(d.name)}<span style="color:var(--ink3)"> ・ ${hEsc(d.label)}</span></div>
           <div style="color:${d.adj?'var(--orange)':'var(--ink2)'};flex-shrink:0">$${d.fee.toLocaleString()}</div>
         </div>`).join('')}
-        <div class="wc-note" style="margin-top:6px">${sessions.length} 堂${tp?' ・ '+tp+' 人次':''}${trialCount?' ・ 含體驗 '+trialCount+' 堂':''}${gcCount?' ・ 含GC核銷 '+gcCount+' 堂':''}${adjSessions.length?' ・ 含 '+adjSessions.length+' 筆調整':''}</div>${bonusTotal>0?`<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--teal)">續課獎金（已撥）</span><span style="color:var(--teal);font-weight:500">$${bonusTotal.toLocaleString()}</span></div>`:''}${bonusPending>0?`<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px"><span style="color:var(--orange)">續課獎金（待撥）</span><span style="color:var(--orange)">$${bonusPending.toLocaleString()}</span></div>`:''}
+        ${teacherRentDeduct.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px">
+          <div style="color:var(--ink3);width:78px;flex-shrink:0">${r.date.slice(5)} ${r.time||''}</div>
+          <div style="flex:1;color:var(--red)">🏠 場租扣款${r.label?'・'+hEsc(r.label):''}</div>
+          <div style="color:var(--red);flex-shrink:0">－$${(r.fee||0).toLocaleString()}</div>
+        </div>`).join('')}
+        <div class="wc-note" style="margin-top:6px">${sessions.length} 堂${tp?' ・ '+tp+' 人次':''}${trialCount?' ・ 含體驗 '+trialCount+' 堂':''}${gcCount?' ・ 含GC核銷 '+gcCount+' 堂':''}${adjSessions.length?' ・ 含 '+adjSessions.length+' 筆調整':''}${teacherRentDeduct.length?' ・ 已扣場租 $'+rentDeductTotal.toLocaleString():''}</div>${bonusTotal>0?`<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--teal)">續課獎金（已撥）</span><span style="color:var(--teal);font-weight:500">$${bonusTotal.toLocaleString()}</span></div>`:''}${bonusPending>0?`<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px"><span style="color:var(--orange)">續課獎金（待撥）</span><span style="color:var(--orange)">$${bonusPending.toLocaleString()}</span></div>`:''}
       </div>
       <div class="wc-footer"><button class="wc-btn wc-btn-copy" onclick="copyTeacher('${t}','${mk}')">📋 複製薪資</button></div>
     </div>`;
@@ -3751,11 +3870,14 @@ function copyTeacher(teacher,mk){
     ...T.filter(t=>wageInRange(t.date,mk)&&t.teacher===teacher).map(tr=>({type:'trial',tr,fee:tr.manualFee!=null?tr.manualFee:tr.teacherFee})),
     ...GW.filter(g=>wageInRange(g.date,mk)&&g.teacher===teacher).map(g=>({type:'gc',g,fee:g.fee||0}))
   ];
-  const total=sessions.reduce((a,x)=>a+x.fee,0);
+  const rentDeduct=RENT.filter(r=>wageInRange(r.date,mk)&&r.teacher===teacher&&r.mode==='deduct');
+  const rentTotal=rentDeduct.reduce((a,r)=>a+(r.fee||0),0);
+  const total=sessions.reduce((a,x)=>a+x.fee,0)-rentTotal;
   const byType={};sessions.forEach(x=>{const k=x.type==='gc'?`${x.g.course} ${x.g.ratio}（GC核銷）`:x.type==='trial'?`${x.tr.course} ${x.tr.ratio}（體驗）`:(x.r?.isUpgraded?x.s.course.split(' ')[0]+' ＋1人｜'+x.r.upgradedTo:x.s.course);if(!byType[k])byType[k]={count:0,fee:0};byType[k].count++;byType[k].fee+=x.fee});
   const period=(_wageMode==='range'&&_wageStart&&_wageEnd)?`${_wageStart}～${_wageEnd}（週結）`:`${y}年${parseInt(mo)}月`;
   let text=`輕境運動工作室 ${period} 師資費用\n老師：${teacher}\n────────────\n`;
   Object.entries(byType).forEach(([c,d])=>{text+=`${c}：${d.count}堂 / $${d.fee.toLocaleString()}\n`});
+  if(rentDeduct.length)text+=`場租扣款：${rentDeduct.length}筆 / －$${rentTotal.toLocaleString()}\n`;
   text+=`────────────\n合計：$${total.toLocaleString()}\n`;
   const adjRecs=sessions.filter(x=>x.type==='regular'?isAdj(x.r):x.type==='trial'?(x.tr.manualFee!=null):false);
   if(adjRecs.length)text+=`（含 ${adjRecs.length} 筆手動調整）\n`;
@@ -3765,6 +3887,10 @@ function copyTeacher(teacher,mk){
     else if(x.type==='trial'){text+=`${x.tr.date.slice(5)} ${x.tr.time} ${x.tr.name} ${x.tr.course} ${x.tr.ratio} [體驗] $${x.fee.toLocaleString()}\n`}
     else{text+=`${x.g.date.slice(5)} ${x.g.time||''} ${cleanGcName(x.g.name)} ${x.g.course} ${x.g.ratio} [GC核銷] $${x.fee.toLocaleString()}\n`}
   });
+  if(rentDeduct.length){
+    text+=`\n場租扣款明細：\n`;
+    rentDeduct.sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{text+=`${r.date.slice(5)} ${r.time||''} 場租${r.label?'・'+r.label:''} －$${(r.fee||0).toLocaleString()}\n`});
+  }
   copyText(text,`${teacher} 薪資已複製`);
 }
 function copyAll(){
@@ -3775,6 +3901,7 @@ function copyAll(){
   R.filter(r=>wageInRange(r.date,mk)).forEach(r=>{const s=S.find(x=>x.id===r.sid);if(!s)return;const t=r.isSub?r.subTeacher:(s.teacher||'其他');if(!tMap[t])tMap[t]=0;tMap[t]+=getRecFee(r,s)});
   T.filter(t=>t.date&&wageInRange(t.date,mk)).forEach(t=>{if(!tMap[t.teacher])tMap[t.teacher]=0;tMap[t.teacher]+=(t.manualFee!=null?t.manualFee:t.teacherFee)});
   GW.filter(g=>g.date&&wageInRange(g.date,mk)).forEach(g=>{const t=g.teacher||'其他';if(!tMap[t])tMap[t]=0;tMap[t]+=(g.fee||0)});
+  RENT.filter(r=>r.date&&wageInRange(r.date,mk)&&r.mode==='deduct').forEach(r=>{const t=r.teacher||'其他';if(!tMap[t])tMap[t]=0;tMap[t]-=(r.fee||0)});
   let grand=0;
   Object.entries(tMap).forEach(([t,total])=>{grand+=total;text+=`${t}：$${total.toLocaleString()}\n`});
   text+=`────────────\n合計：$${grand.toLocaleString()}\n`;
@@ -3793,6 +3920,9 @@ function exportCSV(){
   });
   GW.filter(g=>wageInRange(g.date,mk)).sort((a,b)=>a.date.localeCompare(b.date)).forEach(g=>{
     csv+=`${g.date},${g.time||''},${g.name},${g.course} ${g.ratio},${g.teacher},$${g.fee||0},GC核銷,\n`;
+  });
+  RENT.filter(r=>wageInRange(r.date,mk)).sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{
+    csv+=`${r.date},${r.time||''},,${r.label||'場租'},${r.teacher},${r.mode==='deduct'?'-':''}$${r.fee||0},${r.mode==='deduct'?'場租扣款':'場租(已付現金)'},\n`;
   });
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);const a=document.createElement('a');
@@ -5301,7 +5431,8 @@ function doBackup(){
     leaves:L,
     customTeachers:CUSTOM_TEACHERS,
     ledger:LEDGER,
-    gcSettle:GW
+    gcSettle:GW,
+    rent:RENT
   };
   const json=JSON.stringify(data,null,2);
   const blob=new Blob([json],{type:'application/json'});
@@ -5332,7 +5463,8 @@ function importBackup(file){
       CUSTOM_TEACHERS=data.customTeachers||[];
       LEDGER=data.ledger||[];
       GW=data.gcSettle||GW;
-      save();saveCustomTeachers();saveGW();
+      RENT=data.rent||RENT;
+      save();saveCustomTeachers();saveGW();saveRent();
       renderTeachers();renderBackupBar();renderMgrList();
       showToast('✓ 備份資料已成功匯入（'+S.length+'位學員、'+R.length+'筆簽到）');
     }catch(err){showToast('匯入失敗：'+err.message,'r')}
@@ -5716,6 +5848,7 @@ async function gcSyncToday(ev){
       for(const ev of evs){
         const parsed=GC.parseTitle(ev.summary||'');
         if(!parsed)continue;
+        if(gcIsRent(parsed.type))continue; // 場租不是學員課程，交給「薪資結算→核對課堂」的場租區塊處理
         const time=GC.getTime(ev);
         // 尋找學員：多層比對策略
         const cleanParsedName=(parsed.name||'').replace(/\d+/g,'').replace(/[^一-龥a-zA-Z\s]/g,'').trim();
@@ -6149,6 +6282,7 @@ async function runDataCheck(){
         for(const ev of(data.items||[])){
           if(ev.status==='cancelled')continue;
           const parsed=GC.parseTitle(ev.summary||'');if(!parsed)continue;
+          if(gcIsRent(parsed.type))continue; // 場租不是學員課程，不列入漏簽比對
           const evDate=fmt(new Date(ev.start&&(ev.start.dateTime||ev.start.date)||now));
           // 已用「GC 核銷」處理過的課程不算漏簽
           if(GW.some(g=>g.gcKey===(ev.iCalUID||ev.id)||(g.date===evDate&&g.name===parsed.name)))continue;
@@ -6181,9 +6315,9 @@ async function helperCheckGcSettle(){
   el.innerHTML='<div style="font-size:13px;color:var(--ink3);padding:8px 0">🔍 檢查中…</div>';
   if(typeof GC==='undefined'||!GC.ok()){el.innerHTML='<div style="font-size:13px;color:var(--orange)">請先在「Google日曆」分頁連接帳號</div>';return;}
   const days=await computeUnsettledDays(13);
-  const pend=days.filter(d=>d.pending>0);
-  if(!pend.length){el.innerHTML='<div style="text-align:center;padding:10px;font-size:14px;color:var(--green)">✅ 近 14 天日曆課程都已核銷</div>';return;}
-  el.innerHTML=pend.map(d=>`<div style="display:flex;justify-content:space-between;align-items:center;background:#FFF4E5;border-radius:9px;padding:8px 12px;margin-bottom:6px"><span style="font-size:12.5px;color:#B9770E">${d.date}・${d.pending} 堂待核銷</span><button onclick="helperJumpToSettleDate('${d.date}')" style="background:var(--ink);color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:11px;cursor:pointer;flex-shrink:0;margin-left:8px">前往核銷 →</button></div>`).join('');
+  const pend=days.filter(d=>d.pending>0||d.rentPending>0);
+  if(!pend.length){el.innerHTML='<div style="text-align:center;padding:10px;font-size:14px;color:var(--green)">✅ 近 14 天日曆課程與場租都已核銷</div>';return;}
+  el.innerHTML=pend.map(d=>`<div style="display:flex;justify-content:space-between;align-items:center;background:#FFF4E5;border-radius:9px;padding:8px 12px;margin-bottom:6px"><span style="font-size:12.5px;color:#B9770E">${d.date}・${[d.pending?d.pending+' 堂待核銷':'',d.rentPending?d.rentPending+' 筆場租待標記':''].filter(Boolean).join('・')}</span><button onclick="helperJumpToSettleDate('${d.date}')" style="background:var(--ink);color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:11px;cursor:pointer;flex-shrink:0;margin-left:8px">前往處理 →</button></div>`).join('');
 }
 function helperJumpToSettleDate(ds){
   openDailyConfirm();
