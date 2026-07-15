@@ -1003,6 +1003,20 @@ const db={
     <label style="margin-bottom:9px">選擇新課程方案</label>
     <div id="renewPlanPicker"></div>
     <div class="sel-disp" id="renewSelDisp"></div>
+    <!-- 自訂方案 -->
+    <div style="margin-bottom:11px">
+      <div onclick="toggleRenewCustomPlan()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 12px;background:var(--bg);border-radius:9px;border:1.5px solid var(--border)">
+        <input type="checkbox" id="renewCustomPlan" style="width:18px;height:18px;accent-color:var(--gold)">
+        <span style="font-size:13px;color:var(--ink2)">自訂方案（舊方案或特殊定價）</span>
+      </div>
+      <div id="renewCustomPlanDetail" style="display:none;margin-top:8px;padding:12px;background:var(--gold4);border:1px solid var(--gold2);border-radius:9px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+          <div><label>總堂數</label><input type="number" id="renewCustomTotal" placeholder="例：20" style="margin-bottom:0;width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:15px;outline:none"></div>
+          <div><label>課程定價</label><input type="number" id="renewCustomPrice" placeholder="例：38000" oninput="updateRenewCustomPaySummary()" style="margin-bottom:0;width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:15px;outline:none"></div>
+        </div>
+        <div style="font-size:11px;color:var(--gold);margin-top:8px">填入後會覆蓋上方選擇的方案</div>
+      </div>
+    </div>
     <label>師資課費（每堂，自動帶入）</label>
     <input type="number" id="renewFee" placeholder="800">
     <div style="height:1px;background:var(--bg2);margin:14px 0"></div>
@@ -1056,6 +1070,20 @@ const db={
       <label>選擇課程方案</label>
       <div id="hpPlanPicker"></div>
       <div class="sel-disp" id="hpSelDisp"></div>
+      <!-- 自訂方案 -->
+      <div style="margin-bottom:11px">
+        <div onclick="hpToggleCustomPlan()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 12px;background:var(--bg);border-radius:9px;border:1.5px solid var(--border)">
+          <input type="checkbox" id="hpCustomPlan" style="width:18px;height:18px;accent-color:var(--gold)">
+          <span style="font-size:13px;color:var(--ink2)">自訂方案（舊方案或特殊定價）</span>
+        </div>
+        <div id="hpCustomPlanDetail" style="display:none;margin-top:8px;padding:12px;background:var(--gold4);border:1px solid var(--gold2);border-radius:9px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+            <div><label>總堂數</label><input type="number" id="hpCustomTotal" placeholder="例：20" style="margin-bottom:0;width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:15px;outline:none"></div>
+            <div><label>課程定價</label><input type="number" id="hpCustomPrice" placeholder="例：38000" oninput="updateHpCustomPaySummary()" style="margin-bottom:0;width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:15px;outline:none"></div>
+          </div>
+          <div style="font-size:11px;color:var(--gold);margin-top:8px">填入後會覆蓋上方選擇的方案</div>
+        </div>
+      </div>
       <div style="height:1px;background:var(--bg2);margin:10px 0 14px"></div>
       <label>繳款方式</label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px" id="hpPayMethods">
@@ -4870,6 +4898,9 @@ function openRenewStu(sid){
   document.getElementById('renewSelDisp').classList.remove('show');
   document.getElementById('renewPaySummary').style.display='none';
   document.querySelectorAll('#renewPayMethods>div').forEach(p=>{p.style.borderColor='var(--border)';p.style.background='var(--white)'});
+  const renewCP=document.getElementById('renewCustomPlan');if(renewCP)renewCP.checked=false;
+  const renewCPD=document.getElementById('renewCustomPlanDetail');if(renewCPD)renewCPD.style.display='none';
+  ['renewCustomTotal','renewCustomPrice'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   // 建立課程選擇器
   const picker=document.getElementById('renewPlanPicker');
   picker.innerHTML=Object.entries(PLANS).map(([name,plan])=>`
@@ -4906,6 +4937,26 @@ function renewUpdDisp(){
   else el.classList.remove('show');
 }
 
+function toggleRenewCustomPlan(){
+  const cb=document.getElementById('renewCustomPlan');
+  const detail=document.getElementById('renewCustomPlanDetail');
+  if(detail)detail.style.display=cb?.checked?'block':'none';
+}
+
+function updateRenewCustomPaySummary(){
+  const isCustom=document.getElementById('renewCustomPlan')?.checked;
+  if(!isCustom)return;
+  const price=parseInt(document.getElementById('renewCustomPrice')?.value)||0;
+  if(price&&renewPayMethod){
+    const pay=calcPayment(price,renewPayMethod);
+    const ps=document.getElementById('renewPaySummary');
+    if(ps&&ps.style.display!=='none'){
+      document.getElementById('renewPsPlanPrice').textContent='$'+price.toLocaleString();
+      document.getElementById('renewPsTotal').textContent='$'+pay.amount.toLocaleString();
+    }
+  }
+}
+
 function renewSelectPM(el,method){
   document.querySelectorAll('#renewPayMethods>div').forEach(p=>{p.style.borderColor='var(--border)';p.style.background='var(--white)'});
   el.style.borderColor='var(--gold)';el.style.background='var(--gold4)';
@@ -4926,7 +4977,12 @@ function renewUpdPaySummary(){
 
 function confirmRenew(){
   const s=S.find(x=>x.id===renewStuId);if(!s)return;
-  if(!renewSelPlan||!renewSelN){showToast('請選擇課程方案','r');return}
+  const isCustomPlan=document.getElementById('renewCustomPlan')?.checked||false;
+  const customTotal=parseInt(document.getElementById('renewCustomTotal')?.value)||0;
+  const customPrice=parseInt(document.getElementById('renewCustomPrice')?.value)||0;
+  if(!isCustomPlan&&(!renewSelPlan||!renewSelN)){showToast('請選擇課程方案','r');return}
+  if(isCustomPlan&&(!renewSelPlan||!customTotal)){showToast('請先選擇課程類型，再填自訂堂數','r');return}
+  if(isCustomPlan){renewSelN=customTotal;renewSelPrice=customPrice||renewSelPrice;}
   if(!renewPayMethod){showToast('請選擇繳款方式','r');return}
   const fee=parseInt(document.getElementById('renewFee').value)||getDefaultFee(s.teacher,renewSelPlan);
   const payDate=getDateSel('renewPayDate');
@@ -5030,6 +5086,9 @@ function hpShowStep2(){
   document.getElementById('hpSelDisp').classList.remove('show');
   document.getElementById('hpPaySummary').style.display='none';
   document.querySelectorAll('#hpPayMethods>div').forEach(d=>{d.style.borderColor='var(--border)';d.style.background='var(--white)';});
+  const hpCP=document.getElementById('hpCustomPlan');if(hpCP)hpCP.checked=false;
+  const hpCPD=document.getElementById('hpCustomPlanDetail');if(hpCPD)hpCPD.style.display='none';
+  ['hpCustomTotal','hpCustomPrice'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   // today as default pay date
   const pd=document.getElementById('hpPayDate');if(pd)pd.value=todayStr().replace(/\//g,'-');
   document.getElementById('hpNote').value='';
@@ -5063,6 +5122,26 @@ function hpUpdDisp(){
   else el.classList.remove('show');
 }
 
+function hpToggleCustomPlan(){
+  const cb=document.getElementById('hpCustomPlan');
+  const detail=document.getElementById('hpCustomPlanDetail');
+  if(detail)detail.style.display=cb?.checked?'block':'none';
+}
+
+function updateHpCustomPaySummary(){
+  const isCustom=document.getElementById('hpCustomPlan')?.checked;
+  if(!isCustom)return;
+  const price=parseInt(document.getElementById('hpCustomPrice')?.value)||0;
+  if(price&&_hpPayMethod){
+    const pay=calcPayment(price,_hpPayMethod);
+    const ps=document.getElementById('hpPaySummary');
+    if(ps&&ps.style.display!=='none'){
+      document.getElementById('hpPsPrice').textContent='$'+price.toLocaleString();
+      document.getElementById('hpPsTotal').textContent='$'+pay.amount.toLocaleString();
+    }
+  }
+}
+
 function hpSelectPM(el,method){
   document.querySelectorAll('#hpPayMethods>div').forEach(d=>{d.style.borderColor='var(--border)';d.style.background='var(--white)';});
   el.style.borderColor='var(--gold)';el.style.background='var(--gold4)';
@@ -5082,7 +5161,12 @@ function hpUpdPaySummary(){
 }
 
 function confirmHomePurchase(){
-  if(!_hpSelPlan||!_hpSelN){showToast('請選擇課程方案','r');return;}
+  const isCustomPlan=document.getElementById('hpCustomPlan')?.checked||false;
+  const customTotal=parseInt(document.getElementById('hpCustomTotal')?.value)||0;
+  const customPrice=parseInt(document.getElementById('hpCustomPrice')?.value)||0;
+  if(!isCustomPlan&&(!_hpSelPlan||!_hpSelN)){showToast('請選擇課程方案','r');return;}
+  if(isCustomPlan&&(!_hpSelPlan||!customTotal)){showToast('請先選擇課程類型，再填自訂堂數','r');return;}
+  if(isCustomPlan){_hpSelN=customTotal;_hpSelPrice=customPrice||_hpSelPrice;}
   if(!_hpPayMethod){showToast('請選擇繳款方式','r');return;}
   const fee=getDefaultFee(_hpTmpTeacher,_hpSelPlan);
   const payDateRaw=document.getElementById('hpPayDate').value;
