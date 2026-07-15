@@ -1,0 +1,16 @@
+name: 上課前一天 LINE 提醒
+on:
+  schedule:
+    - cron: '0 10 * * *'   # UTC 10:00 = 台北 18:00
+  workflow_dispatch: {}
+jobs:
+  reminder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 準備明日提醒並通知店長確認
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          CONFIRM_URL: ${{ secrets.CONFIRM_URL }}
+          CONFIRM_SECRET: ${{ secrets.CONFIRM_SECRET }}
+        run: python3 scripts/line_reminder.py

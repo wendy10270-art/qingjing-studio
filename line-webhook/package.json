@@ -1,0 +1,9 @@
+{
+  "name": "qingjing-line-webhook",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LINE Messaging API webhook — binds students' LINE userId to their phone number for class reminders",
+  "engines": {
+    "node": ">=18"
+  }
+}
