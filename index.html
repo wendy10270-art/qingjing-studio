@@ -5723,15 +5723,23 @@ const GC={
       }
     }
     await Promise.all(jobs);
-    // 驗證：排除取消課程；事件標題包含姓名 OR parseTitle 解出的電話後 8 碼吻合
+    // 驗證：排除取消課程；事件標題包含姓名 OR parseTitle 解出的電話後 8 碼吻合 OR 拆字後有重疊（見下方 nameTokens 說明）
     const phoneDigits=(phone||'').replace(/\D/g,'').slice(-8);
     const cancelRe=/^[\(（]取消|^取消/;
+    // 姓名常是「英文暱稱_中文名」等複合格式（如 Stacy_簡敬宇）。系統存的名字如果分隔符號
+    // 跟日曆不同（空格 vs 底線），直接整段 includes 會完全比對不到，所以拆成片段個別比對。
+    const tokenize=x=>String(x||'').split(/[_\s,，、\/]+/).map(t=>t.trim()).filter(t=>t.length>=2);
+    const nameTokens=tokenize(name);
     const verified=allEvents.filter(ev=>{
       if(!ev.summary)return false;
       if(cancelRe.test(ev.summary))return false; // 略過取消課程
       if(ev.summary.includes(name))return true;
+      const parsed=this.parseTitle(ev.summary);
+      if(parsed&&parsed.name){
+        const evTokens=tokenize(parsed.name);
+        if(nameTokens.some(nt=>evTokens.some(et=>et===nt||et.includes(nt)||nt.includes(et))))return true;
+      }
       if(phoneDigits){
-        const parsed=this.parseTitle(ev.summary);
         if(parsed&&parsed.phone&&parsed.phone.replace(/\D/g,'').slice(-8)===phoneDigits)return true;
       }
       return false;
