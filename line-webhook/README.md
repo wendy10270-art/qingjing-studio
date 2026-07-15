@@ -2,7 +2,7 @@
 
 兩支 Vercel serverless function，一起支援「上課前一天 LINE 提醒」：
 
-- **`api/webhook.js`** — LINE Messaging API webhook：學員加官方帳號好友後回覆手機號碼，綁定 LINE `userId`。
+- **`api/webhook.js`** — LINE Messaging API webhook：學員加官方帳號好友後回覆手機號碼，綁定 LINE `userId`。中英文都支援：打「提醒」／「綁定」用中文流程，打「remind」／「bind」用英文流程（供外國學員使用），觸發語言會存進綁定資料，之後的提醒訊息也會用同一種語言發送。
 - **`api/confirm-send.js`** — 每天 18:00 `scripts/line_reminder.py` 會準備好明天的提醒內容，用 ntfy 通知店長預覽＋附一顆「確認送出」按鈕；店長點下去才會呼叫這支 function 真的推播給學員。**不會有人沒看過內容就自動發送。**
 
 綁定資料寫在獨立的 Firebase 節點 `qingjing_line_bindings`（電話末8碼 → `{userId,name,boundAt}`），待確認的當日批次寫在 `qingjing_line_pending`；兩者都不會動到 `qingjing/s` 學員陣列。

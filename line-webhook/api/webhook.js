@@ -50,11 +50,11 @@ async function findStudentsByPhone(last8) {
   return students.filter((s) => s && s.phone && s.phone.replace(/\D/g, '').slice(-8) === last8);
 }
 
-async function bindPhone(last8, userId, name) {
+async function bindPhone(last8, userId, name, lang) {
   await fb(`/qingjing_line_bindings/${last8}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, name, boundAt: Date.now() }),
+    body: JSON.stringify({ userId, name, boundAt: Date.now(), lang }),
   });
 }
 
@@ -65,18 +65,20 @@ async function unbindUserId(userId) {
 }
 
 // 「有沒有剛打過關鍵字、正在等對方回電話號碼」的暫存狀態，10 分鐘內有效
+// 連語言一起記，因為關鍵字（決定語言）跟電話號碼是兩則分開的訊息
 const PENDING_BIND_TTL_MS = 10 * 60 * 1000;
 
-async function isPendingBind(userId) {
-  const ts = await fb(`/qingjing_line_pending_bind/${userId}`, { method: 'GET' });
-  return typeof ts === 'number' && Date.now() - ts < PENDING_BIND_TTL_MS;
+async function getPendingBind(userId) {
+  const v = await fb(`/qingjing_line_pending_bind/${userId}`, { method: 'GET' });
+  if (!v || typeof v.ts !== 'number' || Date.now() - v.ts >= PENDING_BIND_TTL_MS) return null;
+  return v;
 }
 
-async function setPendingBind(userId) {
+async function setPendingBind(userId, lang) {
   await fb(`/qingjing_line_pending_bind/${userId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(Date.now()),
+    body: JSON.stringify({ ts: Date.now(), lang }),
   });
 }
 
@@ -96,9 +98,33 @@ async function lineReply(replyToken, text) {
   });
 }
 
-const KEYWORDS = ['提醒', '綁定'];
-const ASK_PHONE_TEXT = '請直接輸入您在工作室登記的手機號碼（例如 0912345678），完成上課前一天的提醒綁定 🌿';
-const GREETING_TEXT = '嗨，歡迎加入輕境 🌿\n如果想開啟「上課前一天 LINE 提醒」，請輸入「提醒」開始綁定。';
+const KEYWORDS_ZH = ['提醒', '綁定'];
+const KEYWORDS_EN = ['remind', 'reminder', 'bind', 'register'];
+
+const GREETING_TEXT =
+  '嗨，歡迎加入輕境 🌿\n如果想開啟「上課前一天 LINE 提醒」，請輸入「提醒」開始綁定。\n\n' +
+  'Hi, welcome to Motivation Studio 🌿\nTo turn on class reminders (sent the day before), please type "remind" to get started.';
+
+const MSG = {
+  zh: {
+    askPhone: '請直接輸入您在工作室登記的手機號碼（例如 0912345678），完成上課前一天的提醒綁定 🌿',
+    notPhone: '這不像手機號碼喔，麻煩重新輸入「提醒」再試一次。',
+    lookupError: '系統暫時無法查詢，請稍後再試一次，或直接聯繫工作室。',
+    notFound: '找不到對應的學員資料，麻煩直接聯繫工作室確認登記的電話號碼喔 🙏',
+    ambiguous: '這支電話對到多位不同的學員資料，麻煩直接聯繫工作室確認喔 🙏',
+    bindError: '綁定時發生問題，請稍後再試一次，或直接聯繫工作室。',
+    bindSuccess: (name) => `✅ 綁定成功，${name}！之後上課前一天會提醒您唷 🌿`,
+  },
+  en: {
+    askPhone: 'Please enter the phone number registered with the studio (e.g. 0912345678) to complete your class reminder registration 🌿',
+    notPhone: 'That doesn\'t look like a phone number. Please type "remind" again to retry.',
+    lookupError: 'Lookup is temporarily unavailable, please try again shortly or contact the studio directly.',
+    notFound: 'We couldn\'t find a matching record. Please contact the studio to confirm your registered phone number 🙏',
+    ambiguous: 'This phone number matches multiple different student records. Please contact the studio to confirm 🙏',
+    bindError: 'Something went wrong while registering, please try again or contact the studio directly.',
+    bindSuccess: (name) => `✅ Registered successfully, ${name}! We'll remind you the day before your class 🌿`,
+  },
+};
 
 async function handleEvent(event) {
   if (event.type === 'unfollow') {
@@ -117,27 +143,34 @@ async function handleEvent(event) {
 
   const userId = event.source.userId;
   const text = event.message.text.trim();
+  const textLower = text.toLowerCase();
 
-  const waitingForPhone = await isPendingBind(userId).catch((e) => {
+  const pending = await getPendingBind(userId).catch((e) => {
     console.error('pending check error', e);
-    return false;
+    return null;
   });
 
-  if (!waitingForPhone) {
+  if (!pending) {
     // 還沒有人打過關鍵字：只有打關鍵字才回應，其他訊息（客人問問題等）完全不打擾，交給店家手動聊天
-    if (KEYWORDS.some((k) => text.includes(k))) {
-      await setPendingBind(userId).catch((e) => console.error('set pending error', e));
-      await lineReply(event.replyToken, ASK_PHONE_TEXT);
+    // 中英文關鍵字都認，用哪個語言的關鍵字觸發，後面就用哪個語言回覆
+    const isZh = KEYWORDS_ZH.some((k) => text.includes(k));
+    const isEn = !isZh && KEYWORDS_EN.some((k) => textLower.includes(k));
+    if (isZh || isEn) {
+      const lang = isEn ? 'en' : 'zh';
+      await setPendingBind(userId, lang).catch((e) => console.error('set pending error', e));
+      await lineReply(event.replyToken, MSG[lang].askPhone);
     }
     return;
   }
 
-  // 已經打過關鍵字，這則訊息當作電話號碼處理
+  // 已經打過關鍵字，這則訊息當作電話號碼處理，用打關鍵字當下記住的語言回覆
   await clearPendingBind(userId).catch((e) => console.error('clear pending error', e));
+  const lang = pending.lang === 'en' ? 'en' : 'zh';
+  const m = MSG[lang];
 
   const last8 = normalizePhone(text);
   if (!last8) {
-    await lineReply(event.replyToken, '這不像手機號碼喔，麻煩重新輸入「提醒」再試一次。');
+    await lineReply(event.replyToken, m.notPhone);
     return;
   }
 
@@ -146,30 +179,30 @@ async function handleEvent(event) {
     matches = await findStudentsByPhone(last8);
   } catch (e) {
     console.error('lookup error', e);
-    await lineReply(event.replyToken, '系統暫時無法查詢，請稍後再試一次，或直接聯繫工作室。');
+    await lineReply(event.replyToken, m.lookupError);
     return;
   }
 
   if (matches.length === 0) {
-    await lineReply(event.replyToken, '找不到對應的學員資料，麻煩直接聯繫工作室確認登記的電話號碼喔 🙏');
+    await lineReply(event.replyToken, m.notFound);
     return;
   }
 
   // 同一支電話可能對到同一人的多筆購課方案（例如瑜珈+皮拉提斯分開記錄），
   // 只要名字都一樣就當同一人綁定；名字不一樣（例如共用電話）才視為無法判斷。
-  const names = new Set(matches.map((m) => m.name));
+  const names = new Set(matches.map((s) => s.name));
   if (names.size > 1) {
-    await lineReply(event.replyToken, '這支電話對到多位不同的學員資料，麻煩直接聯繫工作室確認喔 🙏');
+    await lineReply(event.replyToken, m.ambiguous);
     return;
   }
 
   const student = matches[0];
   try {
-    await bindPhone(last8, userId, student.name);
-    await lineReply(event.replyToken, `✅ 綁定成功，${student.name}！之後上課前一天會提醒您唷 🌿`);
+    await bindPhone(last8, userId, student.name, lang);
+    await lineReply(event.replyToken, m.bindSuccess(student.name));
   } catch (e) {
     console.error('bind error', e);
-    await lineReply(event.replyToken, '綁定時發生問題，請稍後再試一次，或直接聯繫工作室。');
+    await lineReply(event.replyToken, m.bindError);
   }
 }
 

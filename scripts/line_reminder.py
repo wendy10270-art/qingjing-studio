@@ -16,6 +16,7 @@ NTFY_TOPIC = os.environ.get('NTFY_TOPIC', '').strip()
 CONFIRM_URL = os.environ.get('CONFIRM_URL', '').strip()
 CONFIRM_SECRET = os.environ.get('CONFIRM_SECRET', '').strip()
 WD = '日一二三四五六'
+WD_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 
 def fetch(path):
@@ -107,12 +108,22 @@ def main():
     for it in items:
         binding = bindings.get(phone_key(it['phone']) or '')
         if binding and binding.get('userId'):
-            text = (
-                f"{it['name'].replace('(體驗)', '')}您好，\n"
-                f"提醒您明天有預約課程唷！\n\n"
-                f"時間：{td}（{wd_label}）{it['time'] or ''}\n"
-                f"老師：{it['teacher'] or '—'}"
-            )
+            name = it['name'].replace('(體驗)', '')
+            if binding.get('lang') == 'en':
+                text = (
+                    f"Hi {name},\n"
+                    f"Reminder: you have a class booked tomorrow!\n\n"
+                    f"Date: {td} ({WD_EN[dow]})\n"
+                    f"Time: {it['time'] or 'please confirm with your teacher'}\n"
+                    f"Teacher: {it['teacher'] or '—'}"
+                )
+            else:
+                text = (
+                    f"{name}您好，\n"
+                    f"提醒您明天有預約課程唷！\n\n"
+                    f"時間：{td}（{wd_label}）{it['time'] or ''}\n"
+                    f"老師：{it['teacher'] or '—'}"
+                )
             bound.append({'userId': binding['userId'], 'name': it['name'], 'time': it['time'], 'text': text})
         else:
             unbound.append(it)
