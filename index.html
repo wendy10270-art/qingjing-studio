@@ -2181,13 +2181,13 @@ function renderCard(sid){
       </div>`;
     }
   }
-  // General note (備註)
+  // General note (備註)：點下去可以直接編輯，沒有備註時顯示一個小按鈕可以新增
   const noteAlert=s.note?
-    `<div style="background:var(--gold4);border:2px solid var(--gold2);border-radius:12px;padding:12px 16px;margin-bottom:13px">
-      <div style="font-size:13px;font-weight:500;color:var(--gold);margin-bottom:4px">📝 備註</div>
+    `<div onclick="openStuNoteEdit('${s.id}')" style="background:var(--gold4);border:2px solid var(--gold2);border-radius:12px;padding:12px 16px;margin-bottom:13px;cursor:pointer">
+      <div style="font-size:13px;font-weight:500;color:var(--gold);margin-bottom:4px">📝 備註　<span style="font-size:11px;font-weight:400;color:var(--ink3)">（點擊編輯）</span></div>
       <div style="font-size:12px;color:var(--ink2);white-space:pre-wrap">${s.note}</div>
     </div>`
-    :'';
+    :`<div onclick="openStuNoteEdit('${s.id}')" style="display:inline-block;margin-bottom:13px;padding:6px 12px;border:1px dashed var(--border);border-radius:20px;font-size:12px;color:var(--ink3);cursor:pointer">＋ 新增備註</div>`;
   document.getElementById('cardTop').innerHTML=leaveAlertToday+leaveAlertUpcoming+lowSessAlert+healthAlert+expiryAlert+noteAlert+`<div class="stu-top">
     <div class="${ci.stripe} stripe"></div>
     <div class="stu-top-row">
@@ -6443,6 +6443,33 @@ function saveCellNote(session,note){
   document.getElementById('cellNoteOv')?.remove();
   save();renderCard(curSid);
   showToast(trimmed?'✓ 備忘已儲存':'✓ 備忘已清除');
+}
+
+// ── 學員整體備註（課卡上的 📝 備註提示框，點下去可以直接編輯，不用進學員管理）──
+function openStuNoteEdit(sid){
+  const s=S.find(x=>x.id===sid);if(!s)return;
+  const current=s.note||'';
+  document.getElementById('stuNoteOv')?.remove();
+  const html=`<div id="stuNoteOv" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:flex-end;justify-content:center;padding-bottom:24px" onclick="if(event.target===this)this.remove()">
+    <div style="background:var(--white);border-radius:18px 18px 14px 14px;padding:20px;width:92%;max-width:380px">
+      <div style="font-size:14px;font-weight:500;color:var(--ink);margin-bottom:3px">${s.name}　備註</div>
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:12px">例：分期、折扣備注…</div>
+      <textarea id="stuNoteInp" placeholder="輸入備註…" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;color:var(--ink);outline:none;resize:none;height:88px;font-family:'Noto Sans TC',sans-serif;margin-bottom:12px;background:var(--bg)">${current}</textarea>
+      <div style="display:flex;gap:8px">
+        <button onclick="saveStuNote('${sid}','')" style="padding:11px;flex:1;background:var(--bg2);border:none;border-radius:10px;font-size:13px;cursor:pointer;color:var(--ink3);font-family:'Noto Sans TC',sans-serif">清除</button>
+        <button onclick="saveStuNote('${sid}',document.getElementById('stuNoteInp').value)" style="padding:11px;flex:2;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;font-weight:500;font-family:'Noto Sans TC',sans-serif">儲存</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend',html);
+  setTimeout(()=>{const inp=document.getElementById('stuNoteInp');if(inp){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);}},80);
+}
+function saveStuNote(sid,note){
+  const s=S.find(x=>x.id===sid);if(!s)return;
+  s.note=(note||'').trim();
+  document.getElementById('stuNoteOv')?.remove();
+  save();renderCard(sid);
+  showToast(s.note?'✓ 備註已儲存':'✓ 備註已清除');
 }
 
 let _gcAfterAdd=null;
