@@ -6142,6 +6142,11 @@ const GC={
     const verified=allEvents.filter(ev=>{
       if(!ev.summary)return false;
       if(cancelRe.test(ev.summary))return false; // 略過取消課程
+      // Google 的 timeMin 是用「事件結束時間」過濾，不是開始時間——所以今天正在進行中、
+      // 甚至已經簽到的那堂課（已經開始了、但還沒結束）也會被回傳，導致「接下來的課程」
+      // 顯示的其實是學員剛剛簽到的那堂課本身，而不是真的未來場次。這裡另外用「開始時間」擋掉。
+      const evStart=ev.start?.dateTime?new Date(ev.start.dateTime):(ev.start?.date?new Date(ev.start.date+'T23:59:59'):null);
+      if(evStart&&evStart<=now)return false;
       if(ev.summary.includes(name))return true;
       const parsed=this.parseTitle(ev.summary);
       if(parsed&&parsed.name){
