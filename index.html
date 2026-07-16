@@ -6597,6 +6597,64 @@ function copyTomorrowMsg(msgId){
   const a=document.createElement('a');a.href='https://manager.line.biz/';a.style.display='none';document.body.appendChild(a);a.click();setTimeout(()=>{document.body.removeChild(a);},500);
 }
 
+// 查詢學員是否已綁定 LINE（跟 renderLineMsgActions 用同一個唯讀 Firebase 端點）
+async function tomorrowCheckBound(phone){
+  try{
+    const key=(phone||'').replace(/\D/g,'').slice(-8);
+    if(key.length!==8)return false;
+    const res=await fetch(FB_URL+'/qingjing_line_bindings/'+key+'.json?auth='+FB_API_KEY);
+    const data=await res.json();
+    return !!(data&&(data.userId||data.groupId||data.roomId));
+  }catch(e){return false;}
+}
+
+let _tomorrowItems=[];
+
+// 一鍵發送單一學員的明日提醒（已綁定 LINE 才會顯示這顆按鈕），走跟課後訊息同一支推播 API
+async function sendTomorrowLineMsg(idx){
+  const item=_tomorrowItems[idx];if(!item)return;
+  const msgEl=document.getElementById('tnMsg_'+idx);if(!msgEl)return;
+  const text=msgEl.innerHTML.replace(/<br>/g,'\n').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+  const btn=document.getElementById('tnSend_'+idx);
+  if(btn){btn.disabled=true;btn.innerHTML='傳送中…';}
+  try{
+    const res=await fetch(LINE_WEBHOOK_BASE+'/api/send-checkin-message?key='+CHECKIN_PUSH_SECRET,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({phone:item.phone,message:text})
+    });
+    const data=await res.json().catch(()=>({}));
+    if(data.ok){
+      item.sent=true;
+      showToast('✓ 已透過 LINE 傳送給 '+item.name);
+      if(btn){btn.innerHTML='<span style="font-size:18px;line-height:1">✓</span>已傳送';}
+      return true;
+    }
+    showToast('傳送失敗：'+(data.error||'未知錯誤'),'r');
+    if(btn){btn.disabled=false;btn.innerHTML='<span style="font-size:18px;line-height:1">🚀</span>一鍵發送';}
+    return false;
+  }catch(e){
+    showToast('傳送失敗：'+e.message,'r');
+    if(btn){btn.disabled=false;btn.innerHTML='<span style="font-size:18px;line-height:1">🚀</span>一鍵發送';}
+    return false;
+  }
+}
+
+// 一鍵發送全部已綁定學員（依序送出，避免同時打爆 LINE API），未綁定的仍要手動複製
+async function sendAllTomorrowMsgs(){
+  const targets=_tomorrowItems.map((it,idx)=>({it,idx})).filter(x=>x.it.bound&&!x.it.sent);
+  if(!targets.length){showToast('沒有可發送的已綁定學員');return;}
+  const allBtn=document.getElementById('tnSendAllBtn');
+  if(allBtn){allBtn.disabled=true;allBtn.textContent='發送中…（0/'+targets.length+'）';}
+  let ok=0;
+  for(let i=0;i<targets.length;i++){
+    const success=await sendTomorrowLineMsg(targets[i].idx);
+    if(success)ok++;
+    if(allBtn)allBtn.textContent='發送中…（'+(i+1)+'/'+targets.length+'）';
+  }
+  if(allBtn){allBtn.disabled=false;allBtn.textContent='🚀 一鍵發送全部（已綁定 '+targets.length+' 位）';}
+  showToast('✓ 已發送 '+ok+'/'+targets.length+' 位，'+(targets.length-ok>0?'失敗 '+(targets.length-ok)+' 位':'全部成功'));
+}
+
 async function renderTomorrowNotify(){
   const el=document.getElementById('notifyContent');if(!el)return;
   if(!GC.ok()){
@@ -6624,7 +6682,13 @@ async function renderTomorrowNotify(){
       for(const ev of evs){
         const parsed=GC.parseTitle(ev.summary||'');
         if(!parsed)continue;
-        allItems.push({name:parsed.name,time:GC.getTime(ev),teacher,courseType:parsed.type});
+        // 日曆標題常常沒帶電話，退而求其次用姓名比對系統學員名單拿電話（跟 runDataCheck 同一套邏輯）
+        let phone=parsed.phone;
+        if(!phone){
+          const stu=S.find(x=>x.name===parsed.name||(x.name||'').split('｜').includes(parsed.name));
+          if(stu)phone=stu.phone;
+        }
+        allItems.push({name:parsed.name,time:GC.getTime(ev),teacher,courseType:parsed.type,phone});
       }
     }
     allItems.sort((a,b)=>a.time.localeCompare(b.time));
@@ -6632,17 +6696,25 @@ async function renderTomorrowNotify(){
       el.innerHTML=`<div style="padding:32px;text-align:center"><div style="font-size:36px;margin-bottom:14px">🌙</div><div style="color:var(--ink3);font-size:15px">${dateLabel}<br>明天沒有課程安排</div></div>`;
       return;
     }
-    let html=`<div style="margin-bottom:14px"><div style="font-family:'Noto Serif TC',serif;font-size:18px;letter-spacing:2px;color:var(--ink);margin-bottom:4px">明日通知</div><div style="font-size:13px;color:var(--ink3)">📅 ${dateLabel}・共 ${allItems.length} 堂</div></div><div style="font-size:12px;color:var(--ink3);background:var(--bg);border-radius:8px;padding:8px 12px;margin-bottom:14px;line-height:1.7">點「複製 & 開啟 LINE」→ 開啟 LINE OA 後搜尋學員名字貼上</div>`;
+    el.innerHTML='<div style="padding:20px;text-align:center;color:var(--ink3);font-size:14px">確認 LINE 綁定狀態…</div>';
+    await Promise.all(allItems.map(async it=>{it.bound=await tomorrowCheckBound(it.phone);}));
+    _tomorrowItems=allItems;
+    const boundCount=allItems.filter(it=>it.bound).length;
+    let html=`<div style="margin-bottom:14px"><div style="font-family:'Noto Serif TC',serif;font-size:18px;letter-spacing:2px;color:var(--ink);margin-bottom:4px">明日通知</div><div style="font-size:13px;color:var(--ink3)">📅 ${dateLabel}・共 ${allItems.length} 堂${boundCount?'・已綁定 '+boundCount+' 位':''}</div></div><div style="font-size:12px;color:var(--ink3);background:var(--bg);border-radius:8px;padding:8px 12px;margin-bottom:14px;line-height:1.7">已綁定 LINE 的學員可「一鍵發送」直接推播；未綁定的請用「複製 & 開啟 LINE」手動傳送</div>`;
+    if(boundCount)html+=`<button id="tnSendAllBtn" onclick="sendAllTomorrowMsgs()" style="background:var(--ink);color:#fff;border:none;border-radius:9px;padding:11px;width:100%;font-size:14px;cursor:pointer;margin-bottom:14px;font-weight:500">🚀 一鍵發送全部（已綁定 ${boundCount} 位）</button>`;
     allItems.forEach((item,idx)=>{
       const msgId='tnMsg_'+idx;
       const msg=generateTomorrowMsg(item.name,tomMonth,tomDay,tomWD,item.time,item.teacher);
+      const actionBtn=item.bound
+        ?`<button id="tnSend_${idx}" onclick="sendTomorrowLineMsg(${idx})" style="background:#06C755;color:#fff;border:none;border-radius:9px;padding:10px;width:100%;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:500"><span style="font-size:18px;line-height:1">🚀</span>一鍵發送</button>`
+        :`<button onclick="copyTomorrowMsg('${msgId}')" style="background:#06C755;color:#fff;border:none;border-radius:9px;padding:10px;width:100%;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:500"><span style="font-size:18px;line-height:1">💬</span>複製訊息 & 開啟 LINE</button>`;
       html+=`<div style="background:var(--white);border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px">
         <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">
-          <div style="font-size:16px;font-weight:600;color:var(--ink);letter-spacing:.5px">${item.name}</div>
+          <div style="font-size:16px;font-weight:600;color:var(--ink);letter-spacing:.5px">${item.name}${item.bound?'<span style="font-size:10px;color:#06C755;margin-left:6px">已綁定</span>':''}</div>
           <div style="font-size:11px;color:var(--ink3)">${item.time}・${item.teacher} 老師</div>
         </div>
         <div class="line-msg-content" id="${msgId}" style="font-size:13px;margin-bottom:10px">${msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div>
-        <button onclick="copyTomorrowMsg('${msgId}')" style="background:#06C755;color:#fff;border:none;border-radius:9px;padding:10px;width:100%;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:500"><span style="font-size:18px;line-height:1">💬</span>複製訊息 & 開啟 LINE</button>
+        ${actionBtn}
       </div>`;
     });
     el.innerHTML=html;
