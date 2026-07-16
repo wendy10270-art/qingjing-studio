@@ -3314,6 +3314,7 @@ function renderDaily(){
               ${confirmed?
                 `<span style="font-size:11px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:2px 9px;cursor:pointer" onclick="toggleConfirm('${r.id}','regular')">已確認</span>`:
                 `<button onclick="toggleConfirm('${r.id}','regular')" style="background:var(--ink);color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">確認消課</button>`}
+              <span onclick="openResendLineMsg('${r.id}')" style="font-size:15px;cursor:pointer;opacity:0.6;padding:2px 4px" title="補發 LINE 課後訊息">📨</span>
               <span onclick="deleteRec('${r.id}','regular','${s.name}')" style="font-size:15px;cursor:pointer;opacity:0.4;padding:2px 4px" title="刪除此筆記錄">🗑</span>
             </div>
           </div>
@@ -4589,14 +4590,14 @@ function saveEditStu(){
 
 // ── LINE 訊息 ──
 // 課後訊息的中英文版本。lang 由學員 LINE 綁定時選的語言決定（qingjing_line_bindings 的 lang 欄位）。
-function buildLineMsgText(s, isUpgraded, upgradedTo, lang){
+function buildLineMsgText(s, isUpgraded, upgradedTo, upgradeDiff, lang){
   const parts=[];
   if(lang==='en'){
     parts.push('Hi, this is manager Along 🐾');
     parts.push('Great work in class today! Remember to drink water and rest well~');
     if(isUpgraded){
       parts.push('');
-      parts.push('*This session was upgraded 1on1→'+upgradedTo+', additional $'+curUpgradeDiff.toLocaleString()+' collected');
+      parts.push('*This session was upgraded 1on1→'+upgradedTo+', additional $'+(upgradeDiff||0).toLocaleString()+' collected');
     }
     if(s.nextBooking){
       parts.push('');
@@ -4613,7 +4614,7 @@ function buildLineMsgText(s, isUpgraded, upgradedTo, lang){
     parts.push('記得練習後多補充水分、好好休息喔～');
     if(isUpgraded){
       parts.push('');
-      parts.push('＊本堂加人 1on1→'+upgradedTo+'，已補收 $'+curUpgradeDiff.toLocaleString());
+      parts.push('＊本堂加人 1on1→'+upgradedTo+'，已補收 $'+(upgradeDiff||0).toLocaleString());
     }
     if(s.nextBooking){
       parts.push('');
@@ -4634,10 +4635,11 @@ function renderLineMessage(s, remain, isUpgraded, upgradedTo, isSub, subTeacher)
   const el=document.getElementById('lineMessageArea');
   if(!el)return;
   el.dataset.lang='zh'; // 預設中文，綁定狀態查完若是英文綁定會自動換
-  const msg=buildLineMsgText(s,isUpgraded,upgradedTo,'zh');
+  const upgradeDiff=isUpgraded?curUpgradeDiff:0;
+  const msg=buildLineMsgText(s,isUpgraded,upgradedTo,upgradeDiff,'zh');
   el.innerHTML='<div class="line-msg-box"><div class="line-msg-label">LINE 課後訊息</div><div class="line-msg-content" id="lineMsgText">'+escLineMsg(msg)+'</div><div id="lineMsgActions" data-sid="'+s.id+'"><div style="text-align:center;font-size:12px;color:var(--ink3);padding:8px 0">確認 LINE 綁定狀態…</div></div></div>';
   renderNextApptArea(s.id);
-  renderLineMsgActions(s.id, s.phone, s, isUpgraded, upgradedTo);
+  renderLineMsgActions(s.id, s.phone, s, isUpgraded, upgradedTo, upgradeDiff);
 }
 
 const LINE_ACTION_LABELS={
@@ -4646,7 +4648,7 @@ const LINE_ACTION_LABELS={
 };
 // 依綁定狀態決定顯示哪組按鈕：已綁定只給「直接傳送」；未綁定才顯示複製/開啟 LINE 的備用做法。
 // 同時查到的綁定語言（lang）如果是英文，訊息內文也要換成英文版本，不是只換按鈕文字。
-async function renderLineMsgActions(sid, phone, s, isUpgraded, upgradedTo){
+async function renderLineMsgActions(sid, phone, s, isUpgraded, upgradedTo, upgradeDiff){
   const el=document.getElementById('lineMsgActions');
   if(!el||el.dataset.sid!==sid)return;
   let bound=false, lang='zh';
@@ -4665,7 +4667,7 @@ async function renderLineMsgActions(sid, phone, s, isUpgraded, upgradedTo){
   if(areaEl&&areaEl.dataset.lang!==lang&&s){
     areaEl.dataset.lang=lang;
     const textEl=document.getElementById('lineMsgText');
-    if(textEl)textEl.innerHTML=escLineMsg(buildLineMsgText(s,isUpgraded,upgradedTo,lang));
+    if(textEl)textEl.innerHTML=escLineMsg(buildLineMsgText(s,isUpgraded,upgradedTo,upgradeDiff,lang));
   }
   const L=LINE_ACTION_LABELS[lang]||LINE_ACTION_LABELS.zh;
   const fallbackHTML='<button class="line-msg-copy" onclick="copyAndOpenLine()" style="background:transparent;border:1px solid var(--border);color:var(--ink2);display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px"><span style="font-size:18px;line-height:1">💬</span>'+L.copy+'</button><div style="text-align:center;margin-top:8px"><span onclick="copyLineMsgById()" style="font-size:12px;color:var(--ink3);cursor:pointer;text-decoration:underline">'+L.copyOnly+'</span></div>';
@@ -4693,11 +4695,13 @@ function renderLineMessageTrial(tr){
 
 
 // 直接透過 LINE Messaging API 推播課後訊息（學員需已綁定 LINE，否則請用下方複製訊息手動傳送）
-async function sendLineCheckinMsg(sid){
+async function sendLineCheckinMsg(sid,msgElId,btnId){
+  msgElId=msgElId||'lineMsgText';btnId=btnId||'lineSendBtn';
   const s=S.find(x=>x.id===sid);if(!s)return;
-  const msgEl=document.getElementById('lineMsgText');if(!msgEl)return;
+  const msgEl=document.getElementById(msgElId);if(!msgEl)return;
   const text=msgEl.innerHTML.replace(/<br>/g,'\n').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
-  const btn=document.getElementById('lineSendBtn');
+  const btn=document.getElementById(btnId);
+  const sendLabel=btn?btn.innerHTML:'';
   if(btn){btn.disabled=true;btn.textContent='傳送中…';}
   try{
     const res=await fetch(LINE_WEBHOOK_BASE+'/api/send-checkin-message?key='+CHECKIN_PUSH_SECRET,{
@@ -4710,19 +4714,69 @@ async function sendLineCheckinMsg(sid){
       if(btn){btn.innerHTML='<span style="font-size:20px;line-height:1">✓</span>已傳送';}
     }else if(data.error==='notBound'){
       showToast(s.name+' 尚未綁定 LINE，請用下方「複製訊息」手動傳送','r');
-      if(btn){btn.disabled=false;btn.innerHTML='<span style="font-size:20px;line-height:1">📨</span>透過 LINE 直接傳送';}
+      if(btn){btn.disabled=false;btn.innerHTML=sendLabel;}
     }else{
       showToast('傳送失敗：'+(data.error||'未知錯誤'),'r');
-      if(btn){btn.disabled=false;btn.innerHTML='<span style="font-size:20px;line-height:1">📨</span>透過 LINE 直接傳送';}
+      if(btn){btn.disabled=false;btn.innerHTML=sendLabel;}
     }
   }catch(e){
     showToast('傳送失敗：'+e.message,'r');
-    if(btn){btn.disabled=false;btn.innerHTML='<span style="font-size:20px;line-height:1">📨</span>透過 LINE 直接傳送';}
+    if(btn){btn.disabled=false;btn.innerHTML=sendLabel;}
   }
 }
 
-function copyAndOpenLine(){
-  const el=document.getElementById('lineMsgText');if(!el)return;
+// ── 補發 LINE 課後訊息（簽到當下沒按傳送，事後從「出勤紀錄」補按）──
+function openResendLineMsg(recId){
+  const r=R.find(x=>x.id===recId);if(!r)return;
+  const s=S.find(x=>x.id===r.sid);if(!s){showToast('找不到學員資料','r');return}
+  document.getElementById('resendLineOv')?.remove();
+  const upgradeDiff=r.isUpgraded?(r.upgradeDiff||0):0;
+  const msg=buildLineMsgText(s,r.isUpgraded,r.upgradedTo,upgradeDiff,'zh');
+  const html=`<div id="resendLineOv" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)this.remove()">
+    <div style="background:var(--bg);border-radius:16px;padding:18px;width:92%;max-width:400px;max-height:85vh;overflow-y:auto">
+      <div style="font-size:14px;font-weight:500;color:var(--ink);margin-bottom:2px">補發 LINE 課後訊息</div>
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:12px">${s.name}・${r.date}　第 ${r.session} 堂</div>
+      <div class="line-msg-box" id="resendLineMessageArea" data-lang="zh">
+        <div class="line-msg-label">LINE 課後訊息</div>
+        <div class="line-msg-content" id="resendLineMsgText">${escLineMsg(msg)}</div>
+        <div id="resendLineMsgActions" data-sid="${s.id}"><div style="text-align:center;font-size:12px;color:var(--ink3);padding:8px 0">確認 LINE 綁定狀態…</div></div>
+      </div>
+      <button onclick="document.getElementById('resendLineOv').remove()" style="margin-top:10px;width:100%;padding:10px;background:transparent;border:1px solid var(--border);border-radius:9px;font-size:13px;color:var(--ink3);cursor:pointer">關閉</button>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend',html);
+  renderResendLineMsgActions(s.id, s.phone, s, r.isUpgraded, r.upgradedTo, upgradeDiff);
+}
+
+async function renderResendLineMsgActions(sid, phone, s, isUpgraded, upgradedTo, upgradeDiff){
+  const el=document.getElementById('resendLineMsgActions');
+  if(!el||el.dataset.sid!==sid)return;
+  let bound=false, lang='zh';
+  try{
+    const key=(phone||'').replace(/\D/g,'').slice(-8);
+    if(key.length===8){
+      const res=await fetch(FB_URL+'/qingjing_line_bindings/'+key+'.json?auth='+FB_API_KEY);
+      const data=await res.json();
+      bound=!!(data&&data.userId);
+      lang=(data&&data.lang==='en')?'en':'zh';
+    }
+  }catch(e){console.warn('check LINE binding failed:',e);}
+  const cur=document.getElementById('resendLineMsgActions');
+  if(!cur||cur.dataset.sid!==sid)return; // 視窗已經關掉了
+  const areaEl=document.getElementById('resendLineMessageArea');
+  if(areaEl&&areaEl.dataset.lang!==lang){
+    areaEl.dataset.lang=lang;
+    const textEl=document.getElementById('resendLineMsgText');
+    if(textEl)textEl.innerHTML=escLineMsg(buildLineMsgText(s,isUpgraded,upgradedTo,upgradeDiff,lang));
+  }
+  const L=LINE_ACTION_LABELS[lang]||LINE_ACTION_LABELS.zh;
+  const fallbackHTML='<button class="line-msg-copy" onclick="copyAndOpenLine(\'resendLineMsgText\')" style="background:transparent;border:1px solid var(--border);color:var(--ink2);display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px"><span style="font-size:18px;line-height:1">💬</span>'+L.copy+'</button><div style="text-align:center;margin-top:8px"><span onclick="copyLineMsgById(\'resendLineMsgText\')" style="font-size:12px;color:var(--ink3);cursor:pointer;text-decoration:underline">'+L.copyOnly+'</span></div>';
+  const sendBtnHTML='<button id="resendLineSendBtn" class="line-msg-copy" onclick="sendLineCheckinMsg(\''+sid+'\',\'resendLineMsgText\',\'resendLineSendBtn\')" style="background:#06C755;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px"><span style="font-size:20px;line-height:1">📨</span>'+L.send+'</button>';
+  cur.innerHTML=bound?sendBtnHTML:fallbackHTML;
+}
+
+function copyAndOpenLine(msgElId){
+  const el=document.getElementById(msgElId||'lineMsgText');if(!el)return;
   const text=el.innerHTML.replace(/<br>/g,'\n').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
   // iOS 安全做法：在使用者手勢內同步複製（execCommand），再跳轉 App
   let copied=false;
@@ -4750,8 +4804,8 @@ function copyAndOpenLine(){
   setTimeout(()=>{document.body.removeChild(a);},500);
 }
 
-function copyLineMsgById(){
-  const el=document.getElementById('lineMsgText');if(!el)return;
+function copyLineMsgById(msgElId){
+  const el=document.getElementById(msgElId||'lineMsgText');if(!el)return;
   const text=el.innerHTML.replace(/<br>/g,'\n').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
   // 同步複製（iOS 相容）
   let copied=false;
