@@ -19,6 +19,14 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  // 跨網域的請求（例如 line-webhook 的 API）跟非 GET 請求（POST/PUT…）完全不攔截，
+  // 交給瀏覽器原生處理就好——cache-first 這套策略是給同網域的靜態資源用的，
+  // 硬要把它套用在跨網域 POST 上，在 Safari/PWA 環境會直接丟出
+  // 「FetchEvent.respondWith received an error: TypeError: Load failed」
+  // （簽到後點「透過 LINE 直接傳送」失敗就是這個原因）。
+  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== self.location.origin) {
+    return;
+  }
   // 主頁面：network-first（一定先抓最新，離線才用快取）
   if (e.request.mode === 'navigate') {
     e.respondWith(
