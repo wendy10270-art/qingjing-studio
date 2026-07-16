@@ -1,7 +1,6 @@
 name: 上課前一天 LINE 提醒
+# 2026-07-16：改用 App「明日通知」分頁手動一鍵發送，關掉自動排程，只留手動觸發備用。
 on:
-  schedule:
-    - cron: '0 10 * * *'   # UTC 10:00 = 台北 18:00
   workflow_dispatch: {}
 jobs:
   reminder:
