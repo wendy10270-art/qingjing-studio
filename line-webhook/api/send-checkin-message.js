@@ -53,6 +53,17 @@ async function pushLine(userId, text) {
 }
 
 module.exports = async (req, res) => {
+  // index.html 呼叫這支 API 是跨網域請求（GitHub Pages → Vercel），瀏覽器一定會先送 OPTIONS
+  // 預檢，沒有正確回應 CORS 標頭的話，瀏覽器會直接擋掉，連真正的 POST 都不會送出去
+  // （Safari/PWA 上就是「FetchEvent.respondWith received an error: TypeError: Load failed」）。
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
   if (req.method !== 'POST') {
     res.status(405).send('method not allowed');
     return;
