@@ -13,7 +13,7 @@ const CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 // batch-reminder confirm endpoint too.
 const CHECKIN_PUSH_SECRET = process.env.CHECKIN_PUSH_SECRET || '';
 // 阿勇（店長的狗）照片，跟課後訊息一起送，served from this same Vercel project's /public
-const ALONG_IMAGE_URL = 'https://line-webhook-gules.vercel.app/along.jpg';
+const ALONG_IMAGE_URL = 'https://line-webhook-gules.vercel.app/along.png';
 
 async function fb(path, opts) {
   const res = await fetch(`${FB_URL}${path}.json?auth=${FB_API_KEY}`, opts);
