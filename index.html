@@ -808,6 +808,13 @@ const db={
     <div class="em-ttl">調整師資課費</div>
     <div class="em-sub" id="emSub"></div>
     <div class="em-row">
+      <div class="em-label">上課日期／時間</div>
+      <div style="display:flex;gap:8px">
+        <input type="date" id="emDate" class="native-date-inp" style="flex:1">
+        <input type="time" id="emTime" class="native-date-inp" style="width:110px">
+      </div>
+    </div>
+    <div class="em-row">
       <div class="em-label">原始課費</div>
       <div class="em-original" id="emOriginal"></div>
       <div class="em-label">調整後課費（元）</div>
@@ -3969,12 +3976,16 @@ function openEditOv(rid,type){
     defaultFee=r.actualFee||getDefaultFee(teacher,course);currentFee=getRecFee(r,s);
     dateStr=`${r.date} ${r.time}`;nameStr=`${s.name}・${course}・${teacher}`;
     document.getElementById('emNote').value=r.manualNote||'';
+    setDateSel('emDate',r.date);
+    document.getElementById('emTime').value=r.time||'';
   } else {
     const tr=T.find(x=>x.id===rid);if(!tr)return;
     teacher=tr.teacher;course=`${tr.course} ${tr.ratio}（體驗）`;
     defaultFee=tr.teacherFee;currentFee=tr.manualFee!=null?tr.manualFee:tr.teacherFee;
     dateStr=`${tr.date} ${tr.time}`;nameStr=`${tr.name}・${course}・${teacher}`;
     document.getElementById('emNote').value=tr.manualNote||'';
+    setDateSel('emDate',tr.date);
+    document.getElementById('emTime').value=tr.time||'';
   }
   document.getElementById('emSub').innerHTML=`${dateStr}<br>${nameStr}`;
   document.getElementById('emOriginal').textContent=`系統預設：$${defaultFee.toLocaleString()}`;
@@ -4001,13 +4012,18 @@ function onEmInput(){
 function saveFee(){
   const v=parseInt(document.getElementById('emInput').value);
   const note=document.getElementById('emNote').value.trim();
+  const newDate=getDateSel('emDate');
+  const newTime=document.getElementById('emTime').value||'';
+  let dateChanged=false;
   if(editRecType==='regular'){
     const r=R.find(x=>x.id===editRecId);if(!r)return;r.manualFee=v;r.manualNote=note;
+    if(newDate&&(newDate!==r.date||newTime!==r.time)){r.date=newDate;r.time=newTime;dateChanged=true;}
   } else {
     const tr=T.find(x=>x.id===editRecId);if(!tr)return;tr.manualFee=v;tr.manualNote=note;
+    if(newDate&&(newDate!==tr.date||newTime!==tr.time)){tr.date=newDate;tr.time=newTime;dateChanged=true;}
   }
   save();closeEditOv();renderDaily();if(document.getElementById('ap-wage').classList.contains('active'))renderWage();
-  showToast('✓ 課費已調整為 $'+v.toLocaleString());
+  showToast(dateChanged?'✓ 已更新日期／時間與課費':'✓ 課費已調整為 $'+v.toLocaleString());
 }
 function resetFee(){
   if(editRecType==='regular'){const r=R.find(x=>x.id===editRecId);if(r){r.manualFee=null;r.manualNote=''}}
