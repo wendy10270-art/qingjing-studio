@@ -486,6 +486,9 @@ input:focus,select:focus{border-color:var(--gold2)}
 // Firebase REST API（不需外部 SDK，任何瀏覽器都能跑）
 const FB_URL='https://qingjing-studio-default-rtdb.firebaseio.com';
 const FB_API_KEY='AIzaSyBg3_toi-Kqyi9iw2IbW9C5HhkbgJappxI';
+// 課後直接推播 LINE 訊息用（line-webhook/api/send-checkin-message.js）
+const LINE_WEBHOOK_BASE='https://line-webhook-gules.vercel.app';
+const CHECKIN_PUSH_SECRET='ffabf3fe078cf3c2d28da53b7a8c0add7b9d990d7a1abd91';
 
 // Firebase 錯誤回應（如 Permission denied）HTTP 狀態非 2xx 或 body 帶 error 欄位，
 // 必須丟出例外，否則會誤判為同步成功
@@ -624,8 +627,7 @@ const db={
       <div id="successUpcomingArea" style="margin-top:14px;width:100%;max-width:380px"></div>
       <div id="lineMessageArea" style="margin-top:14px;width:100%;max-width:380px"></div>
       <div style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:14px;width:100%;max-width:320px">
-        <button class="btn btn-ink" style="width:100%;font-size:16px;padding:14px" onclick="document.getElementById('searchInp').value='';document.getElementById('searchResultArea').style.display='none';document.getElementById('searchClear').classList.remove('show');renderStuList();goScreen('sc-students')">← 繼續下一位</button>
-        <button class="btn btn-soft" style="width:100%;font-size:14px;padding:11px;background:transparent;border:1px solid var(--border);color:var(--ink3)" onclick="renderTeachers();goScreen('sc-teachers')">完成，返回首頁</button>
+        <button class="btn btn-ink" style="width:100%;font-size:16px;padding:14px" onclick="renderTeachers();goScreen('sc-teachers')">完成，返回首頁</button>
         <div id="undoSignInArea"></div>
       </div>
     </div>
@@ -4578,18 +4580,9 @@ function saveEditStu(){
 function renderLineMessage(s, remain, isUpgraded, upgradedTo, isSub, subTeacher){
   const el=document.getElementById('lineMessageArea');
   if(!el)return;
-  const today=fmt(new Date());
-  const sessionNum=s.used;
   const parts=[];
-  parts.push('嗨 '+s.name+'！');
-  parts.push('今天課程順利完成了 ✦');
-  parts.push('很開心今天能陪你一起練習，辛苦了！');
-  parts.push('');
-  parts.push('📋 今日記錄');
-  parts.push('日期：'+today);
-  parts.push('堂數：已完成第 '+sessionNum+' 堂');
-  parts.push('剩餘：還有 '+remain+' 堂可用');
-  if(remain<=2&&remain>0){parts.push('⚠️ 課程即將用完，請盡快聯繫續購！');}
+  parts.push('我是阿勇店長，今天上課辛苦了！');
+  parts.push('記得練習後多補充水分、好好休息喔～');
   if(isUpgraded){
     parts.push('');
     parts.push('＊本堂加人 1on1→'+upgradedTo+'，已補收 $'+curUpgradeDiff.toLocaleString());
@@ -4600,9 +4593,9 @@ function renderLineMessage(s, remain, isUpgraded, upgradedTo, isSub, subTeacher)
     parts.push(s.nextBooking.date+' '+s.nextBooking.time);
   }
   parts.push('');
-  parts.push('我們下週見唷～～');
+  parts.push('我們下次見～');
   const msg=parts.join('\n');
-  el.innerHTML='<div class="line-msg-box"><div class="line-msg-label">LINE 課後訊息</div><div class="line-msg-content" id="lineMsgText">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')+'</div><button class="line-msg-copy" onclick="copyAndOpenLine()" style="background:#06C755;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px"><span style="font-size:20px;line-height:1">💬</span>複製訊息 ＆ 開啟 LINE</button><div style="text-align:center;margin-top:8px"><span onclick="copyLineMsgById()" style="font-size:12px;color:var(--ink3);cursor:pointer;text-decoration:underline">只複製訊息</span></div></div>';
+  el.innerHTML='<div class="line-msg-box"><div class="line-msg-label">LINE 課後訊息</div><div class="line-msg-content" id="lineMsgText">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')+'</div><button id="lineSendBtn" class="line-msg-copy" onclick="sendLineCheckinMsg(\''+s.id+'\')" style="background:#06C755;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px"><span style="font-size:20px;line-height:1">📨</span>透過 LINE 直接傳送</button><button class="line-msg-copy" onclick="copyAndOpenLine()" style="background:transparent;border:1px solid var(--border);color:var(--ink2);display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;margin-top:8px"><span style="font-size:18px;line-height:1">💬</span>複製訊息 ＆ 開啟 LINE</button><div style="text-align:center;margin-top:8px"><span onclick="copyLineMsgById()" style="font-size:12px;color:var(--ink3);cursor:pointer;text-decoration:underline">只複製訊息</span></div></div>';
   renderNextApptArea(s.id);
 }
 
@@ -4624,6 +4617,35 @@ function renderLineMessageTrial(tr){
   el.innerHTML='<div class="line-msg-box"><div class="line-msg-label">LINE 體驗課訊息</div><div class="line-msg-content" id="lineMsgText">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')+'</div><button class="line-msg-copy" onclick="copyAndOpenLine()" style="background:#06C755;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px"><span style="font-size:20px;line-height:1">💬</span>複製訊息 ＆ 開啟 LINE</button><div style="text-align:center;margin-top:8px"><span onclick="copyLineMsgById()" style="font-size:12px;color:var(--ink3);cursor:pointer;text-decoration:underline">只複製訊息</span></div></div>';
 }
 
+
+// 直接透過 LINE Messaging API 推播課後訊息（學員需已綁定 LINE，否則請用下方複製訊息手動傳送）
+async function sendLineCheckinMsg(sid){
+  const s=S.find(x=>x.id===sid);if(!s)return;
+  const msgEl=document.getElementById('lineMsgText');if(!msgEl)return;
+  const text=msgEl.innerHTML.replace(/<br>/g,'\n').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+  const btn=document.getElementById('lineSendBtn');
+  if(btn){btn.disabled=true;btn.textContent='傳送中…';}
+  try{
+    const res=await fetch(LINE_WEBHOOK_BASE+'/api/send-checkin-message?key='+CHECKIN_PUSH_SECRET,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({phone:s.phone,message:text})
+    });
+    const data=await res.json().catch(()=>({}));
+    if(data.ok){
+      showToast('✓ 已透過 LINE 傳送給 '+s.name);
+      if(btn){btn.innerHTML='<span style="font-size:20px;line-height:1">✓</span>已傳送';}
+    }else if(data.error==='notBound'){
+      showToast(s.name+' 尚未綁定 LINE，請用下方「複製訊息」手動傳送','r');
+      if(btn){btn.disabled=false;btn.innerHTML='<span style="font-size:20px;line-height:1">📨</span>透過 LINE 直接傳送';}
+    }else{
+      showToast('傳送失敗：'+(data.error||'未知錯誤'),'r');
+      if(btn){btn.disabled=false;btn.innerHTML='<span style="font-size:20px;line-height:1">📨</span>透過 LINE 直接傳送';}
+    }
+  }catch(e){
+    showToast('傳送失敗：'+e.message,'r');
+    if(btn){btn.disabled=false;btn.innerHTML='<span style="font-size:20px;line-height:1">📨</span>透過 LINE 直接傳送';}
+  }
+}
 
 function copyAndOpenLine(){
   const el=document.getElementById('lineMsgText');if(!el)return;
