@@ -5849,6 +5849,22 @@ const GC={
         });
       }catch(e){console.warn('GC search error:',calId,e);}
     };
+    // 不靠 Google 關鍵字搜尋，直接抓某個日曆整段時間的所有事件（不帶 q=）。
+    // 原因：Google 的 q= 搜尋是關鍵字索引，如果日曆標題把「英文暱稱＋中文名＋電話」完全黏在一起、
+    // 中間沒有任何分隔符號（例如「sarah翁惠蘭0975203618」），Google 很可能把整串當成一個不可分割
+    // 的詞來索引，導致搜「翁惠蘭」這三個字連候選事件都搜不到——不是我們自己的比對邏輯濾掉的，
+    // 是 Google 搜尋那一關就漏了。全部抓下來自己比對雖然量較大，但保證不會因為 Google 的斷詞方式漏接。
+    const fetchAll=async(calId)=>{
+      try{
+        const data=await this.api(
+          `/calendars/${encodeURIComponent(calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=250`
+        );
+        (data.items||[]).forEach(ev=>{
+          const key=ev.iCalUID||ev.id;
+          if(!seen.has(key)){seen.add(key);ev.calendarId=calId;allEvents.push(ev);}
+        });
+      }catch(e){console.warn('GC fetchAll error:',calId,e);}
+    };
     // 所有日曆×關鍵字並行查詢（逐本序列查在多位老師時會拖到 10 秒以上）
     const jobs=[];
     for(const calId of calIds){
@@ -5858,6 +5874,9 @@ const GC={
         jobs.push(fetchQ(calId, phone.replace(/\D/g,'').slice(-8)));
       }
     }
+    // 學員自己老師對應的日曆額外整本抓，不依賴 Google 搜尋索引
+    const ownCalId=teacherName&&calMap[teacherName];
+    if(ownCalId)jobs.push(fetchAll(ownCalId));
     await Promise.all(jobs);
     // 驗證：排除取消課程；事件標題包含姓名 OR parseTitle 解出的電話後 8 碼吻合 OR 拆字後有重疊（見下方 nameTokens 說明）
     const phoneDigits=(phone||'').replace(/\D/g,'').slice(-8);
