@@ -4609,8 +4609,29 @@ function renderLineMessage(s, remain, isUpgraded, upgradedTo, isSub, subTeacher)
   parts.push('');
   parts.push('我們下次見～');
   const msg=parts.join('\n');
-  el.innerHTML='<div class="line-msg-box"><div class="line-msg-label">LINE 課後訊息</div><div class="line-msg-content" id="lineMsgText">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')+'</div><button id="lineSendBtn" class="line-msg-copy" onclick="sendLineCheckinMsg(\''+s.id+'\')" style="background:#06C755;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px"><span style="font-size:20px;line-height:1">📨</span>透過 LINE 直接傳送</button><button class="line-msg-copy" onclick="copyAndOpenLine()" style="background:transparent;border:1px solid var(--border);color:var(--ink2);display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;margin-top:8px"><span style="font-size:18px;line-height:1">💬</span>複製訊息 ＆ 開啟 LINE</button><div style="text-align:center;margin-top:8px"><span onclick="copyLineMsgById()" style="font-size:12px;color:var(--ink3);cursor:pointer;text-decoration:underline">只複製訊息</span></div></div>';
+  el.innerHTML='<div class="line-msg-box"><div class="line-msg-label">LINE 課後訊息</div><div class="line-msg-content" id="lineMsgText">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')+'</div><div id="lineMsgActions" data-sid="'+s.id+'"><div style="text-align:center;font-size:12px;color:var(--ink3);padding:8px 0">確認 LINE 綁定狀態…</div></div></div>';
   renderNextApptArea(s.id);
+  renderLineMsgActions(s.id, s.phone);
+}
+
+// 依綁定狀態決定顯示哪組按鈕：已綁定只給「直接傳送」；未綁定才顯示複製/開啟 LINE 的備用做法
+async function renderLineMsgActions(sid, phone){
+  const el=document.getElementById('lineMsgActions');
+  if(!el||el.dataset.sid!==sid)return;
+  const fallbackHTML='<button class="line-msg-copy" onclick="copyAndOpenLine()" style="background:transparent;border:1px solid var(--border);color:var(--ink2);display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px"><span style="font-size:18px;line-height:1">💬</span>複製訊息 ＆ 開啟 LINE</button><div style="text-align:center;margin-top:8px"><span onclick="copyLineMsgById()" style="font-size:12px;color:var(--ink3);cursor:pointer;text-decoration:underline">只複製訊息</span></div>';
+  const sendBtnHTML='<button id="lineSendBtn" class="line-msg-copy" onclick="sendLineCheckinMsg(\''+sid+'\')" style="background:#06C755;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px"><span style="font-size:20px;line-height:1">📨</span>透過 LINE 直接傳送</button>';
+  let bound=false;
+  try{
+    const key=(phone||'').replace(/\D/g,'').slice(-8);
+    if(key.length===8){
+      const res=await fetch(FB_URL+'/qingjing_line_bindings/'+key+'.json?auth='+FB_API_KEY);
+      const data=await res.json();
+      bound=!!(data&&data.userId);
+    }
+  }catch(e){console.warn('check LINE binding failed:',e);}
+  const cur=document.getElementById('lineMsgActions');
+  if(!cur||cur.dataset.sid!==sid)return; // 畫面已經換掉別位學員，不要覆蓋
+  cur.innerHTML=bound?sendBtnHTML:fallbackHTML;
 }
 
 
