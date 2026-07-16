@@ -4630,6 +4630,12 @@ function buildLineMsgText(s, isUpgraded, upgradedTo, upgradeDiff, lang){
   return parts.join('\n');
 }
 function escLineMsg(msg){return msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}
+// 如果 updateLineMsgWithAppt 已經先查到預約時間存在容器上，語言切換要重繪訊息時要沿用那個時間，
+// 不能直接拿 s.nextBooking（多半還是空的，日曆查到的預約不會寫回 s.nextBooking）
+function lineMsgStuWithAppt(s,areaEl){
+  if(areaEl&&areaEl.dataset.apptDate)return{...s,nextBooking:{date:areaEl.dataset.apptDate,time:areaEl.dataset.apptTime}};
+  return s;
+}
 
 function renderLineMessage(s, remain, isUpgraded, upgradedTo, isSub, subTeacher){
   const el=document.getElementById('lineMessageArea');
@@ -4667,7 +4673,7 @@ async function renderLineMsgActions(sid, phone, s, isUpgraded, upgradedTo, upgra
   if(areaEl&&areaEl.dataset.lang!==lang&&s){
     areaEl.dataset.lang=lang;
     const textEl=document.getElementById('lineMsgText');
-    if(textEl)textEl.innerHTML=escLineMsg(buildLineMsgText(s,isUpgraded,upgradedTo,upgradeDiff,lang));
+    if(textEl)textEl.innerHTML=escLineMsg(buildLineMsgText(lineMsgStuWithAppt(s,areaEl),isUpgraded,upgradedTo,upgradeDiff,lang));
   }
   const L=LINE_ACTION_LABELS[lang]||LINE_ACTION_LABELS.zh;
   const fallbackHTML='<button class="line-msg-copy" onclick="copyAndOpenLine()" style="background:transparent;border:1px solid var(--border);color:var(--ink2);display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px"><span style="font-size:18px;line-height:1">💬</span>'+L.copy+'</button><div style="text-align:center;margin-top:8px"><span onclick="copyLineMsgById()" style="font-size:12px;color:var(--ink3);cursor:pointer;text-decoration:underline">'+L.copyOnly+'</span></div>';
@@ -4746,6 +4752,21 @@ function openResendLineMsg(recId){
   </div>`;
   document.body.insertAdjacentHTML('beforeend',html);
   renderResendLineMsgActions(s.id, s.phone, s, r.isUpgraded, r.upgradedTo, upgradeDiff);
+  // 跟簽到當下的成功頁一樣，補發訊息也要去查 Google 日曆有沒有已排的下次上課（不能只看 s.nextBooking，
+  // 很多預約是日曆排的，沒有手動在系統裡按「約下次上課」）
+  if(typeof GC!=='undefined'&&GC.ok()){
+    const remain=s.total-s.used;
+    if(remain>0){
+      GC.searchStudentEvents(s.name,remain,s.teacher,s.phone).then(events=>{
+        if(!document.getElementById('resendLineOv'))return; // 視窗已經關掉了
+        const ev0=events[0];
+        const dt0=ev0&&ev0.start?.dateTime?new Date(ev0.start.dateTime):null;
+        if(dt0){
+          updateLineMsgWithAppt(fmt(dt0), String(dt0.getHours()).padStart(2,'0')+':'+String(dt0.getMinutes()).padStart(2,'0'), 'resendLineMsgText', 'resendLineMessageArea');
+        }
+      }).catch(e=>console.warn('resend GC search failed:',e));
+    }
+  }
 }
 
 async function renderResendLineMsgActions(sid, phone, s, isUpgraded, upgradedTo, upgradeDiff){
@@ -4767,7 +4788,7 @@ async function renderResendLineMsgActions(sid, phone, s, isUpgraded, upgradedTo,
   if(areaEl&&areaEl.dataset.lang!==lang){
     areaEl.dataset.lang=lang;
     const textEl=document.getElementById('resendLineMsgText');
-    if(textEl)textEl.innerHTML=escLineMsg(buildLineMsgText(s,isUpgraded,upgradedTo,upgradeDiff,lang));
+    if(textEl)textEl.innerHTML=escLineMsg(buildLineMsgText(lineMsgStuWithAppt(s,areaEl),isUpgraded,upgradedTo,upgradeDiff,lang));
   }
   const L=LINE_ACTION_LABELS[lang]||LINE_ACTION_LABELS.zh;
   const fallbackHTML='<button class="line-msg-copy" onclick="copyAndOpenLine(\'resendLineMsgText\')" style="background:transparent;border:1px solid var(--border);color:var(--ink2);display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px"><span style="font-size:18px;line-height:1">💬</span>'+L.copy+'</button><div style="text-align:center;margin-top:8px"><span onclick="copyLineMsgById(\'resendLineMsgText\')" style="font-size:12px;color:var(--ink3);cursor:pointer;text-decoration:underline">'+L.copyOnly+'</span></div>';
@@ -5422,10 +5443,15 @@ function confirmNextApptCustom(sid){
   confirmNextAppt(sid,date,time);
 }
 
-function updateLineMsgWithAppt(date,time){
-  const el=document.getElementById('lineMsgText');
+function updateLineMsgWithAppt(date,time,msgElId,areaElId){
+  msgElId=msgElId||'lineMsgText';areaElId=areaElId||'lineMessageArea';
+  const el=document.getElementById(msgElId);
   if(!el)return;
-  const lang=document.getElementById('lineMessageArea')?.dataset.lang==='en'?'en':'zh';
+  const areaElForAppt=document.getElementById(areaElId);
+  // 記在容器上：查詢綁定語言是非同步的，如果晚於這裡完成，語言切換那邊重繪訊息時
+  // 才有辦法知道已經查到預約時間、不要重繪回「還沒約課」的版本（見 rebuildLineMsgLang）
+  if(areaElForAppt){areaElForAppt.dataset.apptDate=date;areaElForAppt.dataset.apptTime=time;}
+  const lang=areaElForAppt?.dataset.lang==='en'?'en':'zh';
   // 取得純文字
   let text=el.innerHTML.replace(/<br>/g,'\n').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
   if(lang==='en'){
