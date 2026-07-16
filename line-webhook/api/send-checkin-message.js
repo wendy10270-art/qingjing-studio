@@ -13,9 +13,16 @@ const CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 // batch-reminder confirm endpoint too.
 const CHECKIN_PUSH_SECRET = process.env.CHECKIN_PUSH_SECRET || '';
 // 阿勇（店長的狗）照片，跟課後訊息一起送，served from this same Vercel project's /public
-// 2026-07-16：店長覺得目前這張去背貼圖不好看，暫時停用，之後換圖再打開
-const ALONG_IMAGE_URL = 'https://line-webhook-gules.vercel.app/along.png';
-const SEND_ALONG_IMAGE = false;
+// 2026-07-16：換成一組 8 張不同表情的去背貼圖，每次隨機挑一張送（*_preview.png 是縮圖版，
+// LINE 的 previewImageUrl 限制檔案要 <=1MB，原圖有幾張超過，所以另外存一份縮圖當預覽用）
+const SEND_ALONG_IMAGE = true;
+const ALONG_IMAGES = Array.from({ length: 8 }, (_, i) => ({
+  original: `https://line-webhook-gules.vercel.app/along${i + 1}.png`,
+  preview: `https://line-webhook-gules.vercel.app/along${i + 1}_preview.png`,
+}));
+function pickAlongImage() {
+  return ALONG_IMAGES[Math.floor(Math.random() * ALONG_IMAGES.length)];
+}
 
 async function fb(path, opts) {
   const res = await fetch(`${FB_URL}${path}.json?auth=${FB_API_KEY}`, opts);
@@ -31,7 +38,8 @@ function phoneKey(phone) {
 async function pushLine(userId, text) {
   const messages = [{ type: 'text', text }];
   if (SEND_ALONG_IMAGE) {
-    messages.push({ type: 'image', originalContentUrl: ALONG_IMAGE_URL, previewImageUrl: ALONG_IMAGE_URL });
+    const img = pickAlongImage();
+    messages.push({ type: 'image', originalContentUrl: img.original, previewImageUrl: img.preview });
   }
   const res = await fetch('https://api.line.me/v2/bot/message/push', {
     method: 'POST',
@@ -58,9 +66,9 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const { phone, message } = req.body || {};
+  const { phone, message, previewAllAlongImages } = req.body || {};
   const key = phoneKey(phone);
-  if (!key || !message) {
+  if (!key || (!message && !previewAllAlongImages)) {
     res.status(400).json({ ok: false, error: '缺少 phone 或 message' });
     return;
   }
@@ -74,6 +82,30 @@ module.exports = async (req, res) => {
   }
   if (!binding || !binding.userId) {
     res.status(200).json({ ok: false, error: 'notBound' });
+    return;
+  }
+
+  // 一次性除錯用途：把全部阿勇貼圖選項送給同一人看，方便店長挑圖，不是正常簽到流程會走的路徑
+  if (previewAllAlongImages) {
+    try {
+      // LINE push 每次最多 5 則訊息，每張圖片配一則文字標號＝2 則，一批最多放 2 張圖（4 則）
+      for (let i = 0; i < ALONG_IMAGES.length; i += 2) {
+        const batch = ALONG_IMAGES.slice(i, i + 2);
+        const messages = batch.flatMap((img, idx) => [
+          { type: 'text', text: `第 ${i + idx + 1} 張` },
+          { type: 'image', originalContentUrl: img.original, previewImageUrl: img.preview },
+        ]);
+        await fetch('https://api.line.me/v2/bot/message/push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}` },
+          body: JSON.stringify({ to: binding.userId, messages }),
+        });
+      }
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+      return;
+    }
+    res.status(200).json({ ok: true, sent: ALONG_IMAGES.length });
     return;
   }
 
