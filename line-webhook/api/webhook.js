@@ -45,9 +45,17 @@ function normalizePhone(text) {
   return digits.length >= 8 ? digits.slice(-8) : null;
 }
 
+// 共用課卡（同一個學員卡有多人一起用，如 altRecipients：[{name,phone}]）時，
+// 每一位額外的使用者也要能用自己的手機號碼綁定自己的 LINE
+function matchesPhone(s, last8) {
+  const p1 = s.phone && s.phone.replace(/\D/g, '').slice(-8);
+  if (p1 === last8) return true;
+  return (s.altRecipients || []).some((r) => r && r.phone && r.phone.replace(/\D/g, '').slice(-8) === last8);
+}
+
 async function findStudentsByPhone(last8) {
   const students = (await fb('/qingjing/s', { method: 'GET' })) || [];
-  return students.filter((s) => s && s.phone && s.phone.replace(/\D/g, '').slice(-8) === last8);
+  return students.filter((s) => s && matchesPhone(s, last8));
 }
 
 async function bindPhone(last8, userId, name, lang) {
@@ -197,9 +205,14 @@ async function handleEvent(event) {
   }
 
   const student = matches[0];
+  // 共用課卡：這支電話如果是某位 altRecipient 的，綁定顯示用她自己的名字，不是整個共用課卡的複合名稱
+  const altMatch = (student.altRecipients || []).find(
+    (r) => r && r.phone && r.phone.replace(/\D/g, '').slice(-8) === last8
+  );
+  const bindName = altMatch ? altMatch.name : student.name;
   try {
-    await bindPhone(last8, userId, student.name, lang);
-    await lineReply(event.replyToken, m.bindSuccess(student.name));
+    await bindPhone(last8, userId, bindName, lang);
+    await lineReply(event.replyToken, m.bindSuccess(bindName));
   } catch (e) {
     console.error('bind error', e);
     await lineReply(event.replyToken, m.bindError);

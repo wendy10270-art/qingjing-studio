@@ -74,6 +74,18 @@ def main():
     td = tomorrow.strftime('%Y/%m/%d')
     dow = (tomorrow.weekday() + 1) % 7  # 0=週日
 
+    # 共用課卡（一張學員卡多人共用，如「楊文玉｜怡潔媽｜衣彤」+ altRecipients）：
+    # 依日曆解析出的 attendeeName 決定這堂課實際提醒誰、發到哪支手機。
+    # 沒有 attendeeName（非日曆同步來源，如固定課/指定下堂）就用預設姓名+電話。
+    def resolve_recipient(st, attendee_name):
+        default_name = st['name'].split('｜')[0] if '｜' in (st.get('name') or '') else st.get('name')
+        alt_list = st.get('altRecipients') or []
+        if attendee_name:
+            for alt in alt_list:
+                if alt and alt.get('name') and (alt['name'] in attendee_name or attendee_name in alt['name']):
+                    return alt['name'], alt.get('phone')
+        return default_name, st.get('phone')
+
     # ── 明日課表（排課解析邏輯照抄 daily_digest.py，目標日期換成明天）──
     items = []
     for teacher, slots in (SCH.get(td) or {}).items():
@@ -82,17 +94,21 @@ def main():
                 continue
             st = next((x for x in S if x.get('id') == sl.get('sid')), None)
             if st:
-                items.append({'time': sl.get('time') or '', 'name': st['name'], 'teacher': teacher, 'phone': st.get('phone')})
+                name, phone = resolve_recipient(st, sl.get('attendeeName'))
+                items.append({'time': sl.get('time') or '', 'name': name, 'teacher': teacher, 'phone': phone})
     for st in S:
         skipped = any(sl.get('sid') == st.get('id') and sl.get('skip')
                       for slots in (SCH.get(td) or {}).values() for sl in slots or [])
         for rc in st.get('recurring') or []:
             if rc and rc.get('day') == dow and st.get('used', 0) < st.get('total', 0) and not skipped:
-                if not any(i['name'] == st['name'] and i['time'] == rc.get('time') for i in items):
-                    items.append({'time': rc.get('time', ''), 'name': st['name'], 'teacher': st.get('teacher', ''), 'phone': st.get('phone')})
+                name, phone = resolve_recipient(st, None)
+                if not any(i['name'] == name and i['time'] == rc.get('time') for i in items):
+                    items.append({'time': rc.get('time', ''), 'name': name, 'teacher': st.get('teacher', ''), 'phone': phone})
         nb = st.get('nextBooking')
-        if nb and nb.get('date') == td and not any(i['name'] == st['name'] for i in items):
-            items.append({'time': nb.get('time', ''), 'name': st['name'], 'teacher': st.get('teacher', ''), 'phone': st.get('phone')})
+        if nb and nb.get('date') == td:
+            name, phone = resolve_recipient(st, None)
+            if not any(i['name'] == name for i in items):
+                items.append({'time': nb.get('time', ''), 'name': name, 'teacher': st.get('teacher', ''), 'phone': phone})
     for t in T:
         if t and t.get('date') == td:
             items.append({'time': t.get('time', ''), 'name': t['name'] + '(體驗)', 'teacher': t.get('teacher', ''), 'phone': t.get('phone')})

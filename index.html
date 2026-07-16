@@ -873,6 +873,8 @@ const db={
     </div>
     <label>入帳日期</label>
     <input type="date" id="nPayDate" class="native-date-inp">
+    <label>實際入帳金額（自動計算，可手動覆蓋）</label>
+    <input type="number" id="nActualPayment" placeholder="選擇付款方式後自動帶入" oninput="if(parseInt(this.value)>0)setPayStatus('paid')" style="margin-bottom:12px">
     </div>
     <label>備註（選填）</label><input type="text" id="nNote" placeholder="例：分期、折扣備注…">
     <label>課程到期日（選填）</label>
@@ -891,7 +893,7 @@ const db={
         <input type="checkbox" id="nInstallment" onchange="toggleInstallment()" style="width:18px;height:18px;accent-color:var(--gold)">
         <span style="font-size:14px;color:var(--ink2)">分期付款</span>
       </label>
-      <div id="nInstallmentDetail" style="display:none;display:flex;align-items:center;gap:6px">
+      <div id="nInstallmentDetail" style="display:none;align-items:center;gap:6px">
         <span style="font-size:13px;color:var(--ink3)">每</span>
         <input type="number" id="nInstallmentEvery" value="5" min="1" style="width:60px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;text-align:center;outline:none">
         <span style="font-size:13px;color:var(--ink3)">堂提醒一次</span>
@@ -1520,6 +1522,7 @@ window.addEventListener('load', ()=>{
       startFbListener(); // 啟動即時監聽
       startPeriodicSync(); // 啟動定期同步（iOS Safari SSE 備援）
       try{autoGcSyncOnLoad();}catch(e){} // Auto GC sync first load of day
+      try{startPeriodicGcSync();}catch(e){} // 持續每 5 分鐘自動跟 Google 日曆同步課表
       // 啟動時靜默更新 GC token（有 cid 就嘗試，不管 ok() 結果）
       if(typeof GC!=='undefined'&&GC.cid){
         setTimeout(()=>GC.silentRefresh().then(ok=>{
@@ -1581,6 +1584,7 @@ function startPeriodicSync(){
             try{if(document.getElementById('ap-ledger')?.classList.contains('active'))renderLedger();}catch(e){}
           }
           if(!_fbEs||_fbEs.readyState===EventSource.CLOSED)startFbListener();
+          try{silentGcSync();}catch(e){} // 回到前景時順便跟 Google 日曆對一次
         });
       });
     }
@@ -1598,6 +1602,18 @@ function autoGcSyncOnLoad(){
       .then(()=>{try{renderTeachers();}catch(e){}})
       .catch(e=>console.warn('Auto GC sync failed:',e));
   },1500);
+}
+
+// 讓首頁課表持續跟 Google 日曆保持連動（小幫手沒有後台權限，不能手動點同步）
+let _periodicGcSyncTimer=null;
+function silentGcSync(){
+  if(typeof GC==='undefined'||!GC.ok())return;
+  if(!Object.keys(GC.calMap||{}).length)return;
+  gcSyncToday(undefined,{silent:true}).catch(e=>console.warn('Silent GC sync failed:',e));
+}
+function startPeriodicGcSync(){
+  if(_periodicGcSyncTimer)clearInterval(_periodicGcSyncTimer);
+  _periodicGcSyncTimer=setInterval(silentGcSync,5*60*1000); // 每 5 分鐘自動從 Google 日曆同步一次
 }
 
 function todayStr(){const d=new Date();return fmt(d)}
@@ -1866,7 +1882,7 @@ function onHomeSearch(val){
   const res=document.getElementById('homeSearchResults');if(!res)return;
   const v=val.trim();
   if(!v){res.style.display='none';return;}
-  const hits=S.filter(s=>s.name.includes(v)||s.phone.includes(v));
+  const hits=S.filter(s=>s.name.includes(v)||(s.phone||'').includes(v));
   if(!hits.length){
     res.style.display='block';
     res.innerHTML='<div style="padding:14px 16px;font-size:13px;color:var(--ink3)">找不到符合的學員</div>';
@@ -1986,7 +2002,7 @@ function onSearch(val){
   const v=val.trim();
   document.getElementById('searchClear').classList.toggle('show',v.length>0);
   if(!v){document.getElementById('searchResultArea').style.display='none';document.getElementById('stuListArea').style.display='block';return}
-  const results=S.filter(s=>s.name.includes(v)||s.phone.includes(v));
+  const results=S.filter(s=>s.name.includes(v)||(s.phone||'').includes(v));
   const td=todayStr();
   document.getElementById('stuListArea').style.display='none';
   document.getElementById('searchResultArea').style.display='block';
@@ -2138,7 +2154,14 @@ function renderCard(sid){
       </div>`;
     }
   }
-  document.getElementById('cardTop').innerHTML=leaveAlertToday+leaveAlertUpcoming+lowSessAlert+healthAlert+expiryAlert+`<div class="stu-top">
+  // General note (備註)
+  const noteAlert=s.note?
+    `<div style="background:var(--gold4);border:2px solid var(--gold2);border-radius:12px;padding:12px 16px;margin-bottom:13px">
+      <div style="font-size:13px;font-weight:500;color:var(--gold);margin-bottom:4px">📝 備註</div>
+      <div style="font-size:12px;color:var(--ink2);white-space:pre-wrap">${s.note}</div>
+    </div>`
+    :'';
+  document.getElementById('cardTop').innerHTML=leaveAlertToday+leaveAlertUpcoming+lowSessAlert+healthAlert+expiryAlert+noteAlert+`<div class="stu-top">
     <div class="${ci.stripe} stripe"></div>
     <div class="stu-top-row">
       <div><div class="stu-name-big">${s.name}</div><div class="stu-meta">${s.phone}<br>指導老師：${s.teacher||'—'}　</div></div>
@@ -2563,7 +2586,7 @@ function onTrialSearch(val){
   if(!v){resultsEl.style.display='none';return}
 
   // Search existing students
-  const stuMatches=S.filter(s=>s.name.includes(v)||s.phone.includes(v));
+  const stuMatches=S.filter(s=>s.name.includes(v)||(s.phone||'').includes(v));
   // Search past trial records
   const trialMatches=T.filter(t=>(t.name||'').includes(v)).filter((t,i,arr)=>arr.findIndex(x=>x.name===t.name)===i);
 
@@ -3157,7 +3180,7 @@ function onSlotSearch(t,i,val){
   const el=document.getElementById(resId);if(!el)return;
   const v=val.trim();
   if(!v){showSlotQuickPick(t,i);return}
-  const results=S.filter(s=>s.name.includes(v)||s.phone.includes(v));
+  const results=S.filter(s=>s.name.includes(v)||(s.phone||'').includes(v));
   if(!results.length){el.style.display='block';el.innerHTML='<div style="font-size:13px;color:var(--ink3);padding:10px 14px">找不到符合的學員</div>';return}
   el.style.display='block';
   el.innerHTML=results.map(s=>slotStuRow(t,i,s)).join('');
@@ -5555,7 +5578,8 @@ function doBackup(){
     customTeachers:CUSTOM_TEACHERS,
     ledger:LEDGER,
     gcSettle:GW,
-    rent:RENT
+    rent:RENT,
+    teacherLeaves:TL
   };
   const json=JSON.stringify(data,null,2);
   const blob=new Blob([json],{type:'application/json'});
@@ -5587,6 +5611,9 @@ function importBackup(file){
       LEDGER=data.ledger||[];
       GW=data.gcSettle||GW;
       RENT=data.rent||RENT;
+      TL=data.teacherLeaves||TL;
+      localStorage.setItem('qjf_tl',JSON.stringify(TL));
+      db.ref('qingjing_tl').set(TL).catch(e=>{});
       save();saveCustomTeachers();saveGW();saveRent();
       renderTeachers();renderBackupBar();renderMgrList();
       showToast('✓ 備份資料已成功匯入（'+S.length+'位學員、'+R.length+'筆簽到）');
@@ -5957,15 +5984,16 @@ function gcSaveMap(){
   showToast('✓ 日曆對照已儲存（'+Object.keys(map).length+' 位老師）');
 }
 
-async function gcSyncToday(ev){
+async function gcSyncToday(ev,opts){
+  const silent=!!(opts&&opts.silent);
   const btn=ev&&ev.target&&typeof ev.target.closest==='function'?ev.target.closest('button'):null;
   const resEl=document.getElementById('gcSyncResult');
-  if(resEl)resEl.innerHTML='<div style="color:var(--ink3);font-size:13px;padding:8px 0">同步中…</div>';
+  if(resEl&&!silent)resEl.innerHTML='<div style="color:var(--ink3);font-size:13px;padding:8px 0">同步中…</div>';
   if(btn){btn.disabled=true;btn.textContent='同步中…';}
   const calMap=GC.calMap;
   const teachers=Object.keys(calMap);
   if(!teachers.length){
-    showToast('請先設定老師日曆對照','r');
+    if(!silent)showToast('請先設定老師日曆對照','r');
     if(btn){btn.disabled=false;btn.textContent='📥 從 Google 日曆匯入今日課表';}
     return;
   }
@@ -5999,6 +6027,12 @@ async function gcSyncToday(ev){
             // 4. 包含比對（日曆名包含系統名，或系統名包含日曆名）
             if(s.name&&parsed.name&&parsed.name.includes(s.name))return true;
             if(s.name&&cleanParsedName&&cleanParsedName.includes(s.name))return true;
+            // 5. 共用方案別名比對：系統姓名用「｜」分隔多個人名（如「楊文玉｜怡潔媽｜衣彤」），
+            // 只要其中一個別名跟日曆解析出的姓名相符，就算同一個共用課卡
+            if(s.name&&s.name.includes('｜')){
+              const aliases=s.name.split('｜').map(a=>a.trim()).filter(Boolean);
+              if(aliases.some(a=>a===parsed.name||a===cleanParsedName||(parsed.name&&parsed.name.includes(a))||(cleanParsedName&&cleanParsedName.includes(a))))return true;
+            }
             return false;
           });
           if(stu)break;
@@ -6009,7 +6043,8 @@ async function gcSyncToday(ev){
           if(!SCH[td])SCH[td]={};
           if(!SCH[td][actualTeacher])SCH[td][actualTeacher]=[];
           if(!SCH[td][actualTeacher].find(sl=>sl.sid===stu.id)){
-            SCH[td][actualTeacher].push({sid:stu.id,time});
+            // attendeeName：記錄這堂課日曆上實際解析出的姓名（共用課卡時，用來判斷提醒要發給誰）
+            SCH[td][actualTeacher].push({sid:stu.id,time,attendeeName:parsed.name||''});
             added++;
             log.push(`✓ ${actualTeacher}・${stu.name}・${time}`);
           }else{skipped++;}
@@ -6039,11 +6074,13 @@ async function gcSyncToday(ev){
         </div>`).join('')}
       </div>`;
     }
-    if(resEl)resEl.innerHTML=html;
-    showToast('✓ 今日課表同步完成');
+    if(resEl&&!silent)resEl.innerHTML=html;
+    if(!silent)showToast('✓ 今日課表同步完成');
+    else if(added>0){try{renderTeachers();}catch(e){}showToast('🔄 課表已更新（新增 '+added+' 堂）');}
   }catch(e){
-    if(resEl)resEl.innerHTML=`<div style="color:var(--red);font-size:13px;padding:8px 0">同步失敗：${e.message}</div>`;
-    showToast('同步失敗：'+e.message,'r');
+    if(resEl&&!silent)resEl.innerHTML=`<div style="color:var(--red);font-size:13px;padding:8px 0">同步失敗：${e.message}</div>`;
+    if(!silent)showToast('同步失敗：'+e.message,'r');
+    else console.warn('Silent GC sync failed:',e);
   }finally{
     if(btn){btn.disabled=false;btn.textContent='📥 從 Google 日曆匯入今日課表';}
   }
@@ -6148,9 +6185,13 @@ function showMonthReport(){
   const[y,mo]=mk.split('/');
   const monthR=R.filter(r=>monthKey(r.date)===mk&&r.confirmed!==false);
   const monthT=T.filter(t=>monthKey(t.date)===mk&&t.confirmed===true);
-  const totalFee=monthR.reduce((a,r)=>{const s=S.find(x=>x.id===r.sid);return a+(getRecFee(r,s)||0)},0)+monthT.reduce((a,t)=>a+(t.manualFee!=null?t.manualFee:t.teacherFee),0)+GW.filter(g=>monthKey(g.date)===mk).reduce((a,g)=>a+(g.fee||0),0);
-  // 收入計入所有流水帳項目（新購/續課/首頁購課/體驗課費）
-  const monthIncome=LEDGER.filter(l=>monthKey(l.createdAt||l.payDate||'')===mk).reduce((a,l)=>a+(l.actualPayment||0),0);
+  // 場租：mode='deduct' 從老師薪資扣，代表這筆師資費其實沒付出去；mode='cash' 老師直接付現金給工作室，算工作室的額外收入
+  const monthRentDeduct=RENT.filter(r=>r.date&&monthKey(r.date)===mk&&r.mode==='deduct').reduce((a,r)=>a+(r.fee||0),0);
+  const monthRentCash=RENT.filter(r=>r.date&&monthKey(r.date)===mk&&r.mode==='cash').reduce((a,r)=>a+(r.fee||0),0);
+  const totalFee=monthR.reduce((a,r)=>{const s=S.find(x=>x.id===r.sid);return a+(getRecFee(r,s)||0)},0)+monthT.reduce((a,t)=>a+(t.manualFee!=null?t.manualFee:t.teacherFee),0)+GW.filter(g=>monthKey(g.date)===mk).reduce((a,g)=>a+(g.fee||0),0)-monthRentDeduct;
+  // 收入計入所有流水帳項目（新購/續課/首頁購課/體驗課費）+ 場租現金收入
+  const courseIncome=LEDGER.filter(l=>monthKey(l.createdAt||l.payDate||'')===mk).reduce((a,l)=>a+(l.actualPayment||0),0);
+  const monthIncome=courseIncome+monthRentCash;
   const monthNew=S.filter(s=>s.payDate&&monthKey(s.payDate)===mk);
   const sessionsByTeacher={};
   monthR.forEach(r=>{const s=S.find(x=>x.id===r.sid);const t=r.isSub?r.subTeacher:(s?.teacher||'其他');if(!sessionsByTeacher[t])sessionsByTeacher[t]=0;sessionsByTeacher[t]++;});
@@ -6182,8 +6223,9 @@ h1{font-family:'Noto Serif TC',serif;font-size:24px;margin-bottom:5px}
 </div>
 <div class="section">
   <div class="section-title">收入明細</div>
-  <div class="row"><span>課程收入</span><span class="amount big">$${monthIncome.toLocaleString()}</span></div>
-  <div class="row"><span>師資費用支出</span><span class="amount" style="color:#C05A20">$${totalFee.toLocaleString()}</span></div>
+  <div class="row"><span>課程收入</span><span class="amount big">$${courseIncome.toLocaleString()}</span></div>
+  ${monthRentCash>0?`<div class="row"><span>場租收入（現金）</span><span class="amount">$${monthRentCash.toLocaleString()}</span></div>`:''}
+  <div class="row"><span>師資費用支出${monthRentDeduct>0?'（已扣場租 $'+monthRentDeduct.toLocaleString()+'）':''}</span><span class="amount" style="color:#C05A20">$${totalFee.toLocaleString()}</span></div>
   <div class="row" style="font-weight:500"><span>毛利（收入 - 師資費）</span><span class="amount" style="color:#2E7D52">$${(monthIncome-totalFee).toLocaleString()}</span></div>
 </div>
 <div class="section">
