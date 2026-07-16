@@ -2,6 +2,11 @@
 // that scripts/line_reminder.py sends every day at 18:00. Nothing goes out to
 // students until this endpoint runs — it reads the pending batch that script
 // wrote to Firebase and actually pushes each LINE message.
+//
+// item.userId despite the name may hold a groupId/roomId instead of a personal
+// userId (for shared 1-on-2/1-on-3 students bound to a LINE group) — LINE's
+// push "to" field works identically for all three ID types, so no branching
+// needed here; see line_reminder.py's resolution of `to`.
 
 const FB_URL = 'https://qingjing-studio-default-rtdb.firebaseio.com';
 const FB_API_KEY = 'AIzaSyBg3_toi-Kqyi9iw2IbW9C5HhkbgJappxI';

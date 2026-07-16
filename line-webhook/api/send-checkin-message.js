@@ -35,7 +35,13 @@ function phoneKey(phone) {
   return digits.length >= 8 ? digits.slice(-8) : null;
 }
 
-async function pushLine(userId, text) {
+// 一對二/一對三共用群組時，綁定記的是 groupId/roomId，不是打字那個人的 userId；
+// push 的 "to" 三種 ID 用法完全一樣，只要挑對哪一個存在就好。
+function bindingTarget(binding) {
+  return binding.groupId || binding.roomId || binding.userId;
+}
+
+async function pushLine(to, text) {
   const messages = [{ type: 'text', text }];
   if (SEND_ALONG_IMAGE) {
     const img = pickAlongImage();
@@ -47,7 +53,7 @@ async function pushLine(userId, text) {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}`,
     },
-    body: JSON.stringify({ to: userId, messages }),
+    body: JSON.stringify({ to, messages }),
   });
   if (!res.ok) throw new Error(`LINE push failed: ${res.status} ${await res.text()}`);
 }
@@ -91,7 +97,8 @@ module.exports = async (req, res) => {
     res.status(500).json({ ok: false, error: '查詢綁定失敗：' + e.message });
     return;
   }
-  if (!binding || !binding.userId) {
+  const to = binding && bindingTarget(binding);
+  if (!to) {
     res.status(200).json({ ok: false, error: 'notBound' });
     return;
   }
@@ -109,7 +116,7 @@ module.exports = async (req, res) => {
         await fetch('https://api.line.me/v2/bot/message/push', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}` },
-          body: JSON.stringify({ to: binding.userId, messages }),
+          body: JSON.stringify({ to, messages }),
         });
       }
     } catch (e) {
@@ -121,7 +128,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    await pushLine(binding.userId, message);
+    await pushLine(to, message);
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
     return;

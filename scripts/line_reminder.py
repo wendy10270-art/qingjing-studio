@@ -123,7 +123,10 @@ def main():
     bound, unbound = [], []
     for it in items:
         binding = bindings.get(phone_key(it['phone']) or '')
-        if binding and binding.get('userId'):
+        # 一對二/一對三共用群組時，綁定記的是 groupId/roomId 不是 userId（通知要發到整個
+        # 群組），LINE push 的 "to" 三種 ID 用法一樣，哪個存在就用哪個。
+        to = binding and (binding.get('groupId') or binding.get('roomId') or binding.get('userId'))
+        if to:
             name = it['name'].replace('(體驗)', '')
             if binding.get('lang') == 'en':
                 text = (
@@ -140,7 +143,7 @@ def main():
                     f"時間：{td}（{wd_label}）{it['time'] or ''}\n"
                     f"老師：{it['teacher'] or '—'}"
                 )
-            bound.append({'userId': binding['userId'], 'name': it['name'], 'time': it['time'], 'text': text})
+            bound.append({'userId': to, 'name': it['name'], 'time': it['time'], 'text': text})
         else:
             unbound.append(it)
 

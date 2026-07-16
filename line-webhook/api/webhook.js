@@ -58,11 +58,13 @@ async function findStudentsByPhone(last8) {
   return students.filter((s) => s && matchesPhone(s, last8));
 }
 
-async function bindPhone(last8, userId, name, lang) {
+// dest 是 {userId} 或 {groupId} 或 {roomId} 三選一——一對二/一對三共用群組時，
+// 通知要發到整個群組，不是打字的那個人的私人帳號，所以綁的是 groupId 不是 userId。
+async function bindPhone(last8, dest, name, lang) {
   await fb(`/qingjing_line_bindings/${last8}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, name, boundAt: Date.now(), lang }),
+    body: JSON.stringify({ ...dest, name, boundAt: Date.now(), lang }),
   });
 }
 
@@ -72,26 +74,38 @@ async function unbindUserId(userId) {
   if (key) await fb(`/qingjing_line_bindings/${key}`, { method: 'DELETE' });
 }
 
-// 「有沒有剛打過關鍵字、正在等對方回電話號碼」的暫存狀態，10 分鐘內有效
-// 連語言一起記，因為關鍵字（決定語言）跟電話號碼是兩則分開的訊息
+// bot 被踢出群組/多人聊天室時，把綁在那個 groupId/roomId 上的綁定也一起清掉，
+// 不然店家以為還在通知，其實 bot 早就不在群組裡了，訊息根本送不到
+async function unbindConvo(id) {
+  const bindings = (await fb('/qingjing_line_bindings', { method: 'GET' })) || {};
+  const key = Object.keys(bindings).find(
+    (k) => bindings[k] && (bindings[k].groupId === id || bindings[k].roomId === id)
+  );
+  if (key) await fb(`/qingjing_line_bindings/${key}`, { method: 'DELETE' });
+}
+
+// 「有沒有剛打過關鍵字、正在等對方回電話號碼」的暫存狀態，10 分鐘內有效。
+// 連語言一起記，因為關鍵字（決定語言）跟電話號碼是兩則分開的訊息。
+// key 是「這個對話」的識別碼——群組/多人聊天室用 groupId/roomId（同一群組裡誰打關鍵字都算數，
+// 因為接下來的電話號碼也可能是另一個人代打），個人對話才用 userId。
 const PENDING_BIND_TTL_MS = 10 * 60 * 1000;
 
-async function getPendingBind(userId) {
-  const v = await fb(`/qingjing_line_pending_bind/${userId}`, { method: 'GET' });
+async function getPendingBind(convoKey) {
+  const v = await fb(`/qingjing_line_pending_bind/${convoKey}`, { method: 'GET' });
   if (!v || typeof v.ts !== 'number' || Date.now() - v.ts >= PENDING_BIND_TTL_MS) return null;
   return v;
 }
 
-async function setPendingBind(userId, lang) {
-  await fb(`/qingjing_line_pending_bind/${userId}`, {
+async function setPendingBind(convoKey, lang) {
+  await fb(`/qingjing_line_pending_bind/${convoKey}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ts: Date.now(), lang }),
   });
 }
 
-async function clearPendingBind(userId) {
-  await fb(`/qingjing_line_pending_bind/${userId}`, { method: 'DELETE' });
+async function clearPendingBind(convoKey) {
+  await fb(`/qingjing_line_pending_bind/${convoKey}`, { method: 'DELETE' });
 }
 
 async function lineReply(replyToken, text) {
@@ -140,6 +154,13 @@ async function handleEvent(event) {
     return;
   }
 
+  // bot 被踢出群組/多人聊天室：清掉綁在這個對話上的綁定，避免之後還誤以為能發到這裡
+  if (event.type === 'leave' || event.type === 'memberLeave') {
+    const id = event.source.groupId || event.source.roomId;
+    if (id) await unbindConvo(id).catch((e) => console.error('unbind convo error', e));
+    return;
+  }
+
   if (event.type === 'follow') {
     await lineReply(event.replyToken, GREETING_TEXT);
     return;
@@ -149,11 +170,21 @@ async function handleEvent(event) {
     return; // 非文字訊息（貼圖、圖片等）一律不回應
   }
 
-  const userId = event.source.userId;
+  // 一對二/一對三共用群組：通知要發到整個群組，不是打字那個人的私人帳號，
+  // 所以綁定要記 groupId/roomId，不是 userId；但「誰打了關鍵字/電話號碼」這個
+  // 暫存狀態也要用同一把 key（convoKey），這樣同群組裡不同人接力打字也認得出來。
+  const sourceType = event.source.type; // 'user' | 'group' | 'room'
+  const convoKey = event.source.groupId || event.source.roomId || event.source.userId;
+  const dest =
+    sourceType === 'group'
+      ? { groupId: event.source.groupId }
+      : sourceType === 'room'
+      ? { roomId: event.source.roomId }
+      : { userId: event.source.userId };
   const text = event.message.text.trim();
   const textLower = text.toLowerCase();
 
-  const pending = await getPendingBind(userId).catch((e) => {
+  const pending = await getPendingBind(convoKey).catch((e) => {
     console.error('pending check error', e);
     return null;
   });
@@ -165,14 +196,14 @@ async function handleEvent(event) {
     const isEn = !isZh && KEYWORDS_EN.some((k) => textLower.includes(k));
     if (isZh || isEn) {
       const lang = isEn ? 'en' : 'zh';
-      await setPendingBind(userId, lang).catch((e) => console.error('set pending error', e));
+      await setPendingBind(convoKey, lang).catch((e) => console.error('set pending error', e));
       await lineReply(event.replyToken, MSG[lang].askPhone);
     }
     return;
   }
 
   // 已經打過關鍵字，這則訊息當作電話號碼處理，用打關鍵字當下記住的語言回覆
-  await clearPendingBind(userId).catch((e) => console.error('clear pending error', e));
+  await clearPendingBind(convoKey).catch((e) => console.error('clear pending error', e));
   const lang = pending.lang === 'en' ? 'en' : 'zh';
   const m = MSG[lang];
 
@@ -211,7 +242,7 @@ async function handleEvent(event) {
   );
   const bindName = altMatch ? altMatch.name : student.name;
   try {
-    await bindPhone(last8, userId, bindName, lang);
+    await bindPhone(last8, dest, bindName, lang);
     await lineReply(event.replyToken, m.bindSuccess(bindName));
   } catch (e) {
     console.error('bind error', e);
