@@ -2259,7 +2259,7 @@ function renderCard(sid){
     </div>
 
     <div id="sigWrapSection">
-    <div class="sig-wrap"><div class="sig-hint" id="sigHint">請在此處手寫簽名</div><canvas id="sigC" height="170"></canvas></div>
+    <div class="sig-wrap"><div class="sig-hint" id="sigHint">請在此處手寫簽名</div><canvas id="sigC" height="170"></canvas><span onclick="openSigZoom()" style="position:absolute;top:8px;right:8px;font-size:18px;background:rgba(255,255,255,.85);border:1px solid var(--border);border-radius:8px;padding:4px 7px;cursor:pointer;line-height:1" title="放大簽名">🔍</span></div>
     <div class="sig-acts"><button class="btn btn-soft btn-sm" onclick="clearSig()">清除</button><button class="btn btn-ink" onclick="confirmSig()">確認簽到</button></div>
     </div>
     <button class="btn btn-soft" style="width:100%;padding:12px;margin-top:6px;font-size:13px;color:var(--ink3);border:1px dashed var(--border);border-radius:11px;background:transparent;cursor:pointer" onclick="quickConfirmNoSig()">⚡ 快速確認（免簽名）</button>
@@ -2298,7 +2298,7 @@ function renderTrialCard(tid){
   }
   sa.innerHTML=`<div class="sign-ttl" style="color:var(--teal)">體驗課　學員簽名</div>
     <div class="sign-sub">${todayStr()} ${nowTime()}</div>
-    <div class="sig-wrap"><div class="sig-hint" id="sigHint">請在此處手寫簽名</div><canvas id="sigC" height="170"></canvas></div>
+    <div class="sig-wrap"><div class="sig-hint" id="sigHint">請在此處手寫簽名</div><canvas id="sigC" height="170"></canvas><span onclick="openSigZoom()" style="position:absolute;top:8px;right:8px;font-size:18px;background:rgba(255,255,255,.85);border:1px solid var(--border);border-radius:8px;padding:4px 7px;cursor:pointer;line-height:1" title="放大簽名">🔍</span></div>
     <div class="sig-acts"><button class="btn btn-soft btn-sm" onclick="clearSig()">清除</button><button class="btn btn-teal" onclick="confirmTrialSig()">確認體驗課簽到</button></div>
     <button class="btn-back-full" onclick="goBackToStuList()">返回學員清單</button>`;
   setTimeout(initCanvas,80);
@@ -2416,6 +2416,62 @@ function initCanvas(){
   cv.addEventListener('touchend',()=>drawing=false);
 }
 function clearSig(){const cv=document.getElementById('sigC');if(!cv)return;cv.getContext('2d').clearRect(0,0,cv.width,cv.height);hasSig=false;document.getElementById('sigHint').style.opacity=1}
+
+// ── 放大簽名（手機小畫布不好簽，跳出全螢幕大畫布簽完再縮回小畫布）──
+function openSigZoom(){
+  document.getElementById('sigZoomOv')?.remove();
+  const small=document.getElementById('sigC');if(!small)return;
+  const html=`<div id="sigZoomOv" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px">
+    <div style="background:#FEFCF5;border-radius:14px;padding:14px;width:100%;max-width:640px;position:relative">
+      <div style="font-size:14px;color:var(--ink2);margin-bottom:8px;text-align:center">請在下方簽名</div>
+      <div style="border:1.5px dashed var(--border);border-radius:11px;overflow:hidden;position:relative">
+        <div class="sig-hint" id="sigZoomHint" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#C4B89A;font-size:16px;pointer-events:none;letter-spacing:2px">請在此處手寫簽名</div>
+        <canvas id="sigCBig" style="display:block;width:100%;touch-action:none;cursor:crosshair"></canvas>
+      </div>
+      <div style="display:flex;gap:9px;margin-top:12px">
+        <button class="btn btn-soft btn-sm" onclick="clearSigZoom()">清除</button>
+        <button class="btn btn-soft btn-sm" onclick="document.getElementById('sigZoomOv').remove()">取消</button>
+        <button class="btn btn-ink" onclick="confirmSigZoom()">完成</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend',html);
+  const big=document.getElementById('sigCBig');
+  big.width=big.parentElement.clientWidth;big.height=Math.round(big.width*0.55);
+  const bigCx=big.getContext('2d');
+  bigCx.strokeStyle='#1A1510';bigCx.lineWidth=3;bigCx.lineCap='round';bigCx.lineJoin='round';
+  // 如果小畫布已經有簽過（例如放大前簽一半），先放大畫到大畫布上讓他們接著簽
+  if(hasSig){bigCx.drawImage(small,0,0,big.width,big.height);document.getElementById('sigZoomHint').style.opacity=0;}
+  let bigDrawing=false,bigHasInk=hasSig;
+  function gp(e){const r=big.getBoundingClientRect(),src=e.touches?e.touches[0]:e;return{x:(src.clientX-r.left)*(big.width/r.width),y:(src.clientY-r.top)*(big.height/r.height)}}
+  const onDown=e=>{bigDrawing=true;bigCx.beginPath();const p=gp(e);bigCx.moveTo(p.x,p.y)};
+  const onMove=e=>{if(!bigDrawing)return;const p=gp(e);bigCx.lineTo(p.x,p.y);bigCx.stroke();bigHasInk=true;document.getElementById('sigZoomHint').style.opacity=0};
+  big.onmousedown=onDown;
+  big.onmousemove=onMove;
+  big.onmouseup=big.onmouseleave=()=>bigDrawing=false;
+  big.addEventListener('touchstart',e=>{e.preventDefault();onDown(e)},{passive:false});
+  big.addEventListener('touchmove',e=>{e.preventDefault();onMove(e)},{passive:false});
+  big.addEventListener('touchend',()=>bigDrawing=false);
+  big._getHasInk=()=>bigHasInk; // 給 confirmSigZoom 讀取，避免閉包變數互相干擾
+}
+function clearSigZoom(){
+  const big=document.getElementById('sigCBig');if(!big)return;
+  big.getContext('2d').clearRect(0,0,big.width,big.height);
+  document.getElementById('sigZoomHint').style.opacity=1;
+  big._getHasInk=()=>false;
+}
+function confirmSigZoom(){
+  const big=document.getElementById('sigCBig');const small=document.getElementById('sigC');
+  if(!big||!small)return;
+  if(!big._getHasInk||!big._getHasInk()){showToast('請先完成簽名','r');return}
+  const smallCx=small.getContext('2d');
+  smallCx.clearRect(0,0,small.width,small.height);
+  smallCx.drawImage(big,0,0,small.width,small.height);
+  hasSig=true;
+  const hint=document.getElementById('sigHint');if(hint)hint.style.opacity=0;
+  document.getElementById('sigZoomOv')?.remove();
+  showToast('✓ 簽名已完成');
+}
 
 function quickConfirmNoSig(){
   // 免簽名快速確認：直接以 hasSig=false 跳過簽名檢查
