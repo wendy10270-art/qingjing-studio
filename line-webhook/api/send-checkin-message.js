@@ -13,7 +13,9 @@ const CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 // batch-reminder confirm endpoint too.
 const CHECKIN_PUSH_SECRET = process.env.CHECKIN_PUSH_SECRET || '';
 // 阿勇（店長的狗）照片，跟課後訊息一起送，served from this same Vercel project's /public
+// 2026-07-16：店長覺得目前這張去背貼圖不好看，暫時停用，之後換圖再打開
 const ALONG_IMAGE_URL = 'https://line-webhook-gules.vercel.app/along.png';
+const SEND_ALONG_IMAGE = false;
 
 async function fb(path, opts) {
   const res = await fetch(`${FB_URL}${path}.json?auth=${FB_API_KEY}`, opts);
@@ -27,10 +29,10 @@ function phoneKey(phone) {
 }
 
 async function pushLine(userId, text) {
-  const messages = [
-    { type: 'text', text },
-    { type: 'image', originalContentUrl: ALONG_IMAGE_URL, previewImageUrl: ALONG_IMAGE_URL },
-  ];
+  const messages = [{ type: 'text', text }];
+  if (SEND_ALONG_IMAGE) {
+    messages.push({ type: 'image', originalContentUrl: ALONG_IMAGE_URL, previewImageUrl: ALONG_IMAGE_URL });
+  }
   const res = await fetch('https://api.line.me/v2/bot/message/push', {
     method: 'POST',
     headers: {
