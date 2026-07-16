@@ -4588,49 +4588,88 @@ function saveEditStu(){
 }
 
 // ── LINE 訊息 ──
+// 課後訊息的中英文版本。lang 由學員 LINE 綁定時選的語言決定（qingjing_line_bindings 的 lang 欄位）。
+function buildLineMsgText(s, isUpgraded, upgradedTo, lang){
+  const parts=[];
+  if(lang==='en'){
+    parts.push('Hi, this is manager Along 🐾');
+    parts.push('Great work in class today! Remember to drink water and rest well~');
+    if(isUpgraded){
+      parts.push('');
+      parts.push('*This session was upgraded 1on1→'+upgradedTo+', additional $'+curUpgradeDiff.toLocaleString()+' collected');
+    }
+    if(s.nextBooking){
+      parts.push('');
+      parts.push('📅 Next class');
+      parts.push(s.nextBooking.date+' '+s.nextBooking.time);
+    }else{
+      parts.push('');
+      parts.push("💛 You haven't booked your next class yet — let us know when works for you~");
+    }
+    parts.push('');
+    parts.push('See you next time~');
+  }else{
+    parts.push('我是阿勇店長，今天上課辛苦了！');
+    parts.push('記得練習後多補充水分、好好休息喔～');
+    if(isUpgraded){
+      parts.push('');
+      parts.push('＊本堂加人 1on1→'+upgradedTo+'，已補收 $'+curUpgradeDiff.toLocaleString());
+    }
+    if(s.nextBooking){
+      parts.push('');
+      parts.push('📅 下次上課時間');
+      parts.push(s.nextBooking.date+' '+s.nextBooking.time);
+    }else{
+      parts.push('');
+      parts.push('💛 目前還沒約下次上課時間，記得跟我們約課喔～');
+    }
+    parts.push('');
+    parts.push('我們下次見～');
+  }
+  return parts.join('\n');
+}
+function escLineMsg(msg){return msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}
+
 function renderLineMessage(s, remain, isUpgraded, upgradedTo, isSub, subTeacher){
   const el=document.getElementById('lineMessageArea');
   if(!el)return;
-  const parts=[];
-  parts.push('我是阿勇店長，今天上課辛苦了！');
-  parts.push('記得練習後多補充水分、好好休息喔～');
-  if(isUpgraded){
-    parts.push('');
-    parts.push('＊本堂加人 1on1→'+upgradedTo+'，已補收 $'+curUpgradeDiff.toLocaleString());
-  }
-  if(s.nextBooking){
-    parts.push('');
-    parts.push('📅 下次上課時間');
-    parts.push(s.nextBooking.date+' '+s.nextBooking.time);
-  }else{
-    parts.push('');
-    parts.push('💛 目前還沒約下次上課時間，記得跟我們約課喔～');
-  }
-  parts.push('');
-  parts.push('我們下次見～');
-  const msg=parts.join('\n');
-  el.innerHTML='<div class="line-msg-box"><div class="line-msg-label">LINE 課後訊息</div><div class="line-msg-content" id="lineMsgText">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')+'</div><div id="lineMsgActions" data-sid="'+s.id+'"><div style="text-align:center;font-size:12px;color:var(--ink3);padding:8px 0">確認 LINE 綁定狀態…</div></div></div>';
+  el.dataset.lang='zh'; // 預設中文，綁定狀態查完若是英文綁定會自動換
+  const msg=buildLineMsgText(s,isUpgraded,upgradedTo,'zh');
+  el.innerHTML='<div class="line-msg-box"><div class="line-msg-label">LINE 課後訊息</div><div class="line-msg-content" id="lineMsgText">'+escLineMsg(msg)+'</div><div id="lineMsgActions" data-sid="'+s.id+'"><div style="text-align:center;font-size:12px;color:var(--ink3);padding:8px 0">確認 LINE 綁定狀態…</div></div></div>';
   renderNextApptArea(s.id);
-  renderLineMsgActions(s.id, s.phone);
+  renderLineMsgActions(s.id, s.phone, s, isUpgraded, upgradedTo);
 }
 
-// 依綁定狀態決定顯示哪組按鈕：已綁定只給「直接傳送」；未綁定才顯示複製/開啟 LINE 的備用做法
-async function renderLineMsgActions(sid, phone){
+const LINE_ACTION_LABELS={
+  zh:{send:'透過 LINE 直接傳送', copy:'複製訊息 ＆ 開啟 LINE', copyOnly:'只複製訊息'},
+  en:{send:'Send via LINE', copy:'Copy & open LINE', copyOnly:'Copy message only'}
+};
+// 依綁定狀態決定顯示哪組按鈕：已綁定只給「直接傳送」；未綁定才顯示複製/開啟 LINE 的備用做法。
+// 同時查到的綁定語言（lang）如果是英文，訊息內文也要換成英文版本，不是只換按鈕文字。
+async function renderLineMsgActions(sid, phone, s, isUpgraded, upgradedTo){
   const el=document.getElementById('lineMsgActions');
   if(!el||el.dataset.sid!==sid)return;
-  const fallbackHTML='<button class="line-msg-copy" onclick="copyAndOpenLine()" style="background:transparent;border:1px solid var(--border);color:var(--ink2);display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px"><span style="font-size:18px;line-height:1">💬</span>複製訊息 ＆ 開啟 LINE</button><div style="text-align:center;margin-top:8px"><span onclick="copyLineMsgById()" style="font-size:12px;color:var(--ink3);cursor:pointer;text-decoration:underline">只複製訊息</span></div>';
-  const sendBtnHTML='<button id="lineSendBtn" class="line-msg-copy" onclick="sendLineCheckinMsg(\''+sid+'\')" style="background:#06C755;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px"><span style="font-size:20px;line-height:1">📨</span>透過 LINE 直接傳送</button>';
-  let bound=false;
+  let bound=false, lang='zh';
   try{
     const key=(phone||'').replace(/\D/g,'').slice(-8);
     if(key.length===8){
       const res=await fetch(FB_URL+'/qingjing_line_bindings/'+key+'.json?auth='+FB_API_KEY);
       const data=await res.json();
       bound=!!(data&&data.userId);
+      lang=(data&&data.lang==='en')?'en':'zh';
     }
   }catch(e){console.warn('check LINE binding failed:',e);}
   const cur=document.getElementById('lineMsgActions');
   if(!cur||cur.dataset.sid!==sid)return; // 畫面已經換掉別位學員，不要覆蓋
+  const areaEl=document.getElementById('lineMessageArea');
+  if(areaEl&&areaEl.dataset.lang!==lang&&s){
+    areaEl.dataset.lang=lang;
+    const textEl=document.getElementById('lineMsgText');
+    if(textEl)textEl.innerHTML=escLineMsg(buildLineMsgText(s,isUpgraded,upgradedTo,lang));
+  }
+  const L=LINE_ACTION_LABELS[lang]||LINE_ACTION_LABELS.zh;
+  const fallbackHTML='<button class="line-msg-copy" onclick="copyAndOpenLine()" style="background:transparent;border:1px solid var(--border);color:var(--ink2);display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px"><span style="font-size:18px;line-height:1">💬</span>'+L.copy+'</button><div style="text-align:center;margin-top:8px"><span onclick="copyLineMsgById()" style="font-size:12px;color:var(--ink3);cursor:pointer;text-decoration:underline">'+L.copyOnly+'</span></div>';
+  const sendBtnHTML='<button id="lineSendBtn" class="line-msg-copy" onclick="sendLineCheckinMsg(\''+sid+'\')" style="background:#06C755;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px"><span style="font-size:20px;line-height:1">📨</span>'+L.send+'</button>';
   cur.innerHTML=bound?sendBtnHTML:fallbackHTML;
 }
 
@@ -5332,17 +5371,30 @@ function confirmNextApptCustom(sid){
 function updateLineMsgWithAppt(date,time){
   const el=document.getElementById('lineMsgText');
   if(!el)return;
+  const lang=document.getElementById('lineMessageArea')?.dataset.lang==='en'?'en':'zh';
   // 取得純文字
   let text=el.innerHTML.replace(/<br>/g,'\n').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
-  // 移除舊的下次時間區塊、以及「還沒約下次上課」的提醒（找到預約了，這句話就不成立了）
-  text=text.replace(/\n\n📅 下次上課時間\n[^\n]*/g,'');
-  text=text.replace(/\n\n💛 目前還沒約下次上課時間，記得跟我們約課喔～/g,'');
-  // 在「我們下次見」前插入（插入點前面本來就有一個空行分隔，這裡不用再多加）
-  const apptBlock='📅 下次上課時間\n'+date+' '+time;
-  if(text.includes('我們下次見～')){
-    text=text.replace('我們下次見～', apptBlock+'\n\n我們下次見～');
-  } else {
-    text=text+'\n'+apptBlock;
+  if(lang==='en'){
+    // 移除舊的下次時間區塊、以及「還沒約下次上課」的提醒（找到預約了，這句話就不成立了）
+    text=text.replace(/\n\n📅 Next class\n[^\n]*/g,'');
+    text=text.replace(/\n\n💛 You haven't booked your next class yet[^\n]*/g,'');
+    const apptBlock='📅 Next class\n'+date+' '+time;
+    if(text.includes('See you next time~')){
+      text=text.replace('See you next time~', apptBlock+'\n\nSee you next time~');
+    } else {
+      text=text+'\n'+apptBlock;
+    }
+  }else{
+    // 移除舊的下次時間區塊、以及「還沒約下次上課」的提醒（找到預約了，這句話就不成立了）
+    text=text.replace(/\n\n📅 下次上課時間\n[^\n]*/g,'');
+    text=text.replace(/\n\n💛 目前還沒約下次上課時間，記得跟我們約課喔～/g,'');
+    // 在「我們下次見」前插入（插入點前面本來就有一個空行分隔，這裡不用再多加）
+    const apptBlock='📅 下次上課時間\n'+date+' '+time;
+    if(text.includes('我們下次見～')){
+      text=text.replace('我們下次見～', apptBlock+'\n\n我們下次見～');
+    } else {
+      text=text+'\n'+apptBlock;
+    }
   }
   el.innerHTML=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
 }
