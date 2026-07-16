@@ -4591,6 +4591,9 @@ function renderLineMessage(s, remain, isUpgraded, upgradedTo, isSub, subTeacher)
     parts.push('');
     parts.push('📅 下次上課時間');
     parts.push(s.nextBooking.date+' '+s.nextBooking.time);
+  }else{
+    parts.push('');
+    parts.push('💛 目前還沒約下次上課時間，記得跟我們約課喔～');
   }
   parts.push('');
   parts.push('我們下次見～');
