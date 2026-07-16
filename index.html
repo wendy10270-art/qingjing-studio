@@ -1629,6 +1629,11 @@ function todayStr(){const d=new Date();return fmt(d)}
 function fmt(d){return d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0')}
 function nowTime(){const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}
 function parseDate(s){try{const[y,m,d]=s.split('/');return new Date(+y,+m-1,+d)}catch(e){return new Date()}}
+// 「2026年7月16日星期四」這種完整格式，課卡格子裡顯示簽到日期用
+function fmtFullDate(s){
+  const d=parseDate(s);const[y,m,day]=s.split('/');
+  return `${y}年${parseInt(m)}月${parseInt(day)}日星期${WD[d.getDay()]}`;
+}
 function monthKey(s){return s.slice(0,7)}
 
 // ── 畫面切換 ──
@@ -2203,7 +2208,7 @@ function renderCard(sid){
       const iconColor=isPaper?'var(--ink3)':isRetro?'#6B3FA0':rec.isUpgraded?'var(--orange)':rec.isSub?'var(--blue)':'var(--gold2)';
       const cn=s.cellNotes?.[i]||'';
       cells+=`<div class="${cls}" onclick="editCellNote(${i})" style="cursor:pointer"><div class="cell-num">${i}</div>
-        <div class="cell-date">${isPaper?'紙':isRetro?'補':rec.date.slice(5)}<br>${isPaper?'本':isRetro?rec.date.slice(5):rec.time}</div>
+        <div class="cell-date">${isPaper?'紙本簽到':isRetro?'補簽：'+fmtFullDate(rec.date):fmtFullDate(rec.date)+'<br>'+rec.time}</div>
         <div class="cell-img">${rec.sig?`<img src="${rec.sig}">`:`<span style="font-size:16px;color:${iconColor}">✓</span>`}</div>
         ${isPaper?`<div class="cell-paper-tag">紙本</div>`:isRetro?`<div class="cell-paper-tag" style="background:#EDE8FF;color:#6B3FA0;border-color:#C4B0F0">補簽</div>`:rec.isUpgraded?`<div class="cell-up-tag">↑${rec.upgradedTo}</div>`:rec.isSub?`<div class="cell-sub-tag">代課</div>`:''}
         ${cn?`<div class="cell-note" style="color:var(--ink2)">${cn.replace(/</g,'&lt;')}</div>`:''}</div>`;
