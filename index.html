@@ -605,7 +605,7 @@ const db={
   <!-- 課卡 -->
   <div class="screen" id="sc-card"><div class="sc-pad">
     <div class="back-bar">
-      <button class="back-btn" onclick="goBackToStuList()">← 返回</button>
+      <button class="back-btn" onclick="goBackFromCard()">← 返回</button>
       <div class="back-title" id="cardTitle"></div>
     </div>
     <div id="cardTop"></div>
@@ -1751,10 +1751,12 @@ function homeStuTap(sid){
   const s=S.find(x=>x.id===sid);if(!s)return;
   curTeacher=s.teacher||curTeacher;
   selectStu(sid);
+  cardBackTarget='sc-teachers'; // 從首頁今日課程點進來，返回要回首頁，不是老師的學生清單（要放在 selectStu 之後，它自己會把這個值重設回 sc-students）
 }
 function homeTrialTap(tid){
   const t=T.find(x=>x.id===tid);if(!t)return;
   curTrialId=tid;curIsTrialStu=true;
+  cardBackTarget='sc-teachers'; // 同上
   document.getElementById('cardTitle').textContent=t.name+' (體驗)';
   renderTrialCard(tid);goScreen('sc-card');
 }
@@ -2095,11 +2097,22 @@ function renderStuList(){
 
 // ── 正式學員課卡 ──
 let curSid='',curIsTrialStu=false,curTrialId='';
+// 課卡上方「← 返回」要回到哪裡：從老師的學生清單點進來就回清單，從首頁今日課程點進來就回首頁
+let cardBackTarget='sc-students';
 function selectStu(sid){
   curSid=sid;curIsTrialStu=false;
+  cardBackTarget='sc-students'; // 這條路徑（老師→學生清單→課卡）本來就是回清單
   const s=S.find(x=>x.id===sid);
   document.getElementById('cardTitle').textContent=s.name;
   renderCard(sid);goScreen('sc-card');
+}
+function goBackFromCard(){
+  if(cardBackTarget==='sc-teachers'){
+    const bn=document.getElementById('bottomNav');if(bn)bn.style.display='flex';
+    renderTeachers();goScreen('sc-teachers');
+  }else{
+    goBackToStuList();
+  }
 }
 function goBackToStuList(){
   const bn=document.getElementById('bottomNav');
@@ -2271,6 +2284,7 @@ function renderCard(sid){
 // ── 體驗課課卡 ──
 function selectTrialStu(tid){
   curTrialId=tid;curIsTrialStu=true;
+  cardBackTarget='sc-students'; // 從老師的學生清單點進來
   const tr=T.find(x=>x.id===tid);
   document.getElementById('cardTitle').textContent=tr.name+' (體驗)';
   renderTrialCard(tid);goScreen('sc-card');
@@ -2767,6 +2781,7 @@ function addTrialStudent(){
   showToast('✓ '+name+' 體驗課已加入');
   // 直接跳到體驗課簽到
   curTrialId=newTrial.id;curIsTrialStu=true;
+  cardBackTarget='sc-teachers'; // 從首頁「新增體驗」快速操作進來，返回要回首頁
   document.getElementById('cardTitle').textContent=name+' (體驗)';
   renderTrialCard(newTrial.id);goScreen('sc-card');
 }
