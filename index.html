@@ -4753,19 +4753,21 @@ function openResendLineMsg(recId){
   document.body.insertAdjacentHTML('beforeend',html);
   renderResendLineMsgActions(s.id, s.phone, s, r.isUpgraded, r.upgradedTo, upgradeDiff);
   // 跟簽到當下的成功頁一樣，補發訊息也要去查 Google 日曆有沒有已排的下次上課（不能只看 s.nextBooking，
-  // 很多預約是日曆排的，沒有手動在系統裡按「約下次上課」）
+  // 很多預約是日曆排的，沒有手動在系統裡按「約下次上課」）。
+  // 注意：這裡故意不擋「這筆記錄所屬方案剩餘堂數＝0」的情況——同一人常常有好幾筆課程記錄
+  // （舊方案用完、新合約重新開一筆），這筆簽到記錄剛好綁在已用完的舊方案上，不代表這個人
+  // 下週沒有課，很可能課是排在新合約那筆記錄底下。searchStudentEvents 本來就會把 remain=0
+  // 視為預設上限 10 筆（0||10），不需要在外面多加這層判斷。
   if(typeof GC!=='undefined'&&GC.ok()){
     const remain=s.total-s.used;
-    if(remain>0){
-      GC.searchStudentEvents(s.name,remain,s.teacher,s.phone).then(events=>{
-        if(!document.getElementById('resendLineOv'))return; // 視窗已經關掉了
-        const ev0=events[0];
-        const dt0=ev0&&ev0.start?.dateTime?new Date(ev0.start.dateTime):null;
-        if(dt0){
-          updateLineMsgWithAppt(fmt(dt0), String(dt0.getHours()).padStart(2,'0')+':'+String(dt0.getMinutes()).padStart(2,'0'), 'resendLineMsgText', 'resendLineMessageArea');
-        }
-      }).catch(e=>console.warn('resend GC search failed:',e));
-    }
+    GC.searchStudentEvents(s.name,remain,s.teacher,s.phone).then(events=>{
+      if(!document.getElementById('resendLineOv'))return; // 視窗已經關掉了
+      const ev0=events[0];
+      const dt0=ev0&&ev0.start?.dateTime?new Date(ev0.start.dateTime):null;
+      if(dt0){
+        updateLineMsgWithAppt(fmt(dt0), String(dt0.getHours()).padStart(2,'0')+':'+String(dt0.getMinutes()).padStart(2,'0'), 'resendLineMsgText', 'resendLineMessageArea');
+      }
+    }).catch(e=>console.warn('resend GC search failed:',e));
   }
 }
 
