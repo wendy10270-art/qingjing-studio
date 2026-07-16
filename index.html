@@ -2265,7 +2265,7 @@ function renderCard(sid){
     <button class="btn btn-soft" style="width:100%;padding:12px;margin-top:6px;font-size:13px;color:var(--ink3);border:1px dashed var(--border);border-radius:11px;background:transparent;cursor:pointer" onclick="quickConfirmNoSig()">⚡ 快速確認（免簽名）</button>
     <button onclick="showRetroModal('${sid}')" style="width:100%;padding:11px;margin-top:4px;background:transparent;border:1px dashed #9C6FD6;color:#6B3FA0;border-radius:11px;font-size:13px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">補登過去某堂課</button>
     <button class="btn-back-full" onclick="goBackToStuList()">返回學員清單</button>`;
-  setTimeout(initCanvas,80);
+  setTimeout(()=>{initCanvas();openSigZoom();},80);
 }
 
 // ── 體驗課課卡 ──
@@ -2301,7 +2301,7 @@ function renderTrialCard(tid){
     <div class="sig-wrap"><div class="sig-hint" id="sigHint">請在此處手寫簽名</div><canvas id="sigC" height="170"></canvas><span onclick="openSigZoom()" style="position:absolute;top:8px;right:8px;font-size:18px;background:rgba(255,255,255,.85);border:1px solid var(--border);border-radius:8px;padding:4px 7px;cursor:pointer;line-height:1" title="放大簽名">🔍</span></div>
     <div class="sig-acts"><button class="btn btn-soft btn-sm" onclick="clearSig()">清除</button><button class="btn btn-teal" onclick="confirmTrialSig()">確認體驗課簽到</button></div>
     <button class="btn-back-full" onclick="goBackToStuList()">返回學員清單</button>`;
-  setTimeout(initCanvas,80);
+  setTimeout(()=>{initCanvas();openSigZoom();},80);
 }
 function confirmTrialSig(){
   if(!hasSig){showToast('請先完成簽名','r');return}
