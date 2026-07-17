@@ -1969,11 +1969,12 @@ function homeRentRowHTML(e){
   const handled=dayRent.find(r=>r.gcKey===e.key);
   const cfg=RENT_CFG[e.teacher];
   if(handled){
+    // 首頁不顯示金額／堂數（場租費用屬於店務隱私，不適合讓所有能碰到首頁的人看到）——
+    // 想看確切金額或剩餘堂數，一樣要進後台「核對課堂」或師資管理的課卡
     const st=RENT_MODE_STYLE[handled.mode]||RENT_MODE_STYLE.cash;
-    const amount=handled.mode==='prepaid'?'剩'+(handled.remainingAfter??'?')+'堂':(handled.mode==='deduct'?'－':'')+'$'+(handled.fee||0).toLocaleString();
     return`<div style="background:${st.bg};border:0.5px solid var(--brown4);border-radius:13px;padding:12px 14px;display:flex;align-items:center;gap:11px">
       <div style="font-size:13px;color:${st.color};font-weight:600;width:46px;flex-shrink:0">${e.time||'--:--'}</div>
-      <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:500;color:var(--brown)">🏠 ${hEsc(e.teacher)} 老師場租</div><div style="font-size:11px;color:${st.color};margin-top:2px">${amount}</div></div>
+      <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:500;color:var(--brown)">🏠 ${hEsc(e.teacher)} 老師場租</div></div>
       <span style="font-size:10px;background:${st.bg};color:${st.color};border:1px solid ${st.border};border-radius:99px;padding:3px 9px;flex-shrink:0">${st.text}</span>
     </div>`;
   }
@@ -1990,7 +1991,7 @@ function homeRentRowHTML(e){
     return`<div style="background:#fff;border:0.5px solid var(--brown4);border-radius:13px;padding:12px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap" onclick="event.stopPropagation()">
       <div style="font-size:13px;color:var(--gold2);font-weight:600;width:46px;flex-shrink:0">${e.time||'--:--'}</div>
       <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:500;color:var(--brown)">🏠 ${hEsc(e.teacher)} 老師場租</div></div>
-      <input type="number" id="rentFee_${gcDomId(e.key)}" value="${cfg.fee}" style="width:56px;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+      <input type="hidden" id="rentFee_${gcDomId(e.key)}" value="${cfg.fee}">
       <button onclick="gcRentSave('${jsQ(e.key)}','${cfg.mode}');renderTeachers();" style="flex-shrink:0;background:${st.color};color:#fff;border:none;border-radius:9px;padding:8px 13px;font-size:12px;font-weight:500;font-family:'Noto Sans TC',sans-serif;cursor:pointer">確認：${st.text}</button>
     </div>`;
   }
