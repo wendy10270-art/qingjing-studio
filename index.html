@@ -1034,6 +1034,7 @@ const db={
       <label>目前剩餘堂數</label>
       <input type="number" id="rentCfgRemaining" placeholder="例：20" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:12px;text-align:right">
       <div style="font-size:11px;color:var(--ink3);margin-bottom:12px">加購新一輪20堂時，回這裡把「剩餘堂數」加回去即可</div>
+      <button type="button" onclick="openManualRentIncome()" style="width:100%;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:9px;font-size:13px;cursor:pointer;color:var(--ink2);font-family:'Noto Sans TC',sans-serif;margin-bottom:12px">💰 登記今天收到的整包款項（例如買20堂收$12,000）</button>
     </div>
     <button class="btn-full bf-ink" onclick="saveRentCfgModal()" style="margin-top:6px">儲存場租設定</button>
     <button class="btn-full bf-soft" style="margin-top:9px" onclick="document.getElementById('rentCfgOv').classList.remove('open')">取消</button>
@@ -5338,6 +5339,21 @@ function saveRentCfgModal(){
   document.getElementById('rentCfgOv').classList.remove('open');
   renderTchMgr();
   showToast('✓ '+name+' 場租設定已儲存');
+}
+// 老師一次買一整包場租（例如20堂$12,000）收到的款項：跟日曆事件無關，是一次性收入，
+// 直接記一筆 RENT（mode 依付款方式決定，跟現有場租現金/轉帳收入算法共用），不影響堂數扣款
+function openManualRentIncome(){
+  const name=document.getElementById('rentCfgTeacher').value;if(!name)return;
+  const amountStr=prompt(name+'老師這次收到的場租款項金額（例如買20堂收$12000，就輸入12000）');
+  if(amountStr==null)return;
+  const amount=parseInt(amountStr);
+  if(isNaN(amount)||amount<=0){showToast('金額不正確','r');return;}
+  const note=prompt('備註（選填，例如：預付20堂）','預付堂數')||'';
+  const isTransfer=confirm('付款方式：按「確定」＝發薪日轉帳，按「取消」＝已收現金');
+  const ds=todayStr();
+  RENT.push({id:'rent'+Date.now(),date:ds,time:'',teacher:name,label:note,fee:amount,mode:isTransfer?'transfer':'cash',createdAt:ds});
+  saveRent();
+  showToast('✓ 已登記 '+name+' 老師 $'+amount.toLocaleString()+' 場租收入');
 }
 
 function renderTchCard(t, isCustom){
