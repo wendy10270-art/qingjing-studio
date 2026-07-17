@@ -2137,6 +2137,15 @@ function goBackToStuList(){
   renderStuList();goScreen('sc-students');
 }
 
+// 今天 Google 日曆同步進來的實際授課老師（gcSyncToday 會歸到真正開課的日曆老師名下，
+// 跟學員課卡上存的預設老師不一定同一人，代課時尤其常見）；找不到就回傳空字串。
+function todayCalActualTeacher(sid){
+  const td=todayStr();const sch=SCH[td]||{};
+  for(const[teacher,slots]of Object.entries(sch)){
+    if(slots.some(sl=>sl.sid===sid&&!sl.skip))return teacher;
+  }
+  return '';
+}
 function renderCard(sid){
   leaveType='advance'; // 每次打開新課卡重設請假類型
   const s=S.find(x=>x.id===sid);const recs=R.filter(r=>r.sid===sid);
@@ -2266,13 +2275,17 @@ function renderCard(sid){
       <div class="upgrade-notice" id="upgradeNotice" style="display:none"></div>
     </div>`;
   }
+  const calActualTeacher=todayCalActualTeacher(sid);
+  const autoSub=calActualTeacher&&calActualTeacher!==s.teacher;
+  const autoSubNote=autoSub?`<div style="font-size:11px;color:var(--gold2);margin:-4px 0 8px 2px">🔄 已依 Google 日曆自動偵測代課老師，如不正確可手動修改或取消</div>`:'';
   sa.innerHTML=`<div class="sign-ttl">第 ${s.used+1} 堂　學員簽名</div>
     <div class="sign-sub">${todayStr()} ${nowTime()}</div>
     ${upgradeSection}
     <div class="opt-row bg-default"><span class="opt-lbl">本堂為代課</span>
-      <label class="tog-wrap"><input type="checkbox" id="subTog" onchange="onSubTog()"><div class="tog-track"></div><div class="tog-thumb"></div></label>
+      <label class="tog-wrap"><input type="checkbox" id="subTog" onchange="onSubTog()"${autoSub?' checked':''}><div class="tog-track"></div><div class="tog-thumb"></div></label>
     </div>
-    <div class="sub-extra" id="subInpWrap"><label>代課老師姓名</label><input type="text" id="subTeacher" placeholder="例：Winnie" style="margin-bottom:0"></div>
+    ${autoSubNote}
+    <div class="sub-extra${autoSub?' show':''}" id="subInpWrap"><label>代課老師姓名</label><input type="text" id="subTeacher" placeholder="例：Winnie" value="${hEsc(autoSub?calActualTeacher:'')}" style="margin-bottom:0"></div>
 
     <div class="opt-row bg-purple"><span class="opt-lbl" style="color:#6B3FA0">記錄為請假（不簽名、不扣堂）</span>
       <label class="tog-wrap purple"><input type="checkbox" id="leaveTog" onchange="onLeaveTog()"><div class="tog-track"></div><div class="tog-thumb"></div></label>
@@ -3394,7 +3407,7 @@ function renderDaily(){
         const chip=r.isUpgraded?'<span class="chip chip-up">＋1人｜'+r.upgradedTo+'</span>':r.isSub?'<span class="chip chip-sub">代課</span>':'<span class="chip chip-done">已簽到</span>';
         return`<div class="cr" style="background:${confirmed?'var(--white)':'#FFFDF0'}">
           <div class="cr-time">${r.time||'—'}</div>
-          <div class="cr-info"><div class="cr-name">${s.name}</div><div class="cr-course">${s.course}${r.manualNote?` (${r.manualNote})`:''}</div></div>
+          <div class="cr-info"><div class="cr-name">${s.name}</div><div class="cr-course">${s.course}${r.manualNote?` (${r.manualNote})`:''} <span onclick="gcPickTeacher('${jsQ(r.id)}','regular')" style="cursor:pointer;color:var(--ink3);text-decoration:underline dotted;white-space:nowrap">✏️改老師</span></div></div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
             <div style="display:flex;gap:5px;align-items:center">${chip}${adj?`<span class="chip chip-adj">已調整</span>`:''}</div>
             <div style="display:flex;align-items:center;gap:6px">
