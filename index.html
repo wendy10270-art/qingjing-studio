@@ -2546,7 +2546,6 @@ function renderCard(sid){
     <div class="sig-wrap"><div class="sig-hint" id="sigHint">請在此處手寫簽名</div><canvas id="sigC" height="170"></canvas><span onclick="openSigZoom()" style="position:absolute;top:8px;right:8px;font-size:18px;background:rgba(255,255,255,.85);border:1px solid var(--border);border-radius:8px;padding:4px 7px;cursor:pointer;line-height:1" title="放大簽名">🔍</span></div>
     <div class="sig-acts"><button class="btn btn-soft btn-sm" onclick="clearSig()">清除</button><button class="btn btn-ink" onclick="confirmSig()">確認簽到</button></div>
     </div>
-    <button class="btn btn-soft" style="width:100%;padding:12px;margin-top:6px;font-size:13px;color:var(--ink3);border:1px dashed var(--border);border-radius:11px;background:transparent;cursor:pointer" onclick="quickConfirmNoSig()">⚡ 快速確認（免簽名）</button>
     <button onclick="showRetroModal('${sid}')" style="width:100%;padding:11px;margin-top:4px;background:transparent;border:1px dashed #9C6FD6;color:#6B3FA0;border-radius:11px;font-size:13px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">補登過去某堂課</button>
     <button class="btn-back-full" onclick="goBackToStuList()">返回學員清單</button>`;
   setTimeout(()=>{initCanvas();openSigZoom();},80);
@@ -2755,17 +2754,10 @@ function confirmSigZoom(){
   hasSig=true;
   const hint=document.getElementById('sigHint');if(hint)hint.style.opacity=0;
   document.getElementById('sigZoomOv')?.remove();
-  showToast('✓ 簽名已完成');
+  // 簽完直接送出，不用再手動滑回下方點「確認簽到」——放大簽名框的「完成」本身就是確定簽到
+  document.querySelector('.sig-acts button:not(.btn-soft)')?.click();
 }
 
-function quickConfirmNoSig(){
-  // 免簽名快速確認：直接以 hasSig=false 跳過簽名檢查
-  hasSig=false;
-  _quickNoSig=true;
-  confirmSig();
-  _quickNoSig=false;
-}
-let _quickNoSig=false;
 let _lastSignInRecId='',_lastSignInSid='';
 let _undoTimer=null,_undoSecs=0;
 function startUndoTimer(){
@@ -2796,7 +2788,7 @@ function undoLastSignIn(){
   renderStuList();goScreen('sc-students');
 }
 function confirmSig(){
-  if(!hasSig&&!_quickNoSig){showToast('請先完成簽名','r');return}
+  if(!hasSig){showToast('請先完成簽名','r');return}
   const isSub=document.getElementById('subTog')?.checked||false;
   const subTeacher=isSub?(document.getElementById('subTeacher')?.value.trim()||''):'';
   if(isSub&&!subTeacher){showToast('請填寫代課老師','r');return}
@@ -2809,7 +2801,7 @@ function confirmSig(){
   const parts=(s.course||'').split(' ');
   const actualFee=isUpgraded?curUpgradeTeacherFee:getDefaultFee(s.teacher,s.course);
   const newRecId='r'+Date.now();
-  R.push({id:newRecId,sid:curSid,date:todayStr(),time:nowTime(),session:s.used,sig:_quickNoSig?null:(document.getElementById('sigC')?.toDataURL()||null),isSub,subTeacher,isUpgraded,upgradedTo:isUpgraded?curUpgradeRatio:'',upgradeDiff:isUpgraded?curUpgradeDiff:0,actualFee,manualFee:null,manualNote:'',confirmed:false,upgPayMethod:isUpgraded?upgPayMethod:'',feeCollected:isUpgraded?feeCollected:false});
+  R.push({id:newRecId,sid:curSid,date:todayStr(),time:nowTime(),session:s.used,sig:document.getElementById('sigC')?.toDataURL()||null,isSub,subTeacher,isUpgraded,upgradedTo:isUpgraded?curUpgradeRatio:'',upgradeDiff:isUpgraded?curUpgradeDiff:0,actualFee,manualFee:null,manualNote:'',confirmed:false,upgPayMethod:isUpgraded?upgPayMethod:'',feeCollected:isUpgraded?feeCollected:false});
   _lastSignInRecId=newRecId;_lastSignInSid=curSid;
   save();renderTeachers();
   const remain=s.total-s.used;
