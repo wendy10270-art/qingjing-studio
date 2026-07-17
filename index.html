@@ -3008,60 +3008,9 @@ function pConfirm(){
   } else {document.getElementById('pinErr').textContent='密碼錯誤，請再試一次';pinStr='';updPinDots()}
 }
 
-let _dashCollapsed=localStorage.getItem('qjf_dashCollapsed')==='1';
-function toggleDash(){
-  _dashCollapsed=!_dashCollapsed;
-  localStorage.setItem('qjf_dashCollapsed',_dashCollapsed?'1':'0');
-  renderDashboard();
-}
 function renderDashboard(){
   const el=document.getElementById('dashBoard');if(!el)return;
-  const td=todayStr();
-  let todayCnt=0;
-  Object.values(SCH[td]||{}).forEach(slots=>todayCnt+=slots.filter(sl=>!sl.skip).length);
-  const mk=monthKey(td);
-  // 收入計入所有流水帳項目（新購/續課/首頁購課/體驗課費）
-  const monthIncome=LEDGER.filter(l=>monthKey(l.createdAt||l.payDate||'')===mk).reduce((a,l)=>a+(l.actualPayment||0),0);
-  const monthNew=S.filter(s=>s.payDate&&monthKey(s.payDate)===mk).length;
-  const lowSess=S.filter(s=>s.used<s.total&&s.total-s.used<=2);
-  const now=new Date();const in14=new Date(now.getTime()+14*864e5);
-  const nearExpiry=S.filter(s=>{if(!s.expiryDate)return false;const ed=parseDate(s.expiryDate);return ed>=now&&ed<=in14;});
-  const warnCount=lowSess.length+nearExpiry.length;
-  const summaryLine=`今日 ${todayCnt} 堂・本月 $${(monthIncome/1000).toFixed(1)}k・新生 ${monthNew}${warnCount?`・⚠️ ${warnCount} 則提醒`:''}`;
-  el.innerHTML=`
-<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:0">
-  <div onclick="toggleDash()" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;${_dashCollapsed?'':'margin-bottom:10px'}">
-    <div style="font-size:12px;font-weight:500;color:var(--ink3);letter-spacing:1.5px">今日概況</div>
-    <div style="display:flex;align-items:center;gap:8px">
-      ${_dashCollapsed?`<span style="font-size:11px;color:var(--ink3)">${summaryLine}</span>`:''}
-      <span style="font-size:14px;color:var(--ink3);transition:transform .2s;display:inline-block;transform:rotate(${_dashCollapsed?'0':'180'}deg)">▼</span>
-    </div>
-  </div>
-  ${_dashCollapsed?'':`
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:${lowSess.length||nearExpiry.length?'12px':'0'}">
-    <div style="text-align:center;padding:10px 6px;background:var(--bg);border-radius:9px">
-      <div style="font-family:'Noto Serif TC',serif;font-size:22px;color:var(--gold)">${todayCnt}</div>
-      <div style="font-size:11px;color:var(--ink3);margin-top:2px">今日課程</div>
-    </div>
-    <div style="text-align:center;padding:10px 6px;background:var(--bg);border-radius:9px">
-      <div style="font-family:'Noto Serif TC',serif;font-size:18px;color:var(--green)">$${(monthIncome/1000).toFixed(1)}k</div>
-      <div style="font-size:11px;color:var(--ink3);margin-top:2px">本月收入</div>
-    </div>
-    <div style="text-align:center;padding:10px 6px;background:var(--bg);border-radius:9px">
-      <div style="font-family:'Noto Serif TC',serif;font-size:22px;color:var(--teal)">${monthNew}</div>
-      <div style="font-size:11px;color:var(--ink3);margin-top:2px">本月新學員</div>
-    </div>
-  </div>
-  ${lowSess.length?`<div style="background:var(--orange2);border:1px solid var(--orange3);border-radius:9px;padding:10px 13px;margin-bottom:${nearExpiry.length?'8px':'0'}">
-    <div style="font-size:12px;font-weight:500;color:var(--orange);margin-bottom:5px">⚠️ 課程即將用完（≤2堂）</div>
-    ${lowSess.map(s=>`<div style="font-size:12px;color:var(--ink2);padding:2px 0">・${s.name}（${s.teacher}）剩 ${s.total-s.used} 堂</div>`).join('')}
-  </div>`:''}
-  ${nearExpiry.length?`<div style="background:#FFF4EE;border:1px solid #F5C4A1;border-radius:9px;padding:10px 13px">
-    <div style="font-size:12px;font-weight:500;color:#C05A20;margin-bottom:5px">📅 課程即將到期（14天內）</div>
-    ${nearExpiry.map(s=>`<div style="font-size:12px;color:var(--ink2);padding:2px 0">・${s.name} 到期日：${s.expiryDate}</div>`).join('')}
-  </div>`:''}
-  `}
-</div>`;
+  el.innerHTML=''; // 「今日概況」卡片已依店長要求移除
 }
 
 // 薪資結算子頁：daily=核對課堂（原確認消課＋GC核銷）、wage=薪資總覽
