@@ -5357,14 +5357,31 @@ function openRentCard(name){
   document.getElementById('rentCardTitle').textContent=name+' 老師・場租課卡';
   const el=document.getElementById('rentCardBody');
   if(!cfg||cfg.mode!=='prepaid'){el.innerHTML='<div style="text-align:center;color:var(--ink3);padding:20px;font-size:13px">這位老師目前不是預付堂數模式</div>';document.getElementById('rentCardOv').classList.add('open');return;}
-  const used=(cfg.total||0)-(cfg.remaining||0);
+  const total=cfg.total||0,remaining=cfg.remaining||0,used=total-remaining;
   const entries=RENT.filter(r=>r.teacher===name&&(r.mode==='prepaid'||r.sessions))
     .sort((a,b)=>(b.date+(b.time||'')).localeCompare(a.date+(a.time||'')));
+  // 用掉的堂數依時間正序對應成方格 1、2、3...，跟學員課卡同一套視覺（方格＋日期＋打勾），
+  // 方便老師/店長對堂數有疑義時，一眼看出「第幾堂是哪天用的」
+  const usageAsc=RENT.filter(r=>r.teacher===name&&r.mode==='prepaid').sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+  let cells='';
+  for(let i=1;i<=total;i++){
+    if(i<=used){
+      const rec=usageAsc[i-1];
+      const dateLabel=rec?(rec.time?fmtFullDate(rec.date)+'<br>'+rec.time:fmtFullDate(rec.date)):'';
+      cells+=`<div class="cell signed"><div class="cell-num">${i}</div><div class="cell-date">${dateLabel}</div><div class="cell-img"><span style="font-size:16px;color:var(--gold2)">✓</span></div></div>`;
+    }else if(i===used+1){
+      cells+=`<div class="cell next-up"><div class="cell-num">${i}</div><div class="cell-img" style="padding-top:7px"><svg width="24" height="13" viewBox="0 0 38 20"><path d="M3 10 Q11 3 19 10 Q27 17 35 10" stroke="#C4973A" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg></div><div class="cell-tap">下一堂</div></div>`;
+    }else{
+      cells+=`<div class="cell memo-empty"><div class="cell-num">${i}</div></div>`;
+    }
+  }
   el.innerHTML=`
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
-      <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;color:var(--ink)">${cfg.total||0}</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">總堂數</div></div>
-      <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;color:var(--red)">${used}</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">已使用</div></div>
-      <div style="background:var(--gold4);border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;color:var(--gold)">${cfg.remaining||0}</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">剩餘</div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:0 2px;font-size:13px">
+      <span style="color:var(--ink3)">已用 ${used}／${total} 堂</span>
+      <span style="color:var(--gold)">剩餘 ${remaining} 堂</span>
+    </div>
+    <div class="grid-wrap" style="padding:0 0 14px"><div class="grid">${cells}</div>
+      <div class="grid-legend"><span><span class="leg-dot" style="background:var(--gold4);border:1px solid var(--gold2)"></span>已使用</span><span><span class="leg-dot" style="border:2px solid var(--gold)"></span>下一堂</span></div>
     </div>
     <div style="font-size:12px;color:var(--ink3);letter-spacing:1px;margin-bottom:8px">使用與購買紀錄</div>
     ${entries.length?entries.map(r=>{
