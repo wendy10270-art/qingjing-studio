@@ -5491,7 +5491,7 @@ function saveManualRentIncome(){
   const payMethod=document.getElementById('mriPayMethod').value;
   const note=document.getElementById('mriNote').value.trim()||('預付'+sessions+'堂');
   if(isNaN(sessions)||sessions<=0){showToast('請輸入購買堂數','r');return;}
-  if(isNaN(amount)||amount<=0){showToast('請輸入總金額或單堂金額','r');return;}
+  if(isNaN(amount)||amount<0){showToast('請輸入總金額或單堂金額','r');return;}
   const cfg=RENT_CFG[name]&&RENT_CFG[name].mode==='prepaid'?RENT_CFG[name]:{mode:'prepaid',total:0,remaining:0};
   cfg.total=(cfg.total||0)+sessions;
   cfg.remaining=(cfg.remaining||0)+sessions;
