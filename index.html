@@ -1925,6 +1925,75 @@ function renderTeachers(){
       </div>
       <button onclick="homeGcCreate(${i})" style="flex-shrink:0;background:#E87D3E;color:#fff;border:none;border-radius:9px;padding:8px 13px;font-size:12px;font-weight:500;font-family:'Noto Sans TC',sans-serif;cursor:pointer">＋ 建檔</button>
     </div>`).join('')}
+  ${_homeRentEvents.map(e=>homeRentRowHTML(e)).join('')}
+  </div>`;
+  if(_homeRentFetchedDate!==td)fetchHomeRentEvents();
+}
+// 首頁場租快速簽到：跟後台「核對課堂」共用同一套 gcRentSave/gcRentSavePrepaid，
+// 差別只在事件來源改成專門為首頁抓的 _homeRentEvents（今天，所有老師的日曆）。
+// 小幫手本來就能在首頁幫學員簽到，場租扣堂放在這裡權限上是一致的，不算額外開權限。
+let _homeRentEvents=[];
+let _homeRentFetchedDate='';
+async function fetchHomeRentEvents(){
+  if(typeof GC==='undefined'||!GC.ok())return;
+  const calMap=GC.calMap||{};
+  if(!Object.keys(calMap).length)return;
+  const td=todayStr();
+  const d=parseDate(td);
+  const tMin=encodeURIComponent(new Date(d.getFullYear(),d.getMonth(),d.getDate()).toISOString());
+  const tMax=encodeURIComponent(new Date(d.getFullYear(),d.getMonth(),d.getDate()+1).toISOString());
+  const found=[];
+  await Promise.all(Object.entries(calMap).map(async([teacher,calId])=>{
+    if(!calId)return;
+    try{
+      const data=await GC.api(`/calendars/${encodeURIComponent(calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=50`);
+      (data.items||[]).forEach(ev=>{
+        if(ev.status==='cancelled')return;
+        const parsed=GC.parseTitle(ev.summary||'');if(!parsed||!gcIsRent(parsed.type))return;
+        const key=ev.iCalUID||ev.id;
+        found.push({key,teacher,time:GC.getTime(ev),label:gcRentLabel(parsed.type),note:(parsed.notes||[]).join('・')});
+      });
+    }catch(e){console.warn('home rent fetch err:',teacher,e);}
+  }));
+  _rentEvents=found; // 跟「核對課堂」共用同一個事件池，gcRentSave/gcRentSavePrepaid 才找得到事件
+  _homeRentEvents=found.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  _homeRentFetchedDate=td;
+  renderTeachers();
+}
+function homeRentRowHTML(e){
+  const dayRent=RENT.filter(r=>r.date===todayStr());
+  const handled=dayRent.find(r=>r.gcKey===e.key);
+  const cfg=RENT_CFG[e.teacher];
+  if(handled){
+    const st=RENT_MODE_STYLE[handled.mode]||RENT_MODE_STYLE.cash;
+    const amount=handled.mode==='prepaid'?'剩'+(handled.remainingAfter??'?')+'堂':(handled.mode==='deduct'?'－':'')+'$'+(handled.fee||0).toLocaleString();
+    return`<div style="background:${st.bg};border:0.5px solid var(--brown4);border-radius:13px;padding:12px 14px;display:flex;align-items:center;gap:11px">
+      <div style="font-size:13px;color:${st.color};font-weight:600;width:46px;flex-shrink:0">${e.time||'--:--'}</div>
+      <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:500;color:var(--brown)">🏠 ${hEsc(e.teacher)} 老師場租</div><div style="font-size:11px;color:${st.color};margin-top:2px">${amount}</div></div>
+      <span style="font-size:10px;background:${st.bg};color:${st.color};border:1px solid ${st.border};border-radius:99px;padding:3px 9px;flex-shrink:0">${st.text}</span>
+    </div>`;
+  }
+  if(cfg&&cfg.mode==='prepaid'){
+    const remaining=cfg.remaining||0;
+    return`<div style="background:#fff;border:0.5px solid var(--brown4);border-radius:13px;padding:12px 14px;display:flex;align-items:center;gap:11px">
+      <div style="font-size:13px;color:var(--gold2);font-weight:600;width:46px;flex-shrink:0">${e.time||'--:--'}</div>
+      <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:500;color:var(--brown)">🏠 ${hEsc(e.teacher)} 老師場租</div><div style="font-size:11px;color:${remaining<=3?'var(--red)':'var(--brown3)'};margin-top:2px">剩${remaining}堂</div></div>
+      <button onclick="event.stopPropagation();gcRentSavePrepaid('${jsQ(e.key)}');renderTeachers();" style="flex-shrink:0;background:var(--gold);color:#fff;border:none;border-radius:9px;padding:8px 13px;font-size:12px;font-weight:500;font-family:'Noto Sans TC',sans-serif;cursor:pointer">扣1堂</button>
+    </div>`;
+  }
+  if(cfg&&(cfg.mode==='deduct'||cfg.mode==='cash'||cfg.mode==='transfer')){
+    const st=RENT_MODE_STYLE[cfg.mode];
+    return`<div style="background:#fff;border:0.5px solid var(--brown4);border-radius:13px;padding:12px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap" onclick="event.stopPropagation()">
+      <div style="font-size:13px;color:var(--gold2);font-weight:600;width:46px;flex-shrink:0">${e.time||'--:--'}</div>
+      <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:500;color:var(--brown)">🏠 ${hEsc(e.teacher)} 老師場租</div></div>
+      <input type="number" id="rentFee_${gcDomId(e.key)}" value="${cfg.fee}" style="width:56px;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+      <button onclick="gcRentSave('${jsQ(e.key)}','${cfg.mode}');renderTeachers();" style="flex-shrink:0;background:${st.color};color:#fff;border:none;border-radius:9px;padding:8px 13px;font-size:12px;font-weight:500;font-family:'Noto Sans TC',sans-serif;cursor:pointer">確認：${st.text}</button>
+    </div>`;
+  }
+  return`<div style="background:#FFF9F2;border:1px dashed #E8B27D;border-radius:13px;padding:12px 14px;display:flex;align-items:center;gap:11px">
+    <div style="font-size:13px;color:#C05A20;font-weight:600;width:46px;flex-shrink:0">${e.time||'--:--'}</div>
+    <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:500;color:var(--brown)">🏠 ${hEsc(e.teacher)} 老師場租</div><div style="font-size:11px;color:var(--brown3);margin-top:2px">尚未設定結算方式</div></div>
+    <span style="font-size:10px;color:#C05A20">請到後台設定</span>
   </div>`;
 }
 // 首頁課程列點擊：學員 → 課卡；體驗 → 體驗課卡
