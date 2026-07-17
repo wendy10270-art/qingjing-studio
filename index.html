@@ -1064,6 +1064,15 @@ const db={
   </div>
 </div>
 
+<!-- 場租課卡（預付堂數使用紀錄，避免使用爭議）Modal -->
+<div class="add-ov" id="rentCardOv" onclick="if(event.target===this)this.classList.remove(&#39;open&#39;)">
+  <div class="add-modal">
+    <div class="modal-ttl" id="rentCardTitle">場租課卡</div>
+    <div id="rentCardBody"></div>
+    <button class="btn-full bf-soft" style="margin-top:9px" onclick="document.getElementById('rentCardOv').classList.remove('open')">關閉</button>
+  </div>
+</div>
+
 
 <!-- 續課 Modal -->
 <div class="add-ov" id="renewOv" onclick="if(event.target===this)closeOvById(&#39;renewOv&#39;)">
@@ -5307,9 +5316,43 @@ function renderTchMgr(){
       <div style="font-size:13px;color:var(--ink2)">${name}</div>
       <div style="display:flex;align-items:center;gap:8px">
         ${rentCfgChip(name)}
+        ${rentCardBtn(name)}
         <button onclick="openRentCfg('${name}')" style="padding:4px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;font-size:11px;cursor:pointer;color:var(--ink2);font-family:'Noto Sans TC',sans-serif">場租設定</button>
       </div>
     </div>`).join('')}</div>`;
+}
+// 只有預付堂數模式的老師才有「課卡」可看，其他結算方式沒有堂數紀錄的概念
+function rentCardBtn(name){
+  if(!RENT_CFG[name]||RENT_CFG[name].mode!=='prepaid')return'';
+  return`<button onclick="openRentCard('${name}')" style="padding:4px 10px;background:var(--gold4);border:1px solid var(--gold2);border-radius:7px;font-size:11px;cursor:pointer;color:var(--gold);font-family:'Noto Sans TC',sans-serif">📇 課卡</button>`;
+}
+// 場租課卡：把這位老師所有預付堂數的購買＋使用紀錄依時間列出來，跟學員課卡同樣邏輯，
+// 目的是有爭議時（老師覺得沒用那麼多堂、店長覺得已經扣過）可以直接調出時間戳記對帳
+function openRentCard(name){
+  const cfg=RENT_CFG[name];
+  document.getElementById('rentCardTitle').textContent=name+' 老師・場租課卡';
+  const el=document.getElementById('rentCardBody');
+  if(!cfg||cfg.mode!=='prepaid'){el.innerHTML='<div style="text-align:center;color:var(--ink3);padding:20px;font-size:13px">這位老師目前不是預付堂數模式</div>';document.getElementById('rentCardOv').classList.add('open');return;}
+  const used=(cfg.total||0)-(cfg.remaining||0);
+  const entries=RENT.filter(r=>r.teacher===name&&(r.mode==='prepaid'||r.sessions))
+    .sort((a,b)=>(b.date+(b.time||'')).localeCompare(a.date+(a.time||'')));
+  el.innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
+      <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;color:var(--ink)">${cfg.total||0}</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">總堂數</div></div>
+      <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;color:var(--red)">${used}</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">已使用</div></div>
+      <div style="background:var(--gold4);border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;color:var(--gold)">${cfg.remaining||0}</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">剩餘</div></div>
+    </div>
+    <div style="font-size:12px;color:var(--ink3);letter-spacing:1px;margin-bottom:8px">使用與購買紀錄</div>
+    ${entries.length?entries.map(r=>{
+      const isPurchase=!!r.sessions;
+      return`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bg2);font-size:12px">
+        <div style="color:var(--ink3);width:88px;flex-shrink:0">${r.date} ${r.time||''}</div>
+        <div style="flex:1;color:${isPurchase?'var(--green)':'var(--ink2)'}">${isPurchase?'🛒 購買 '+r.sessions+'堂・$'+(r.fee||0).toLocaleString():'🏠 扣1堂'+(r.label?'・'+hEsc(r.label):'')}</div>
+        <div style="color:var(--ink3);flex-shrink:0">剩${r.remainingAfter??'?'}堂</div>
+      </div>`;
+    }).join(''):'<div style="text-align:center;color:var(--ink3);padding:16px;font-size:13px">尚無紀錄</div>'}
+  `;
+  document.getElementById('rentCardOv').classList.add('open');
 }
 // 場租設定小標籤：師資管理清單上快速看出這位老師目前是哪種結算方式＋LINE有沒有綁定
 function rentCfgChip(name){
@@ -5405,7 +5448,7 @@ function saveManualRentIncome(){
   RENT_CFG[name]=cfg;
   saveRentCfg();
   const ds=todayStr();
-  RENT.push({id:'rent'+Date.now(),date:ds,time:'',teacher:name,label:note,fee:amount,mode:payMethod,createdAt:ds});
+  RENT.push({id:'rent'+Date.now(),date:ds,time:'',teacher:name,label:note,fee:amount,mode:payMethod,createdAt:ds,sessions,remainingAfter:cfg.remaining});
   saveRent();
   document.getElementById('mriOv').classList.remove('open');
   // 場租設定視窗如果還開著，把新的堂數同步顯示上去
@@ -5430,6 +5473,7 @@ function renderTchCard(t, isCustom){
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <div style="font-size:17px;letter-spacing:2px;display:flex;align-items:center;gap:7px">${t.name}${rentCfgChip(t.name)}</div>
       <div style="display:flex;gap:7px">
+        ${rentCardBtn(t.name)}
         <button onclick="openRentCfg('${t.name}')" style="padding:5px 13px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;font-size:12px;cursor:pointer;color:var(--ink2);font-family:'Noto Sans TC',sans-serif">場租設定</button>
         <button onclick="openEditTeacher('${t.name}')" style="padding:5px 13px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;font-size:12px;cursor:pointer;color:var(--ink2);font-family:'Noto Sans TC',sans-serif">編輯費率</button>
         <button onclick="deleteTeacher('${t.name}')" style="padding:5px 13px;background:var(--red2);border:1px solid #F7C1C1;border-radius:7px;font-size:12px;cursor:pointer;color:var(--red);font-family:'Noto Sans TC',sans-serif">刪除</button>
