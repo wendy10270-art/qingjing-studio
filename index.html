@@ -1349,6 +1349,8 @@ let TEACHER_PHONES=JSON.parse(localStorage.getItem('qjf_tphone')||'{}');
 // TEACHER_LINE_BOUND：唯讀快取，記錄哪些老師已經完成 LINE 綁定（qingjing_line_bindings_teacher 的 name 值），
 // 只用來在師資管理畫面顯示「📱已綁定」小標籤，不是綁定資料本身的來源
 let TEACHER_LINE_BOUND=new Set();
+// RENT_BOOKING_NOTIFIED：已經通知過老師「這筆場租已登記」的日曆事件 key 集合，避免每次同步都重複通知
+let RENT_BOOKING_NOTIFIED=new Set(JSON.parse(localStorage.getItem('qjf_rbn')||'[]'));
 let TL=JSON.parse(localStorage.getItem('qjf_tl')||'[]');
 function save(){
   // 本地備份
@@ -1435,7 +1437,7 @@ function manualSync(){
     loadRentFromFB();
     loadRentCfgFromFB();
     loadTeacherPhonesFromFB();
-    loadTeacherLineBoundFromFB();
+    loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
     loadLedgerFromFB(()=>{
       renderTeachers();
       showSyncStatus('synced');
@@ -1552,6 +1554,17 @@ function loadTeacherLineBoundFromFB(){
     TEACHER_LINE_BOUND=new Set(Object.values(d).map(b=>b&&b.name).filter(Boolean));
   }).catch(e=>{});
 }
+function saveRentBookingNotified(){
+  const arr=[...RENT_BOOKING_NOTIFIED];
+  localStorage.setItem('qjf_rbn',JSON.stringify(arr));
+  db.ref('qingjing_rent_booking_notified').set(arr).catch(e=>console.warn('RentBookingNotified sync error:',e));
+}
+function loadRentBookingNotifiedFromFB(){
+  db.ref('qingjing_rent_booking_notified').once('value').then(snap=>{
+    const d=snap.val();
+    if(Array.isArray(d)){RENT_BOOKING_NOTIFIED=new Set(d);localStorage.setItem('qjf_rbn',JSON.stringify(d));}
+  }).catch(e=>{});
+}
 
 function loadCustomTeachersFromFirebase(){
   db.ref('qingjing_tl').once('value').then(snap=>{const d=snap.val();if(d&&Array.isArray(d)&&d.length>0){TL=d;localStorage.setItem('qjf_tl',JSON.stringify(TL));}}).catch(e=>{});
@@ -1634,7 +1647,7 @@ window.addEventListener('load', ()=>{
     loadRentFromFB();
     loadRentCfgFromFB();
     loadTeacherPhonesFromFB();
-    loadTeacherLineBoundFromFB();
+    loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
     loadLedgerFromFB(()=>{
       renderTeachers();
       showSyncStatus('synced');
@@ -1665,7 +1678,7 @@ function startPeriodicSync(){
       loadRentFromFB();
       loadRentCfgFromFB();
       loadTeacherPhonesFromFB();
-      loadTeacherLineBoundFromFB();
+      loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
       loadLedgerFromFB(()=>{
       try{renderTeachers();}catch(e){console.warn('renderTeachers error:',e);}
       try{renderDashboard();}catch(e){}
@@ -1694,7 +1707,7 @@ function startPeriodicSync(){
         loadRentFromFB();
         loadRentCfgFromFB();
         loadTeacherPhonesFromFB();
-        loadTeacherLineBoundFromFB();
+        loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
         loadLedgerFromFB(()=>{
           _syncing=false;
           try{renderTeachers();}catch(e){console.warn('renderTeachers error:',e);}
@@ -1726,6 +1739,7 @@ function autoGcSyncOnLoad(){
     gcSyncToday({target:mockBtn,preventDefault:()=>{}})
       .then(()=>{try{renderTeachers();}catch(e){}})
       .catch(e=>console.warn('Auto GC sync failed:',e));
+    syncFutureRentBookings().catch(e=>console.warn('Future rent booking scan failed:',e));
   },1500);
 }
 
@@ -1735,6 +1749,42 @@ function silentGcSync(){
   if(typeof GC==='undefined'||!GC.ok())return;
   if(!Object.keys(GC.calMap||{}).length)return;
   gcSyncToday(undefined,{silent:true}).catch(e=>console.warn('Silent GC sync failed:',e));
+  syncFutureRentBookings().catch(e=>console.warn('Future rent booking scan failed:',e));
+}
+// 掃未來60天內各老師日曆裡新出現的「場租」事件，只要偵測到、老師又已綁定LINE，
+// 立刻推播確認通知；已經通知過的事件（用 gcKey 記錄）不會重複發送。
+// 「立刻」的極限是這支函式的觸發頻率——目前掛在 silentGcSync（每5分鐘一次）跟首次進站時，
+// 不是 Google 日曆真正的 webhook 推播，所以最多會慢個幾分鐘，不是嚴格意義的即時。
+async function syncFutureRentBookings(){
+  if(typeof GC==='undefined'||!GC.ok())return;
+  const calMap=GC.calMap||{};
+  if(!Object.keys(calMap).length)return;
+  const now=new Date();
+  const tMin=encodeURIComponent(now.toISOString());
+  const tMax=encodeURIComponent(new Date(now.getTime()+60*864e5).toISOString());
+  const found=[];
+  await Promise.all(Object.entries(calMap).map(async([teacher,calId])=>{
+    if(!calId)return;
+    try{
+      const data=await GC.api(`/calendars/${encodeURIComponent(calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=100`);
+      (data.items||[]).forEach(ev=>{
+        if(ev.status==='cancelled')return;
+        const parsed=GC.parseTitle(ev.summary||'');if(!parsed||!gcIsRent(parsed.type))return;
+        const key=ev.iCalUID||ev.id;
+        if(RENT_BOOKING_NOTIFIED.has(key))return;
+        const startStr=ev.start&&(ev.start.dateTime||ev.start.date);if(!startStr)return;
+        found.push({key,teacher,date:fmt(new Date(startStr)),time:ev.start.dateTime?GC.getTime(ev):''});
+      });
+    }catch(e){console.warn('future rent scan err:',teacher,e);}
+  }));
+  if(!found.length)return;
+  found.forEach(b=>{
+    RENT_BOOKING_NOTIFIED.add(b.key);
+    const wd=WD[parseDate(b.date).getDay()];
+    const msg=b.teacher+'老師您好，\n您有一筆新場租已登記：\n📅 '+b.date+'（星期'+wd+'）'+(b.time?' '+b.time:'')+'\n\n輕境運動工作室';
+    pushTeacherLineMessage(b.teacher,msg);
+  });
+  saveRentBookingNotified();
 }
 function startPeriodicGcSync(){
   if(_periodicGcSyncTimer)clearInterval(_periodicGcSyncTimer);
@@ -3799,17 +3849,16 @@ function gcRentSavePrepaid(key){
   RENT.push({id:'rent'+Date.now(),date:ds,time:e.time||'',teacher:e.teacher,label:e.label,fee:0,mode:'prepaid',gcKey:key,createdAt:todayStr(),remainingAfter:cfg.remaining});
   saveRent();
   showToast('✓ 已扣1堂，'+e.teacher+'老師剩餘'+cfg.remaining+'堂');
-  pushTeacherPrepaidNotice(e.teacher,cfg.remaining);
+  pushTeacherLineMessage(e.teacher,e.teacher+'老師您好，\n今天已扣1堂場租，目前剩餘 '+cfg.remaining+' 堂'+(cfg.remaining<=3?'，堂數快用完囉，記得跟店長確認加購～':'')+'。\n\n輕境運動工作室');
   renderDaily();
 }
-// 場租扣堂即時通知老師（老師需已用 LINE 綁定；沒綁定就靜默略過，不影響扣堂本身）
-async function pushTeacherPrepaidNotice(teacher,remaining){
+// 通用老師端 LINE 推播（老師需已用手機號碼＋LINE綁定；沒綁定就靜默略過，不影響呼叫端的主要動作）
+async function pushTeacherLineMessage(teacher,message){
   const phone=TEACHER_PHONES[teacher];if(!phone)return;
-  const msg=teacher+'老師您好，\n今天已扣1堂場租，目前剩餘 '+remaining+' 堂'+(remaining<=3?'，堂數快用完囉，記得跟店長確認加購～':'')+'。\n\n輕境運動工作室';
   try{
     await fetch(LINE_WEBHOOK_BASE+'/api/send-teacher-message?key='+TEACHER_PUSH_SECRET,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({phone,message:msg})
+      body:JSON.stringify({phone,message})
     });
   }catch(e){console.warn('teacher LINE push failed:',e);}
 }
