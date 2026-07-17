@@ -1746,6 +1746,7 @@ function renderTeachers(){
         <div style="font-size:11px;color:var(--brown3);margin-top:2px">${hEsc(it.teacher||'')} 老師</div>
       </div>
       ${chip(it.status)}
+      ${it.status==='pending'?`<span onclick="event.stopPropagation();homeRemoveItem('${it.trial?it.tid:it.sid}','${jsQ(it.teacher||'')}','${it.evType}')" style="font-size:15px;color:var(--brown3);opacity:.5;padding:2px 4px;flex-shrink:0" title="這堂排錯了，移除">✕</span>`:''}
     </div>`).join('')}
   ${nf.map((n,i)=>`
     <div style="background:#FFF9F2;border:1px dashed #E8B27D;border-radius:13px;padding:12px 14px;display:flex;align-items:center;gap:11px">
@@ -1764,6 +1765,10 @@ function homeStuTap(sid){
   curTeacher=s.teacher||curTeacher;
   selectStu(sid);
   cardBackTarget='sc-teachers'; // 從首頁今日課程點進來，返回要回首頁，不是老師的學生清單（要放在 selectStu 之後，它自己會把這個值重設回 sc-students）
+}
+// 首頁「今日課程」誤排錯卡時直接移除（僅限尚未簽到的項目；已簽到的請到後台今日總覽刪除簽到記錄）
+function homeRemoveItem(sid,teacher,evType){
+  calDeleteSlot(todayStr(),teacher,sid,evType);
 }
 function homeTrialTap(tid){
   const t=T.find(x=>x.id===tid);if(!t)return;
@@ -4755,7 +4760,7 @@ async function renderLineMsgActions(sid, phone, s, isUpgraded, upgradedTo, upgra
     if(key.length===8){
       const res=await fetch(FB_URL+'/qingjing_line_bindings/'+key+'.json?auth='+FB_API_KEY);
       const data=await res.json();
-      bound=!!(data&&data.userId);
+      bound=!!(data&&(data.userId||data.groupId||data.roomId));
       lang=(data&&data.lang==='en')?'en':'zh';
     }
   }catch(e){console.warn('check LINE binding failed:',e);}
@@ -4872,7 +4877,7 @@ async function renderResendLineMsgActions(sid, phone, s, isUpgraded, upgradedTo,
     if(key.length===8){
       const res=await fetch(FB_URL+'/qingjing_line_bindings/'+key+'.json?auth='+FB_API_KEY);
       const data=await res.json();
-      bound=!!(data&&data.userId);
+      bound=!!(data&&(data.userId||data.groupId||data.roomId));
       lang=(data&&data.lang==='en')?'en':'zh';
     }
   }catch(e){console.warn('check LINE binding failed:',e);}
@@ -6751,24 +6756,24 @@ function dayScheduleItems(dateObj){
   const items=[];const sch=SCH[td]||{};
   Object.entries(sch).forEach(([teacher,slots])=>{slots.forEach(sl=>{
     if(sl.skip)return;const s=S.find(x=>x.id===sl.sid);if(!s)return;
-    items.push({sid:s.id,name:s.name,teacher,time:sl.time||'',trial:false});
+    items.push({sid:s.id,name:s.name,teacher,time:sl.time||'',trial:false,evType:'confirmed'});
   })});
   S.forEach(s=>{
     (s.recurring||[]).forEach(rc=>{
       if(rc.day!==dow)return;
       const skipped=Object.values(sch).some(slots=>slots.some(sl=>sl.sid===s.id&&sl.skip));
       if(!skipped&&!items.find(it=>it.sid===s.id&&it.time===rc.time)&&s.used<s.total)
-        items.push({sid:s.id,name:s.name,teacher:s.teacher,time:rc.time,trial:false});
+        items.push({sid:s.id,name:s.name,teacher:s.teacher,time:rc.time,trial:false,evType:'recurring'});
     });
     if(s.nextBooking&&s.nextBooking.date===td&&!items.find(it=>it.sid===s.id))
-      items.push({sid:s.id,name:s.name,teacher:s.teacher,time:s.nextBooking.time||'',trial:false});
+      items.push({sid:s.id,name:s.name,teacher:s.teacher,time:s.nextBooking.time||'',trial:false,evType:'next'});
   });
   items.forEach(it=>{
     const rec=R.find(r=>r.sid===it.sid&&r.date===td);
     const lv=L.find(l=>l.sid===it.sid&&l.date===td);
     it.status=rec?'signed':lv?'leave':'pending';
   });
-  T.forEach(t=>{if(t.date===td)items.push({sid:'',tid:t.id,name:t.name,teacher:t.teacher,time:t.time||'',trial:true,status:t.sig?'signed':'pending'});});
+  T.forEach(t=>{if(t.date===td)items.push({sid:'',tid:t.id,name:t.name,teacher:t.teacher,time:t.time||'',trial:true,evType:'trial',status:t.sig?'signed':'pending'});});
   items.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   return items;
 }
