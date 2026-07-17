@@ -728,6 +728,7 @@ const db={
         <input type="date" id="wageEnd" class="native-date-inp" style="width:auto;margin:0;padding:7px 8px;font-size:13px">
         <button class="export-btn" onclick="applyWageRange()">套用區間</button>
       </div>
+      <div id="wageDupWarning"></div>
       <div class="section-label" id="wageSectionLabel"></div>
       <div class="teacher-grid-admin" id="teacherWageGrid"></div>
       </div>
@@ -4125,6 +4126,19 @@ function wageInRange(dstr,mk){
   if(_wageMode==='range'&&_wageStart&&_wageEnd)return dstr>=_wageStart&&dstr<=_wageEnd;
   return monthKey(dstr)===mk;
 }
+// 重複計薪偵測：同一位學員同一天，「App簽到已確認」跟「Google核銷」如果都有記錄，代表這堂被算了兩次錢
+// （gcAlreadyPaidElsewhere 只在核銷當下擋新的重複，如果核銷發生在簽到確認「之前」就攔不到，需要這裡事後抓出來）。
+// 只偵測、不自動刪除——兩筆留哪筆需要店長自己判斷，程式不能自己猜
+function findDupWageEntries(mk){
+  const monthR=R.filter(r=>r.date&&wageInRange(r.date,mk)&&r.confirmed!==false);
+  const monthG=GW.filter(g=>g.date&&wageInRange(g.date,mk));
+  const dups=[];
+  monthG.forEach(g=>{
+    const match=monthR.find(r=>{const s=S.find(x=>x.id===r.sid);return s&&s.name===g.name&&r.date===g.date});
+    if(match)dups.push({g,match});
+  });
+  return dups;
+}
 function setWageWeek(offset){ // 0=本週、-1=上週（週一～週日）
   const now=new Date();
   const mon=new Date(now.getFullYear(),now.getMonth(),now.getDate()-((now.getDay()+6)%7)+offset*7);
@@ -4165,6 +4179,17 @@ function renderWage(){
   document.getElementById('wageSectionLabel').innerHTML=isRange
     ?`📆 ${_wageStart.slice(5)}～${_wageEnd.slice(5)}　各老師薪資明細（週結）<span onclick="wageBackToMonth()" style="margin-left:10px;font-size:12px;color:var(--blue);cursor:pointer;text-decoration:underline">回月結</span>`
     :`${y}年${parseInt(mo)}月　各老師薪資明細`;
+  const dupWarnEl=document.getElementById('wageDupWarning');
+  if(dupWarnEl){
+    const dups=findDupWageEntries(mk);
+    dupWarnEl.innerHTML=dups.length?`<div style="background:#FDECEA;border:1.5px solid #F7C1C1;border-radius:11px;padding:12px 14px;margin:8px 0">
+      <div style="font-size:13px;color:var(--red);font-weight:500;margin-bottom:6px">⚠️ 發現 ${dups.length} 筆可能重複計薪（同一位學員同一天，App簽到跟Google核銷都有記錄）</div>
+      ${dups.map(({g,match})=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #F7C1C1;font-size:12px">
+        <div style="flex:1;color:var(--ink2)">${g.date.slice(5)}・${hEsc(g.name)}（${hEsc(g.teacher)}）App $${(getRecFee(match,S.find(x=>x.id===match.sid))||0).toLocaleString()}・GC $${(g.fee||0).toLocaleString()}</div>
+        <span onclick="gcUnsettle('${jsQ(g.id)}')" style="font-size:11px;color:var(--red);cursor:pointer;text-decoration:underline;white-space:nowrap">移除這筆Google核銷</span>
+      </div>`).join('')}
+    </div>`:'';
+  }
   const tMap={};
   monthR.forEach(r=>{const s=S.find(x=>x.id===r.sid);if(!s)return;const t=r.isSub?r.subTeacher:(s.teacher||'其他');if(!tMap[t])tMap[t]=[];tMap[t].push({type:'regular',s,r,fee:getRecFee(r,s)})});
   monthT.forEach(t=>{const teacher=t.teacher||'其他';if(!tMap[teacher])tMap[teacher]=[];tMap[teacher].push({type:'trial',tr:t,fee:t.manualFee!=null?t.manualFee:t.teacherFee})});
