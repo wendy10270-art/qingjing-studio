@@ -10,7 +10,6 @@
 <link rel="apple-touch-icon" href="data:image/svg+xml,&lt;svg xmlns=&#39;http://www.w3.org/2000/svg&#39; viewBox=&#39;0 0 100 100&#39;&gt;&lt;rect width=&#39;100&#39; height=&#39;100&#39; rx=&#39;22&#39; fill=&#39;%231A1510&#39;/&gt;&lt;path d=&#39;M65 20 A28 28 0 1 0 70 60&#39; stroke=&#39;%23F0D89A&#39; stroke-width=&#39;5&#39; stroke-linecap=&#39;round&#39; fill=&#39;none&#39;/&gt;&lt;path d=&#39;M20 42 Q32 34 50 42 Q68 50 80 42&#39; stroke=&#39;%23F0D89A&#39; stroke-width=&#39;4&#39; stroke-linecap=&#39;round&#39; fill=&#39;none&#39;/&gt;&lt;path d=&#39;M20 54 Q32 46 50 54 Q68 62 80 54&#39; stroke=&#39;%23F0D89A&#39; stroke-width=&#39;4&#39; stroke-linecap=&#39;round&#39; fill=&#39;none&#39;/&gt;&lt;/svg&gt;">
 <meta name="theme-color" content="#1A1510">
 <title>輕境運動工作室</title>
-<script src="https://accounts.google.com/gsi/client" async></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700&family=Noto+Sans+TC:wght@300;400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -492,6 +491,11 @@ const CHECKIN_PUSH_SECRET='ffabf3fe078cf3c2d28da53b7a8c0add7b9d990d7a1abd91';
 // 場租扣堂通知老師用（line-webhook/api/send-teacher-message.js）。跟 CHECKIN_PUSH_SECRET 分開，
 // 理由同上：這支金鑰也是寫死在前端公開頁面裡，外流的話不該連帶讓其他推播管道一起被濫用
 const TEACHER_PUSH_SECRET='571af36b802c6c269a5264649b8748cdf62774fcf74ed081';
+// Google 日曆伺服器端 refresh token 續期用（line-webhook/api/gc-token.js、gc-oauth-callback.js）。
+// 解決「App 一關掉重開就要重新連接 Google」的問題——見 GC.connect()/GC.silentRefresh() 的說明
+const GC_TOKEN_ENDPOINT=LINE_WEBHOOK_BASE+'/api/gc-token';
+const GC_TOKEN_SECRET='170ebdb59d2a9a4317fe35c1f1021aba69159bfb0dcd2513';
+const GC_OAUTH_REDIRECT_URI=LINE_WEBHOOK_BASE+'/api/gc-oauth-callback';
 
 // Firebase 錯誤回應（如 Permission denied）HTTP 狀態非 2xx 或 body 帶 error 欄位，
 // 必須丟出例外，否則會誤判為同步成功
@@ -6425,28 +6429,23 @@ const GC={
     }
     return !!(this._tok&&Date.now()<this._tokExp);
   },
-  // 靜默更新 token（不彈視窗，只要 Google 帳號還在登入狀態就能自動完成）
+  // 靜默更新 token：改成打自家 Vercel API（line-webhook/api/gc-token.js），
+  // 由伺服器用存在 Firebase 的 refresh_token 去跟 Google 換新的 access_token。
+  // 這樣不管 App 關了多久、換了哪個瀏覽器，只要 refresh_token 沒被使用者自己在
+  // Google 帳號設定裡撤銷，這裡永遠能成功，不用再靠瀏覽器背景重新驗證（那個在
+  // Safari/iPad 上很容易悄悄失敗，逼店長每次重開 App 都要手動按重新連接）。
   async silentRefresh(){
-    if(!this.cid||typeof google==='undefined'||!google.accounts)return false;
-    return new Promise(res=>{
-      try{
-        google.accounts.oauth2.initTokenClient({
-          client_id:this.cid,
-          scope:'https://www.googleapis.com/auth/calendar',
-          callback:r=>{
-            if(r.access_token){
-              this._tok=r.access_token;
-              this._tokExp=Date.now()+((parseInt(r.expires_in)||3600)-60)*1000;
-              localStorage.setItem('gc_tok',this._tok);
-              localStorage.setItem('gc_tokExp',String(this._tokExp));
-              this._scheduleRefresh();
-              res(true);
-            }else{res(false);}
-          },
-          error_callback:()=>res(false)
-        }).requestAccessToken({prompt:''});
-      }catch(e){res(false);}
-    });
+    try{
+      const res=await fetch(GC_TOKEN_ENDPOINT+'?key='+GC_TOKEN_SECRET);
+      const data=await res.json();
+      if(!data.ok||!data.access_token)return false;
+      this._tok=data.access_token;
+      this._tokExp=Date.now()+((parseInt(data.expires_in)||3600)-60)*1000;
+      localStorage.setItem('gc_tok',this._tok);
+      localStorage.setItem('gc_tokExp',String(this._tokExp));
+      this._scheduleRefresh();
+      return true;
+    }catch(e){return false;}
   },
   // 排程在 token 到期前 10 分鐘自動靜默更新
   _scheduleRefresh(){
@@ -6455,27 +6454,46 @@ const GC={
     const delay=Math.max(msLeft-10*60*1000, 30*1000); // 到期前10分鐘，最少30秒後
     this._refreshTimer=setTimeout(()=>this.silentRefresh().catch(()=>{}), delay);
   },
+  // 一次性互動授權：跳出彈窗直接導到 Google 自己的授權頁（access_type=offline+prompt=consent
+  // 才會拿到 refresh_token），Google 導回 line-webhook/api/gc-oauth-callback.js 換好 token 後
+  // 用 postMessage 把結果丟回這個視窗。之後永久靠 silentRefresh()，不會再跳這個畫面，
+  // 除非使用者自己去 Google 帳號設定撤銷了授權。
   async connect(){
     if(!this.cid)throw new Error('請先輸入並儲存 Client ID');
-    if(typeof google==='undefined'||!google.accounts)throw new Error('Google 登入程式尚未載入，請稍後再試或確認網路連線');
+    const state=btoa(JSON.stringify({csrf:Math.random().toString(36).slice(2),client_id:this.cid}));
+    const authUrl='https://accounts.google.com/o/oauth2/v2/auth?'+new URLSearchParams({
+      client_id:this.cid,
+      redirect_uri:GC_OAUTH_REDIRECT_URI,
+      response_type:'code',
+      scope:'https://www.googleapis.com/auth/calendar',
+      access_type:'offline',
+      prompt:'consent',
+      state
+    });
+    const popup=window.open(authUrl,'gcAuth','width=520,height=680');
+    if(!popup)throw new Error('彈出視窗被瀏覽器擋住了，請允許彈出視窗後再試一次');
     return new Promise((res,rej)=>{
-      try{
-        google.accounts.oauth2.initTokenClient({
-          client_id:this.cid,
-          scope:'https://www.googleapis.com/auth/calendar',
-          callback:r=>{
-            if(r.access_token){
-              this._tok=r.access_token;
-              this._tokExp=Date.now()+((parseInt(r.expires_in)||3600)-60)*1000;
-              localStorage.setItem('gc_tok',this._tok);
-              localStorage.setItem('gc_tokExp',String(this._tokExp));
-              this._scheduleRefresh(); // 登入成功後排程自動更新
-              res();
-            }else{rej(new Error(r.error_description||r.error||'授權失敗'));}
-          },
-          error_callback:e=>rej(new Error(e.message||'授權錯誤'))
-        }).requestAccessToken({prompt:''});
-      }catch(e){rej(e);}
+      let done=false;
+      const onMsg=(ev)=>{
+        if(!ev.data||ev.data.type!=='gc-oauth-result')return;
+        done=true;window.removeEventListener('message',onMsg);clearInterval(poll);
+        if(ev.data.ok){
+          this._tok=ev.data.access_token;
+          this._tokExp=Date.now()+((parseInt(ev.data.expires_in)||3600)-60)*1000;
+          localStorage.setItem('gc_tok',this._tok);
+          localStorage.setItem('gc_tokExp',String(this._tokExp));
+          this._scheduleRefresh();
+          res();
+        }else{rej(new Error(ev.data.error||'授權失敗'));}
+      };
+      window.addEventListener('message',onMsg);
+      // 使用者自己把彈窗關掉（沒完成授權）時也要讓 promise 結束，不要一直卡著
+      const poll=setInterval(()=>{
+        if(popup.closed){
+          clearInterval(poll);
+          if(!done){window.removeEventListener('message',onMsg);rej(new Error('視窗已關閉，授權未完成'));}
+        }
+      },500);
     });
   },
   async api(path,method,body){
@@ -6705,7 +6723,10 @@ function renderGcalPage(){
     5. 應用程式類型選「網頁應用程式」<br>
     6. 授權 JavaScript 來源加入：<br>
     &nbsp;&nbsp;<code style="background:#f0f0f0;padding:2px 6px;border-radius:4px;font-size:11px">https://wendy10270-art.github.io</code><br>
-    7. 複製產生的「用戶端 ID」貼到上方欄位，點儲存
+    7. 授權重新導向 URI 加入：<br>
+    &nbsp;&nbsp;<code style="background:#f0f0f0;padding:2px 6px;border-radius:4px;font-size:11px">https://line-webhook-gules.vercel.app/api/gc-oauth-callback</code><br>
+    8. 複製「用戶端密鑰」給小幫手，設定到 line-webhook 的 Vercel 環境變數（GOOGLE_CLIENT_SECRET）——這步不用每個帳號重做，只有第一次設定需要<br>
+    9. 複製「用戶端 ID」貼到上方欄位，點儲存
   </div>
 </div>`;
   if(ok)gcLoadCalMap();
