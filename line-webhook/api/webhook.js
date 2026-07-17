@@ -1,5 +1,8 @@
 // LINE Messaging API webhook — binds a student's LINE userId to their phone
 // number so scripts/line_reminder.py can push personal class reminders.
+// Also binds teachers the same way (phone → qingjing_teacher_phones lookup,
+// tried only when the phone doesn't match any student) so index.html can push
+// them prepaid-rent deduction notices — see qingjing_line_bindings_teacher.
 //
 // Binding data lives in its own top-level Firebase node (qingjing_line_bindings),
 // separate from the qingjing/s student array. The main app overwrites the whole
@@ -45,6 +48,14 @@ function normalizePhone(text) {
   return digits.length >= 8 ? digits.slice(-8) : null;
 }
 
+// 老師的電話存在 qingjing_teacher_phones（{teacherName: phone}，index.html 師資管理的「場租設定」
+// 畫面維護），跟學員清單分開查，找到的話回傳老師姓名；找不到回傳 null。
+async function findTeacherByPhone(last8) {
+  const phones = (await fb('/qingjing_teacher_phones', { method: 'GET' })) || {};
+  const name = Object.keys(phones).find((n) => phones[n] && phones[n].replace(/\D/g, '').slice(-8) === last8);
+  return name || null;
+}
+
 // 共用課卡（同一個學員卡有多人一起用，如 altRecipients：[{name,phone}]）時，
 // 每一位額外的使用者也要能用自己的手機號碼綁定自己的 LINE
 function matchesPhone(s, last8) {
@@ -68,10 +79,23 @@ async function bindPhone(last8, dest, name, lang) {
   });
 }
 
+// 老師綁定存獨立節點（qingjing_line_bindings_teacher），跟學員綁定分開，避免老師跟學員剛好
+// 電話末8碼相同時互相綁錯對象
+async function bindTeacherPhone(last8, dest, name, lang) {
+  await fb(`/qingjing_line_bindings_teacher/${last8}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...dest, name, boundAt: Date.now(), lang }),
+  });
+}
+
 async function unbindUserId(userId) {
   const bindings = (await fb('/qingjing_line_bindings', { method: 'GET' })) || {};
   const key = Object.keys(bindings).find((k) => bindings[k] && bindings[k].userId === userId);
   if (key) await fb(`/qingjing_line_bindings/${key}`, { method: 'DELETE' });
+  const tBindings = (await fb('/qingjing_line_bindings_teacher', { method: 'GET' })) || {};
+  const tKey = Object.keys(tBindings).find((k) => tBindings[k] && tBindings[k].userId === userId);
+  if (tKey) await fb(`/qingjing_line_bindings_teacher/${tKey}`, { method: 'DELETE' });
 }
 
 // bot 被踢出群組/多人聊天室時，把綁在那個 groupId/roomId 上的綁定也一起清掉，
@@ -82,6 +106,11 @@ async function unbindConvo(id) {
     (k) => bindings[k] && (bindings[k].groupId === id || bindings[k].roomId === id)
   );
   if (key) await fb(`/qingjing_line_bindings/${key}`, { method: 'DELETE' });
+  const tBindings = (await fb('/qingjing_line_bindings_teacher', { method: 'GET' })) || {};
+  const tKey = Object.keys(tBindings).find(
+    (k) => tBindings[k] && (tBindings[k].groupId === id || tBindings[k].roomId === id)
+  );
+  if (tKey) await fb(`/qingjing_line_bindings_teacher/${tKey}`, { method: 'DELETE' });
 }
 
 // 「有沒有剛打過關鍵字、正在等對方回電話號碼」的暫存狀態，10 分鐘內有效。
@@ -136,6 +165,7 @@ const MSG = {
     ambiguous: '這支電話對到多位不同的學員資料，麻煩直接聯繫工作室確認喔 🙏',
     bindError: '綁定時發生問題，請稍後再試一次，或直接聯繫工作室。',
     bindSuccess: (name) => `✅ 綁定成功，${name}！之後上課前一天會提醒您唷 🌿`,
+    bindSuccessTeacher: (name) => `✅ 綁定成功，${name}老師！之後場租扣堂會通知您剩餘堂數 🌿`,
   },
   en: {
     askPhone: 'Please enter the phone number registered with the studio (e.g. 0912345678) to complete your class reminder registration 🌿',
@@ -145,6 +175,7 @@ const MSG = {
     ambiguous: 'This phone number matches multiple different student records. Please contact the studio to confirm 🙏',
     bindError: 'Something went wrong while registering, please try again or contact the studio directly.',
     bindSuccess: (name) => `✅ Registered successfully, ${name}! We'll remind you the day before your class 🌿`,
+    bindSuccessTeacher: (name) => `✅ Registered successfully, ${name}! We'll notify you when your rental sessions get deducted 🌿`,
   },
 };
 
@@ -222,7 +253,26 @@ async function handleEvent(event) {
     return;
   }
 
+  // 電話沒對到任何學員時，再查一次是不是老師的電話（場租/明日課程通知走的是另一個綁定節點）
   if (matches.length === 0) {
+    let teacherName;
+    try {
+      teacherName = await findTeacherByPhone(last8);
+    } catch (e) {
+      console.error('teacher lookup error', e);
+      await lineReply(event.replyToken, m.lookupError);
+      return;
+    }
+    if (teacherName) {
+      try {
+        await bindTeacherPhone(last8, dest, teacherName, lang);
+        await lineReply(event.replyToken, m.bindSuccessTeacher(teacherName));
+      } catch (e) {
+        console.error('teacher bind error', e);
+        await lineReply(event.replyToken, m.bindError);
+      }
+      return;
+    }
     await lineReply(event.replyToken, m.notFound);
     return;
   }

@@ -489,6 +489,9 @@ const FB_API_KEY='AIzaSyBg3_toi-Kqyi9iw2IbW9C5HhkbgJappxI';
 // 課後直接推播 LINE 訊息用（line-webhook/api/send-checkin-message.js）
 const LINE_WEBHOOK_BASE='https://line-webhook-gules.vercel.app';
 const CHECKIN_PUSH_SECRET='ffabf3fe078cf3c2d28da53b7a8c0add7b9d990d7a1abd91';
+// 場租扣堂通知老師用（line-webhook/api/send-teacher-message.js）。跟 CHECKIN_PUSH_SECRET 分開，
+// 理由同上：這支金鑰也是寫死在前端公開頁面裡，外流的話不該連帶讓其他推播管道一起被濫用
+const TEACHER_PUSH_SECRET='571af36b802c6c269a5264649b8748cdf62774fcf74ed081';
 
 // Firebase 錯誤回應（如 Permission denied）HTTP 狀態非 2xx 或 body 帶 error 欄位，
 // 必須丟出例外，否則會誤判為同步成功
@@ -1005,6 +1008,38 @@ const db={
   </div>
 </div>
 
+<!-- 場租結算設定 Modal -->
+<div class="add-ov" id="rentCfgOv" onclick="if(event.target===this)this.classList.remove(&#39;open&#39;)">
+  <div class="add-modal">
+    <div class="modal-ttl" id="rentCfgTitle">場租結算設定</div>
+    <input type="hidden" id="rentCfgTeacher">
+    <label>手機號碼（給老師用 LINE 綁定＋收通知）</label>
+    <input type="tel" id="rentCfgPhone" placeholder="例：0912345678" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:6px">
+    <div id="rentCfgBoundHint" style="font-size:11px;margin-bottom:12px"></div>
+    <label>結算方式</label>
+    <select id="rentCfgMode" onchange="toggleRentCfgFields()" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;font-family:'Noto Sans TC',sans-serif;outline:none;margin-bottom:12px">
+      <option value="">— 未設定（日曆偵測到場租時手動判斷）—</option>
+      <option value="deduct">扣薪資</option>
+      <option value="cash">當天付現金</option>
+      <option value="transfer">發薪日轉帳付清</option>
+      <option value="prepaid">預付堂數（用堂數扣）</option>
+    </select>
+    <div id="rentCfgFeeWrap">
+      <label>每次場租金額</label>
+      <input type="number" id="rentCfgFee" placeholder="例：800" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:12px;text-align:right">
+    </div>
+    <div id="rentCfgPrepaidWrap" style="display:none">
+      <label>已預付堂數</label>
+      <input type="number" id="rentCfgTotal" placeholder="例：20" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:12px;text-align:right">
+      <label>目前剩餘堂數</label>
+      <input type="number" id="rentCfgRemaining" placeholder="例：20" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:12px;text-align:right">
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:12px">加購新一輪20堂時，回這裡把「剩餘堂數」加回去即可</div>
+    </div>
+    <button class="btn-full bf-ink" onclick="saveRentCfgModal()" style="margin-top:6px">儲存場租設定</button>
+    <button class="btn-full bf-soft" style="margin-top:9px" onclick="document.getElementById('rentCfgOv').classList.remove('open')">取消</button>
+  </div>
+</div>
+
 
 <!-- 續課 Modal -->
 <div class="add-ov" id="renewOv" onclick="if(event.target===this)closeOvById(&#39;renewOv&#39;)">
@@ -1269,9 +1304,18 @@ let LEDGER=JSON.parse(localStorage.getItem('qjf_ledger')||'[]');
 // GW: Google 日曆核銷紀錄 {id,date,time,teacher,name,course,ratio,fee,gcKey,createdAt}
 // 學員未建檔也能核銷師資費，計入月薪資
 let GW=JSON.parse(localStorage.getItem('qjf_gw')||'[]');
-// RENT: 場租紀錄 {id,date,time,teacher,label,fee,mode:'deduct'|'cash',gcKey,createdAt}
-// mode='deduct'：從該老師薪資扣除；mode='cash'：老師已當面付清，只留紀錄不影響薪資
+// RENT: 場租紀錄 {id,date,time,teacher,label,fee,mode:'deduct'|'cash'|'transfer'|'prepaid',gcKey,createdAt,remainingAfter?}
+// mode='deduct'：從該老師薪資扣除；mode='cash'：老師已當面付清；mode='transfer'：老師習慣發薪日轉帳付清（現金性質，只是時間點不同）；
+// mode='prepaid'：老師已預付整包堂數，這筆只扣堂數不動錢（fee 固定為0）
 let RENT=JSON.parse(localStorage.getItem('qjf_rent')||'[]');
+// RENT_CFG：每位老師的場租結算「預設方式」，日曆偵測到場租事件時自動套用，不用每次現場判斷
+// {[teacherName]: {mode:'deduct'|'cash'|'transfer'|'prepaid', fee, total, remaining}}
+let RENT_CFG=JSON.parse(localStorage.getItem('qjf_rcfg')||'{}');
+// TEACHER_PHONES：老師的手機號碼（LINE綁定+推播用），{[teacherName]: phone}，跟學員清單分開存
+let TEACHER_PHONES=JSON.parse(localStorage.getItem('qjf_tphone')||'{}');
+// TEACHER_LINE_BOUND：唯讀快取，記錄哪些老師已經完成 LINE 綁定（qingjing_line_bindings_teacher 的 name 值），
+// 只用來在師資管理畫面顯示「📱已綁定」小標籤，不是綁定資料本身的來源
+let TEACHER_LINE_BOUND=new Set();
 let TL=JSON.parse(localStorage.getItem('qjf_tl')||'[]');
 function save(){
   // 本地備份
@@ -1356,6 +1400,9 @@ function manualSync(){
   loadFromFirebase(()=>{
     loadGwFromFB();
     loadRentFromFB();
+    loadRentCfgFromFB();
+    loadTeacherPhonesFromFB();
+    loadTeacherLineBoundFromFB();
     loadLedgerFromFB(()=>{
       renderTeachers();
       showSyncStatus('synced');
@@ -1445,6 +1492,33 @@ function loadRentFromFB(){
     if(d&&Array.isArray(d)){RENT=d;localStorage.setItem('qjf_rent',JSON.stringify(RENT));}
   }).catch(e=>{});
 }
+function saveRentCfg(){
+  localStorage.setItem('qjf_rcfg',JSON.stringify(RENT_CFG));
+  db.ref('qingjing_rent_cfg').set(RENT_CFG).catch(e=>console.warn('RentCfg sync error:',e));
+}
+function loadRentCfgFromFB(){
+  db.ref('qingjing_rent_cfg').once('value').then(snap=>{
+    const d=snap.val();
+    if(d&&typeof d==='object'){RENT_CFG=d;localStorage.setItem('qjf_rcfg',JSON.stringify(RENT_CFG));}
+  }).catch(e=>{});
+}
+function saveTeacherPhones(){
+  localStorage.setItem('qjf_tphone',JSON.stringify(TEACHER_PHONES));
+  db.ref('qingjing_teacher_phones').set(TEACHER_PHONES).catch(e=>console.warn('TeacherPhones sync error:',e));
+}
+function loadTeacherPhonesFromFB(){
+  db.ref('qingjing_teacher_phones').once('value').then(snap=>{
+    const d=snap.val();
+    if(d&&typeof d==='object'){TEACHER_PHONES=d;localStorage.setItem('qjf_tphone',JSON.stringify(TEACHER_PHONES));}
+  }).catch(e=>{});
+}
+// 只讀，用來在師資管理畫面顯示綁定狀態；老師端實際綁定是 line-webhook/api/webhook.js 寫入的
+function loadTeacherLineBoundFromFB(){
+  db.ref('qingjing_line_bindings_teacher').once('value').then(snap=>{
+    const d=snap.val()||{};
+    TEACHER_LINE_BOUND=new Set(Object.values(d).map(b=>b&&b.name).filter(Boolean));
+  }).catch(e=>{});
+}
 
 function loadCustomTeachersFromFirebase(){
   db.ref('qingjing_tl').once('value').then(snap=>{const d=snap.val();if(d&&Array.isArray(d)&&d.length>0){TL=d;localStorage.setItem('qjf_tl',JSON.stringify(TL));}}).catch(e=>{});
@@ -1525,6 +1599,9 @@ window.addEventListener('load', ()=>{
     loadCustomTeachersFromFirebase();
     loadGwFromFB();
     loadRentFromFB();
+    loadRentCfgFromFB();
+    loadTeacherPhonesFromFB();
+    loadTeacherLineBoundFromFB();
     loadLedgerFromFB(()=>{
       renderTeachers();
       showSyncStatus('synced');
@@ -1553,6 +1630,9 @@ function startPeriodicSync(){
       // 否則「這台裝置核銷、另一台裝置看不到」（要等下次整頁重新載入才會出現）
       loadGwFromFB();
       loadRentFromFB();
+      loadRentCfgFromFB();
+      loadTeacherPhonesFromFB();
+      loadTeacherLineBoundFromFB();
       loadLedgerFromFB(()=>{
       try{renderTeachers();}catch(e){console.warn('renderTeachers error:',e);}
       try{renderDashboard();}catch(e){}
@@ -1579,6 +1659,9 @@ function startPeriodicSync(){
       loadFromFirebase(()=>{
         loadGwFromFB();
         loadRentFromFB();
+        loadRentCfgFromFB();
+        loadTeacherPhonesFromFB();
+        loadTeacherLineBoundFromFB();
         loadLedgerFromFB(()=>{
           _syncing=false;
           try{renderTeachers();}catch(e){console.warn('renderTeachers error:',e);}
@@ -3569,29 +3652,69 @@ async function renderGcSettle(ds){
   </div>`+rentHTML;
   renderUnsettledReminder();
 }
-// ── 場租：辨識標題含「場租」的日曆事件，金額手動輸入，可標記「扣薪資」或「已付現金」──
+// ── 場租：辨識標題含「場租」的日曆事件。有存 RENT_CFG 的老師自動套用她的結算方式，沒設定的維持手動判斷 ──
+const RENT_MODE_STYLE={
+  deduct:{bg:'#FDECEA',border:'#F7C1C1',color:'var(--red)',text:'扣薪資'},
+  cash:{bg:'var(--green2)',border:'#90D4B0',color:'var(--green)',text:'已付現金'},
+  transfer:{bg:'#FFF4E5',border:'#F0C896',color:'#B9770E',text:'發薪日轉帳'},
+  prepaid:{bg:'var(--gold4)',border:'var(--gold2)',color:'var(--gold)',text:'扣堂數'}
+};
 function _buildRentCardHTML(ds,rentEvents){
   const dayRent=RENT.filter(r=>r.date===ds);
   const orphanRent=dayRent.filter(r=>!rentEvents.some(e=>e.key===r.gcKey));
   if(!rentEvents.length&&!orphanRent.length)return'';
-  const modeChip=r=>r.mode==='deduct'
-    ?`<span style="font-size:13px;color:var(--red)">－$${(r.fee||0).toLocaleString()}</span><span style="font-size:11px;background:#FDECEA;color:var(--red);border:1px solid #F7C1C1;border-radius:20px;padding:2px 9px">扣薪資</span>`
-    :`<span style="font-size:13px;color:var(--ink3)">$${(r.fee||0).toLocaleString()}</span><span style="font-size:11px;background:var(--green2);color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:2px 9px">已付現金</span>`;
+  const modeChip=r=>{
+    const st=RENT_MODE_STYLE[r.mode]||RENT_MODE_STYLE.cash;
+    const amount=r.mode==='prepaid'?'剩'+(r.remainingAfter??'?')+'堂':(r.mode==='deduct'?'－':'')+'$'+(r.fee||0).toLocaleString();
+    return`<span style="font-size:13px;color:${st.color}">${amount}</span><span style="font-size:11px;background:${st.bg};color:${st.color};border:1px solid ${st.border};border-radius:20px;padding:2px 9px">${st.text}</span>`;
+  };
   return`<div class="daily-tc" style="border:1.5px dashed #E8B27D;margin-top:12px">
     <div class="daily-tc-hd">
-      <div><div class="daily-tc-name">🏠 場租</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">日曆偵測到 ${rentEvents.length} 筆場租，金額需手動填寫</div></div>
+      <div><div class="daily-tc-name">🏠 場租</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">日曆偵測到 ${rentEvents.length} 筆場租</div></div>
     </div>
     ${rentEvents.sort((a,b)=>(a.time||'').localeCompare(b.time||'')).map(e=>{
       const handled=dayRent.find(r=>r.gcKey===e.key);
       const kq=jsQ(e.key);
       const domId=gcDomId(e.key);
+      const cfg=RENT_CFG[e.teacher];
       if(handled){
-        return`<div class="cr" style="background:${handled.mode==='deduct'?'#FDECEA':'var(--green2)'}">
+        const st=RENT_MODE_STYLE[handled.mode]||RENT_MODE_STYLE.cash;
+        const canEdit=handled.mode!=='prepaid';
+        return`<div class="cr" style="background:${st.bg}">
           <div class="cr-time">${e.time||'—'}</div>
           <div class="cr-info"><div class="cr-name">${hEsc(e.teacher)} 老師</div><div class="cr-course">${hEsc(e.label)}${e.note?'・'+hEsc(e.note):''}</div></div>
           <div style="display:flex;align-items:center;gap:6px">
-            <span style="cursor:pointer" onclick="gcRentEditFee('${jsQ(handled.id)}')" title="點擊調整金額">${modeChip(handled)}</span>
+            <span ${canEdit?`style="cursor:pointer" onclick="gcRentEditFee('${jsQ(handled.id)}')" title="點擊調整金額"`:''}>${modeChip(handled)}</span>
             <span style="font-size:11px;color:var(--ink3);cursor:pointer;text-decoration:underline" onclick="gcRentUnmark('${jsQ(handled.id)}')">取消</span>
+          </div>
+        </div>`;
+      }
+      if(cfg&&cfg.mode==='prepaid'){
+        const remaining=cfg.remaining||0;
+        const low=remaining<=3;
+        return`<div class="cr" style="background:#FFF9F2">
+          <div class="cr-time">${e.time||'—'}</div>
+          <div class="cr-info"><div class="cr-name">${hEsc(e.teacher)} 老師</div><div class="cr-course">${hEsc(e.label)}${e.note?'・'+hEsc(e.note):''}</div></div>
+          <div style="display:flex;align-items:center;gap:6px">
+            ${low?`<span style="font-size:11px;color:var(--red)">僅剩${remaining}堂</span>`:`<span style="font-size:11px;color:var(--ink3)">剩${remaining}堂</span>`}
+            <button onclick="gcRentSavePrepaid('${kq}')" style="background:var(--gold);color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">扣1堂</button>
+          </div>
+        </div>`;
+      }
+      if(cfg&&(cfg.mode==='deduct'||cfg.mode==='cash'||cfg.mode==='transfer')){
+        const st=RENT_MODE_STYLE[cfg.mode];
+        return`<div class="cr" style="background:#FFF9F2">
+          <div class="cr-time">${e.time||'—'}</div>
+          <div class="cr-info"><div class="cr-name">${hEsc(e.teacher)} 老師</div><div class="cr-course">${hEsc(e.label)}${e.note?'・'+hEsc(e.note):''}</div></div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" id="rentFee_${domId}" value="${cfg.fee}" style="width:64px;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">
+            <button onclick="gcRentSave('${kq}','${cfg.mode}')" style="background:${st.color};color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">確認：${st.text}</button>
+            <span style="font-size:10px;color:var(--ink3);cursor:pointer;text-decoration:underline" onclick="gcRentToggleManual('${domId}')">其他方式</span>
+          </div>
+          <div id="rentManual_${domId}" style="display:none;width:100%;margin-top:6px;gap:6px;justify-content:flex-end">
+            <button onclick="gcRentSave('${kq}','deduct')" style="background:var(--red);color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">扣薪資</button>
+            <button onclick="gcRentSave('${kq}','cash')" style="background:var(--ink);color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">已付現金</button>
+            <button onclick="gcRentSave('${kq}','transfer')" style="background:#B9770E;color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">發薪日轉帳</button>
           </div>
         </div>`;
       }
@@ -3602,15 +3725,21 @@ function _buildRentCardHTML(ds,rentEvents){
           <input type="number" id="rentFee_${domId}" placeholder="金額" style="width:64px;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:12px">
           <button onclick="gcRentSave('${kq}','deduct')" style="background:var(--red);color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">扣薪資</button>
           <button onclick="gcRentSave('${kq}','cash')" style="background:var(--ink);color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">已付現金</button>
+          <button onclick="gcRentSave('${kq}','transfer')" style="background:#B9770E;color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">發薪日轉帳</button>
         </div>
       </div>`;
     }).join('')}
-    ${orphanRent.map(r=>`<div class="cr" style="background:${r.mode==='deduct'?'#FDECEA':'var(--green2)'}">
+    ${orphanRent.map(r=>`<div class="cr" style="background:${(RENT_MODE_STYLE[r.mode]||RENT_MODE_STYLE.cash).bg}">
       <div class="cr-time">${r.time||'—'}</div>
       <div class="cr-info"><div class="cr-name">${hEsc(r.teacher)} 老師</div><div class="cr-course">${hEsc(r.label||'場租')}（日曆事件已移除）</div></div>
       <div style="display:flex;align-items:center;gap:6px">${modeChip(r)}<span style="font-size:11px;color:var(--ink3);cursor:pointer;text-decoration:underline" onclick="gcRentUnmark('${jsQ(r.id)}')">取消</span></div>
     </div>`).join('')}
   </div>`;
+}
+function gcRentToggleManual(domId){
+  const el=document.getElementById('rentManual_'+domId);if(!el)return;
+  const show=el.style.display==='none';
+  el.style.display=show?'flex':'none';
 }
 function gcRentSave(key,mode){
   const el=document.getElementById('rentFee_'+gcDomId(key));
@@ -3621,8 +3750,35 @@ function gcRentSave(key,mode){
   const ds=fmt(getAdminDate());
   RENT.push({id:'rent'+Date.now(),date:ds,time:e.time||'',teacher:e.teacher,label:e.label,fee,mode,gcKey:key,createdAt:todayStr()});
   saveRent();
-  showToast((mode==='deduct'?'✓ 已標記扣薪資 $':'✓ 已標記收現金 $')+fee.toLocaleString());
+  showToast('✓ 已標記'+RENT_MODE_STYLE[mode].text+' $'+fee.toLocaleString());
   renderDaily();
+}
+// 預付堂數老師：不收錢，扣1堂剩餘堂數（RENT_CFG 跟這筆 RENT 紀錄一起更新）
+function gcRentSavePrepaid(key){
+  if(RENT.some(r=>r.gcKey===key)){showToast('這筆場租已經標記過','r');return;}
+  const e=_rentEvents.find(x=>x.key===key);if(!e)return;
+  const cfg=RENT_CFG[e.teacher];
+  if(!cfg||cfg.mode!=='prepaid'){showToast('找不到預付堂數設定','r');return;}
+  if((cfg.remaining||0)<=0){showToast('剩餘堂數已用完，請先幫她加值','r');return;}
+  cfg.remaining=(cfg.remaining||0)-1;
+  saveRentCfg();
+  const ds=fmt(getAdminDate());
+  RENT.push({id:'rent'+Date.now(),date:ds,time:e.time||'',teacher:e.teacher,label:e.label,fee:0,mode:'prepaid',gcKey:key,createdAt:todayStr(),remainingAfter:cfg.remaining});
+  saveRent();
+  showToast('✓ 已扣1堂，'+e.teacher+'老師剩餘'+cfg.remaining+'堂');
+  pushTeacherPrepaidNotice(e.teacher,cfg.remaining);
+  renderDaily();
+}
+// 場租扣堂即時通知老師（老師需已用 LINE 綁定；沒綁定就靜默略過，不影響扣堂本身）
+async function pushTeacherPrepaidNotice(teacher,remaining){
+  const phone=TEACHER_PHONES[teacher];if(!phone)return;
+  const msg=teacher+'老師您好，\n今天已扣1堂場租，目前剩餘 '+remaining+' 堂'+(remaining<=3?'，堂數快用完囉，記得跟店長確認加購～':'')+'。\n\n輕境運動工作室';
+  try{
+    await fetch(LINE_WEBHOOK_BASE+'/api/send-teacher-message?key='+TEACHER_PUSH_SECRET,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({phone,message:msg})
+    });
+  }catch(e){console.warn('teacher LINE push failed:',e);}
 }
 function gcRentEditFee(id){
   const r=RENT.find(x=>x.id===id);if(!r)return;
@@ -3636,6 +3792,12 @@ function gcRentEditFee(id){
 }
 function gcRentUnmark(id){
   if(!confirm('取消這筆場租標記？'))return;
+  const r=RENT.find(x=>x.id===id);
+  // 預付堂數的取消要把堂數加回去，不然堂數會平白消失
+  if(r&&r.mode==='prepaid'&&RENT_CFG[r.teacher]&&RENT_CFG[r.teacher].mode==='prepaid'){
+    RENT_CFG[r.teacher].remaining=(RENT_CFG[r.teacher].remaining||0)+1;
+    saveRentCfg();
+  }
   RENT=RENT.filter(x=>x.id!==id);
   saveRent();renderDaily();
   if(document.getElementById('ap-wage')?.classList.contains('active')&&document.getElementById('wageSubWage')?.style.display!=='none')renderWage();
@@ -3929,16 +4091,19 @@ function renderWage(){
     const sessions=tMap[t]||[];const total=sessions.reduce((a,x)=>a+x.fee,0);
     const teacherRentDeduct=monthRentDeduct.filter(r=>r.teacher===t);
     const rentDeductTotal=teacherRentDeduct.reduce((a,r)=>a+(r.fee||0),0);
+    // 預付堂數扣款不影響金額，只是給店長對帳可見度用
+    const teacherPrepaidRent=RENT.filter(r=>r.date&&wageInRange(r.date,mk)&&r.teacher===t&&r.mode==='prepaid');
     const teacherBonus=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.teacher===t&&(l.bonus||0)>0);
     if(!sessions.length){
-      if(!teacherRentDeduct.length&&!teacherBonus.length)return`<div class="wage-card no-data"><div class="wc-header"><div class="wc-name">${t}</div><div class="wc-no-data-lbl">尚無記錄</div></div><div class="wc-body"><div class="wc-no-record">本月尚無課堂</div></div></div>`;
+      if(!teacherRentDeduct.length&&!teacherPrepaidRent.length&&!teacherBonus.length)return`<div class="wage-card no-data"><div class="wc-header"><div class="wc-name">${t}</div><div class="wc-no-data-lbl">尚無記錄</div></div><div class="wc-body"><div class="wc-no-record">本月尚無課堂</div></div></div>`;
       const bonusPaid=teacherBonus.filter(l=>l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
       const bonusPend=teacherBonus.filter(l=>!l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
       const only=bonusPaid-rentDeductTotal;
       return`<div class="wage-card"><div class="wc-header"><div class="wc-name">${t}</div><div class="wc-total" style="color:${only<0?'var(--red)':'var(--green)'}">${only<0?'－':''}$${Math.abs(only).toLocaleString()}</div></div><div class="wc-divider"></div><div class="wc-body">
         ${teacherRentDeduct.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${r.date.slice(5)} ${r.time||''}</div><div style="flex:1;color:var(--red)">🏠 場租扣款${r.label?'・'+hEsc(r.label):''}</div><div style="color:var(--red);flex-shrink:0">－$${(r.fee||0).toLocaleString()}</div></div>`).join('')}
+        ${teacherPrepaidRent.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${r.date.slice(5)} ${r.time||''}</div><div style="flex:1;color:var(--gold)">🏠 場租（預付扣堂）</div><div style="color:var(--gold);flex-shrink:0">剩${r.remainingAfter??'?'}堂</div></div>`).join('')}
         ${teacherBonus.map(l=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${(l.createdAt||'').slice(5)}</div><div style="flex:1;color:var(--teal)">🎁 續課獎金・${hEsc(l.name)}</div><div style="color:${l.bonusPaid?'var(--teal)':'var(--orange)'};flex-shrink:0">$${(l.bonus||0).toLocaleString()}${l.bonusPaid?'':'（待撥）'}</div></div>`).join('')}
-        <div class="wc-note" style="margin-top:6px">本月無課堂${teacherRentDeduct.length?'・已扣場租 $'+rentDeductTotal.toLocaleString():''}${bonusPend?'・獎金待撥 $'+bonusPend.toLocaleString():''}</div>
+        <div class="wc-note" style="margin-top:6px">本月無課堂${teacherRentDeduct.length?'・已扣場租 $'+rentDeductTotal.toLocaleString():''}${teacherPrepaidRent.length?'・預付扣'+teacherPrepaidRent.length+'堂':''}${bonusPend?'・獎金待撥 $'+bonusPend.toLocaleString():''}</div>
       </div></div>`;
     }
     // 逐堂明細：對帳要看誰、哪天哪個時段，不是只看課種小計
@@ -3975,12 +4140,17 @@ function renderWage(){
           <div style="flex:1;color:var(--red)">🏠 場租扣款${r.label?'・'+hEsc(r.label):''}</div>
           <div style="color:var(--red);flex-shrink:0">－$${(r.fee||0).toLocaleString()}</div>
         </div>`).join('')}
+        ${teacherPrepaidRent.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px">
+          <div style="color:var(--ink3);width:78px;flex-shrink:0">${r.date.slice(5)} ${r.time||''}</div>
+          <div style="flex:1;color:var(--gold)">🏠 場租（預付扣堂）</div>
+          <div style="color:var(--gold);flex-shrink:0">剩${r.remainingAfter??'?'}堂</div>
+        </div>`).join('')}
         ${bonusEntries.map(l=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px">
           <div style="color:var(--ink3);width:78px;flex-shrink:0">${(l.createdAt||'').slice(5)}</div>
           <div style="flex:1;color:var(--teal)">🎁 續課獎金・${hEsc(l.name)}</div>
           <div style="color:${l.bonusPaid?'var(--teal)':'var(--orange)'};flex-shrink:0">$${(l.bonus||0).toLocaleString()}${l.bonusPaid?'':'（待撥）'}</div>
         </div>`).join('')}
-        <div class="wc-note" style="margin-top:6px">${sessions.length} 堂${tp?' ・ '+tp+' 人次':''}${trialCount?' ・ 含體驗 '+trialCount+' 堂':''}${gcCount?' ・ 含GC核銷 '+gcCount+' 堂':''}${adjSessions.length?' ・ 含 '+adjSessions.length+' 筆調整':''}${teacherRentDeduct.length?' ・ 已扣場租 $'+rentDeductTotal.toLocaleString():''}${bonusPending>0?' ・ 獎金待撥 $'+bonusPending.toLocaleString():''}</div>
+        <div class="wc-note" style="margin-top:6px">${sessions.length} 堂${tp?' ・ '+tp+' 人次':''}${trialCount?' ・ 含體驗 '+trialCount+' 堂':''}${gcCount?' ・ 含GC核銷 '+gcCount+' 堂':''}${adjSessions.length?' ・ 含 '+adjSessions.length+' 筆調整':''}${teacherRentDeduct.length?' ・ 已扣場租 $'+rentDeductTotal.toLocaleString():''}${teacherPrepaidRent.length?' ・ 預付扣'+teacherPrepaidRent.length+'堂':''}${bonusPending>0?' ・ 獎金待撥 $'+bonusPending.toLocaleString():''}</div>
       </div>
       <div class="wc-footer"><button class="wc-btn wc-btn-copy" onclick="copyTeacher('${t}','${mk}')">📋 複製薪資</button></div>
     </div>`;
@@ -4125,7 +4295,8 @@ function exportCSV(){
     csv+=`${g.date},${g.time||''},${g.name},${g.course} ${g.ratio},${g.teacher},$${g.fee||0},GC核銷,\n`;
   });
   RENT.filter(r=>wageInRange(r.date,mk)).sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{
-    csv+=`${r.date},${r.time||''},,${r.label||'場租'},${r.teacher},${r.mode==='deduct'?'-':''}$${r.fee||0},${r.mode==='deduct'?'場租扣款':'場租(已付現金)'},\n`;
+    const rentLabel={deduct:'場租扣款',cash:'場租(已付現金)',transfer:'場租(發薪日轉帳)',prepaid:'場租(預付堂數，剩'+(r.remainingAfter??'?')+'堂)'}[r.mode]||'場租';
+    csv+=`${r.date},${r.time||''},,${r.label||'場租'},${r.teacher},${r.mode==='deduct'?'-':''}$${r.fee||0},${rentLabel},\n`;
   });
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);const a=document.createElement('a');
@@ -5107,7 +5278,66 @@ function renderTchMgr(){
   <div style="font-size:12px;color:var(--ink3);letter-spacing:1px;margin-bottom:10px">自訂師資（${custom.length} 位）</div>
   ${custom.length?custom.map(t=>renderTchCard(t,true)).join(''):'<div style="text-align:center;color:var(--ink3);padding:16px;font-size:13px;background:var(--bg);border-radius:10px;margin-bottom:16px">尚未新增自訂師資</div>'}
   <div style="font-size:12px;color:var(--ink3);letter-spacing:1px;margin:16px 0 10px">預設師資（${builtIn.length} 位，費率已內建）</div>
-  <div style="display:flex;flex-wrap:wrap;gap:8px">${builtIn.map(name=>`<div style="background:var(--white);border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:13px;color:var(--ink2)">${name}</div>`).join('')}</div>`;
+  <div style="display:flex;flex-direction:column;gap:8px">${builtIn.map(name=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--white);border:1px solid var(--border);border-radius:8px;padding:7px 10px 7px 14px">
+      <div style="font-size:13px;color:var(--ink2)">${name}</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        ${rentCfgChip(name)}
+        <button onclick="openRentCfg('${name}')" style="padding:4px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;font-size:11px;cursor:pointer;color:var(--ink2);font-family:'Noto Sans TC',sans-serif">場租設定</button>
+      </div>
+    </div>`).join('')}</div>`;
+}
+// 場租設定小標籤：師資管理清單上快速看出這位老師目前是哪種結算方式＋LINE有沒有綁定
+function rentCfgChip(name){
+  const c=RENT_CFG[name];
+  const boundChip=TEACHER_LINE_BOUND.has(name)?`<span style="font-size:10px;background:#E2F5EA;color:var(--green);border:1px solid #90D4B0;border-radius:20px;padding:2px 8px;white-space:nowrap">📱已綁定</span>`:'';
+  if(!c||!c.mode)return boundChip;
+  const label={deduct:'扣薪資',cash:'當天現金',transfer:'發薪日轉帳',prepaid:'剩'+(c.remaining??0)+'堂'}[c.mode]||'';
+  return`<span style="font-size:10px;background:var(--gold4);color:var(--gold);border:1px solid var(--gold2);border-radius:20px;padding:2px 8px;white-space:nowrap">🏠${label}</span>${boundChip}`;
+}
+function toggleRentCfgFields(){
+  const mode=document.getElementById('rentCfgMode').value;
+  document.getElementById('rentCfgFeeWrap').style.display=(mode==='deduct'||mode==='cash'||mode==='transfer')?'':'none';
+  document.getElementById('rentCfgPrepaidWrap').style.display=(mode==='prepaid')?'':'none';
+}
+function openRentCfg(name){
+  const c=RENT_CFG[name]||{};
+  document.getElementById('rentCfgTitle').textContent=name+' 老師・場租結算設定';
+  document.getElementById('rentCfgTeacher').value=name;
+  document.getElementById('rentCfgPhone').value=TEACHER_PHONES[name]||'';
+  document.getElementById('rentCfgBoundHint').innerHTML=TEACHER_LINE_BOUND.has(name)
+    ?'<span style="color:var(--green)">📱 已完成 LINE 綁定</span>'
+    :'<span style="color:var(--ink3)">尚未綁定：請老師加官方帳號好友，輸入「綁定」後回覆這支手機號碼</span>';
+  document.getElementById('rentCfgMode').value=c.mode||'';
+  document.getElementById('rentCfgFee').value=c.fee||'';
+  document.getElementById('rentCfgTotal').value=c.total||'';
+  document.getElementById('rentCfgRemaining').value=c.remaining??'';
+  toggleRentCfgFields();
+  document.getElementById('rentCfgOv').classList.add('open');
+}
+function saveRentCfgModal(){
+  const name=document.getElementById('rentCfgTeacher').value;if(!name)return;
+  const phone=document.getElementById('rentCfgPhone').value.trim();
+  if(phone)TEACHER_PHONES[name]=phone;else delete TEACHER_PHONES[name];
+  saveTeacherPhones();
+  const mode=document.getElementById('rentCfgMode').value;
+  if(!mode){delete RENT_CFG[name];saveRentCfg();document.getElementById('rentCfgOv').classList.remove('open');renderTchMgr();showToast('✓ '+name+' 的設定已儲存');return;}
+  const cfg={mode};
+  if(mode==='deduct'||mode==='cash'||mode==='transfer'){
+    const fee=parseInt(document.getElementById('rentCfgFee').value);
+    if(isNaN(fee)||fee<0){showToast('請輸入場租金額','r');return;}
+    cfg.fee=fee;
+  }else if(mode==='prepaid'){
+    const total=parseInt(document.getElementById('rentCfgTotal').value);
+    const remaining=parseInt(document.getElementById('rentCfgRemaining').value);
+    if(isNaN(total)||total<0||isNaN(remaining)||remaining<0){showToast('請輸入預付堂數與剩餘堂數','r');return;}
+    cfg.total=total;cfg.remaining=remaining;
+  }
+  RENT_CFG[name]=cfg;
+  saveRentCfg();
+  document.getElementById('rentCfgOv').classList.remove('open');
+  renderTchMgr();
+  showToast('✓ '+name+' 場租設定已儲存');
 }
 
 function renderTchCard(t, isCustom){
@@ -5119,8 +5349,9 @@ function renderTchCard(t, isCustom){
 
   return`<div style="background:var(--white);border:1px solid var(--border);border-radius:11px;padding:13px 15px;margin-bottom:10px;box-shadow:0 2px 8px rgba(44,36,22,.08)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <div style="font-size:17px;letter-spacing:2px">${t.name}</div>
+      <div style="font-size:17px;letter-spacing:2px;display:flex;align-items:center;gap:7px">${t.name}${rentCfgChip(t.name)}</div>
       <div style="display:flex;gap:7px">
+        <button onclick="openRentCfg('${t.name}')" style="padding:5px 13px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;font-size:12px;cursor:pointer;color:var(--ink2);font-family:'Noto Sans TC',sans-serif">場租設定</button>
         <button onclick="openEditTeacher('${t.name}')" style="padding:5px 13px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;font-size:12px;cursor:pointer;color:var(--ink2);font-family:'Noto Sans TC',sans-serif">編輯費率</button>
         <button onclick="deleteTeacher('${t.name}')" style="padding:5px 13px;background:var(--red2);border:1px solid #F7C1C1;border-radius:7px;font-size:12px;cursor:pointer;color:var(--red);font-family:'Noto Sans TC',sans-serif">刪除</button>
       </div>
@@ -6540,7 +6771,8 @@ function showMonthReport(){
   const monthT=T.filter(t=>monthKey(t.date)===mk&&t.confirmed===true);
   // 場租：mode='deduct' 從老師薪資扣，代表這筆師資費其實沒付出去；mode='cash' 老師直接付現金給工作室，算工作室的額外收入
   const monthRentDeduct=RENT.filter(r=>r.date&&monthKey(r.date)===mk&&r.mode==='deduct').reduce((a,r)=>a+(r.fee||0),0);
-  const monthRentCash=RENT.filter(r=>r.date&&monthKey(r.date)===mk&&r.mode==='cash').reduce((a,r)=>a+(r.fee||0),0);
+  // transfer（發薪日轉帳）本質上還是現金收入，只是晚一點才實際入帳，先一起算進場租收入
+  const monthRentCash=RENT.filter(r=>r.date&&monthKey(r.date)===mk&&(r.mode==='cash'||r.mode==='transfer')).reduce((a,r)=>a+(r.fee||0),0);
   const totalFee=monthR.reduce((a,r)=>{const s=S.find(x=>x.id===r.sid);return a+(getRecFee(r,s)||0)},0)+monthT.reduce((a,t)=>a+(t.manualFee!=null?t.manualFee:t.teacherFee),0)+GW.filter(g=>monthKey(g.date)===mk).reduce((a,g)=>a+(g.fee||0),0)-monthRentDeduct;
   // 收入計入所有流水帳項目（新購/續課/首頁購課/體驗課費）+ 場租現金收入
   const courseIncome=LEDGER.filter(l=>monthKey(l.createdAt||l.payDate||'')===mk).reduce((a,l)=>a+(l.actualPayment||0),0);
