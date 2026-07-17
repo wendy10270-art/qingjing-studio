@@ -1033,11 +1033,34 @@ const db={
       <input type="number" id="rentCfgTotal" placeholder="例：20" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:12px;text-align:right">
       <label>目前剩餘堂數</label>
       <input type="number" id="rentCfgRemaining" placeholder="例：20" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:12px;text-align:right">
-      <div style="font-size:11px;color:var(--ink3);margin-bottom:12px">加購新一輪20堂時，回這裡把「剩餘堂數」加回去即可</div>
-      <button type="button" onclick="openManualRentIncome()" style="width:100%;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:9px;font-size:13px;cursor:pointer;color:var(--ink2);font-family:'Noto Sans TC',sans-serif;margin-bottom:12px">💰 登記今天收到的整包款項（例如買20堂收$12,000）</button>
+      <button type="button" onclick="openManualRentIncome()" style="width:100%;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:9px;font-size:13px;cursor:pointer;color:var(--ink2);font-family:'Noto Sans TC',sans-serif;margin-bottom:12px">💰 登記加購新一輪堂數</button>
     </div>
     <button class="btn-full bf-ink" onclick="saveRentCfgModal()" style="margin-top:6px">儲存場租設定</button>
     <button class="btn-full bf-soft" style="margin-top:9px" onclick="document.getElementById('rentCfgOv').classList.remove('open')">取消</button>
+  </div>
+</div>
+
+<!-- 登記場租預付購買 Modal -->
+<div class="add-ov" id="mriOv" onclick="if(event.target===this)this.classList.remove(&#39;open&#39;)">
+  <div class="add-modal">
+    <div class="modal-ttl" id="mriTitle">登記場租預付購買</div>
+    <input type="hidden" id="mriTeacher">
+    <label>購買堂數</label>
+    <input type="number" id="mriSessions" placeholder="例：20" oninput="mriRecalc('sessions')" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:12px;text-align:right">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:6px">
+      <div><label>單堂金額</label><input type="number" id="mriUnitPrice" placeholder="例：600" oninput="mriRecalc('unit')" style="margin-bottom:0;width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:15px;outline:none;text-align:right"></div>
+      <div><label>總金額</label><input type="number" id="mriTotalAmount" placeholder="例：12000" oninput="mriRecalc('total')" style="margin-bottom:0;width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:15px;outline:none;text-align:right"></div>
+    </div>
+    <div style="font-size:11px;color:var(--ink3);margin-bottom:12px">填其中兩項會自動算出第三項</div>
+    <label>付款方式</label>
+    <select id="mriPayMethod" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;font-family:'Noto Sans TC',sans-serif;outline:none;margin-bottom:12px">
+      <option value="cash">當天付現金</option>
+      <option value="transfer">發薪日轉帳付清</option>
+    </select>
+    <label>備註（選填）</label>
+    <input type="text" id="mriNote" placeholder="例：預付20堂" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:12px">
+    <button class="btn-full bf-ink" onclick="saveManualRentIncome()" style="margin-top:6px">儲存這筆購買</button>
+    <button class="btn-full bf-soft" style="margin-top:9px" onclick="document.getElementById('mriOv').classList.remove('open')">取消</button>
   </div>
 </div>
 
@@ -5340,20 +5363,60 @@ function saveRentCfgModal(){
   renderTchMgr();
   showToast('✓ '+name+' 場租設定已儲存');
 }
-// 老師一次買一整包場租（例如20堂$12,000）收到的款項：跟日曆事件無關，是一次性收入，
-// 直接記一筆 RENT（mode 依付款方式決定，跟現有場租現金/轉帳收入算法共用），不影響堂數扣款
+// 老師一次買一整包場租（例如20堂$12,000）：跟課卡購課方案同樣邏輯——堂數／單堂／總金額
+// 填任兩項自動算第三項。存檔時把堂數加進 RENT_CFG（沒有就新開一組預付堂數設定），
+// 同時記一筆 RENT 收入（不影響學員端資料，只是場租這邊的一次性收入）
 function openManualRentIncome(){
   const name=document.getElementById('rentCfgTeacher').value;if(!name)return;
-  const amountStr=prompt(name+'老師這次收到的場租款項金額（例如買20堂收$12000，就輸入12000）');
-  if(amountStr==null)return;
-  const amount=parseInt(amountStr);
-  if(isNaN(amount)||amount<=0){showToast('金額不正確','r');return;}
-  const note=prompt('備註（選填，例如：預付20堂）','預付堂數')||'';
-  const isTransfer=confirm('付款方式：按「確定」＝發薪日轉帳，按「取消」＝已收現金');
+  document.getElementById('mriTitle').textContent=name+' 老師・登記場租預付購買';
+  document.getElementById('mriTeacher').value=name;
+  document.getElementById('mriSessions').value='';
+  document.getElementById('mriUnitPrice').value='';
+  document.getElementById('mriTotalAmount').value='';
+  document.getElementById('mriPayMethod').value='cash';
+  document.getElementById('mriNote').value='';
+  document.getElementById('mriOv').classList.add('open');
+}
+// changed 是這次使用者剛編輯的欄位（'sessions'|'unit'|'total'），用另外兩個已知值算出第三個
+function mriRecalc(changed){
+  const sessions=parseFloat(document.getElementById('mriSessions').value);
+  const unit=parseFloat(document.getElementById('mriUnitPrice').value);
+  const total=parseFloat(document.getElementById('mriTotalAmount').value);
+  if(changed==='total'&&sessions>0&&total>=0){
+    document.getElementById('mriUnitPrice').value=Math.round(total/sessions);
+  }else if(changed==='unit'&&sessions>0&&unit>=0){
+    document.getElementById('mriTotalAmount').value=Math.round(sessions*unit);
+  }else if(changed==='sessions'&&sessions>0){
+    if(unit>=0)document.getElementById('mriTotalAmount').value=Math.round(sessions*unit);
+    else if(total>=0)document.getElementById('mriUnitPrice').value=Math.round(total/sessions);
+  }
+}
+function saveManualRentIncome(){
+  const name=document.getElementById('mriTeacher').value;if(!name)return;
+  const sessions=parseInt(document.getElementById('mriSessions').value);
+  const amount=parseInt(document.getElementById('mriTotalAmount').value);
+  const payMethod=document.getElementById('mriPayMethod').value;
+  const note=document.getElementById('mriNote').value.trim()||('預付'+sessions+'堂');
+  if(isNaN(sessions)||sessions<=0){showToast('請輸入購買堂數','r');return;}
+  if(isNaN(amount)||amount<=0){showToast('請輸入總金額或單堂金額','r');return;}
+  const cfg=RENT_CFG[name]&&RENT_CFG[name].mode==='prepaid'?RENT_CFG[name]:{mode:'prepaid',total:0,remaining:0};
+  cfg.total=(cfg.total||0)+sessions;
+  cfg.remaining=(cfg.remaining||0)+sessions;
+  RENT_CFG[name]=cfg;
+  saveRentCfg();
   const ds=todayStr();
-  RENT.push({id:'rent'+Date.now(),date:ds,time:'',teacher:name,label:note,fee:amount,mode:isTransfer?'transfer':'cash',createdAt:ds});
+  RENT.push({id:'rent'+Date.now(),date:ds,time:'',teacher:name,label:note,fee:amount,mode:payMethod,createdAt:ds});
   saveRent();
-  showToast('✓ 已登記 '+name+' 老師 $'+amount.toLocaleString()+' 場租收入');
+  document.getElementById('mriOv').classList.remove('open');
+  // 場租設定視窗如果還開著，把新的堂數同步顯示上去
+  if(document.getElementById('rentCfgTeacher').value===name){
+    document.getElementById('rentCfgMode').value='prepaid';
+    document.getElementById('rentCfgTotal').value=cfg.total;
+    document.getElementById('rentCfgRemaining').value=cfg.remaining;
+    toggleRentCfgFields();
+  }
+  renderTchMgr();
+  showToast('✓ 已登記 '+name+' 老師 '+sessions+'堂・$'+amount.toLocaleString()+'，剩餘堂數更新為 '+cfg.remaining);
 }
 
 function renderTchCard(t, isCustom){
