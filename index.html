@@ -1761,12 +1761,13 @@ async function syncFutureRentBookings(){
   if(!Object.keys(calMap).length)return;
   const now=new Date();
   const tMin=encodeURIComponent(now.toISOString());
-  const tMax=encodeURIComponent(new Date(now.getTime()+60*864e5).toISOString());
+  // 場租常常一次預約好幾個月（例如每週固定一堂排到半年後），60天太短會漏掉——拉長到210天（約7個月）
+  const tMax=encodeURIComponent(new Date(now.getTime()+210*864e5).toISOString());
   const found=[];
   await Promise.all(Object.entries(calMap).map(async([teacher,calId])=>{
     if(!calId)return;
     try{
-      const data=await GC.api(`/calendars/${encodeURIComponent(calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=100`);
+      const data=await GC.api(`/calendars/${encodeURIComponent(calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=250`);
       (data.items||[]).forEach(ev=>{
         if(ev.status==='cancelled')return;
         const parsed=GC.parseTitle(ev.summary||'');if(!parsed||!gcIsRent(parsed.type))return;
