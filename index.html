@@ -480,6 +480,39 @@ input:focus,select:focus{border-color:var(--gold2)}
 .dt-sep{color:var(--ink3);flex-shrink:0;font-size:13px}
 .dt-sel-y{flex:1.6}
 .dt-sel-m,.dt-sel-d,.dt-sel-h,.dt-sel-min{flex:1}
+
+/* ── iPad 橫向：學員簽到相關畫面（課卡／簽到成功頁）改雙欄，善用橫向空間 ──
+   只鎖定 orientation:landscape + min-width:700px，避免手機橫放時（螢幕還是很窄）被誤套用 */
+@media (orientation: landscape) and (min-width: 700px) {
+  #sc-card .sc-pad{
+    max-width:1120px;margin:0 auto;
+    display:grid;grid-template-columns:1fr 360px;column-gap:26px;
+    grid-template-areas:"backbar backbar" "top sign" "grid sign" "upcoming sign";
+    align-items:start;
+  }
+  #sc-card .back-bar{grid-area:backbar}
+  #sc-card #cardTop{grid-area:top}
+  #sc-card #gridCard{grid-area:grid}
+  #sc-card #cardUpcomingArea{grid-area:upcoming;margin:0 0 20px}
+  #sc-card #signArea{grid-area:sign}
+
+  #sc-success .sc-pad{max-width:960px;margin:0 auto}
+  #sc-success .success-wrap{
+    display:grid;grid-template-columns:1fr 1fr;column-gap:40px;
+    text-align:center;padding-top:36px;align-items:start;
+  }
+  #sc-success .success-icon,
+  #sc-success .success-ttl,
+  #sc-success #supplementAlert,
+  #sc-success .success-sub,
+  #sc-success .success-n,
+  #sc-success .success-lbl{grid-column:1;justify-self:center}
+  #sc-success #nextBookingArea,
+  #sc-success #successUpcomingArea,
+  #sc-success #lineMessageArea{grid-column:2;max-width:none!important;width:100%;justify-self:stretch;margin-top:0!important}
+  #sc-success #nextBookingArea{margin-top:0!important}
+  #sc-success #successActions{grid-column:1/-1;max-width:320px;margin:24px auto 0}
+}
 </style>
 <script>
 // Firebase REST API（不需外部 SDK，任何瀏覽器都能跑）
@@ -633,7 +666,7 @@ const db={
       <div id="nextBookingArea" style="margin-top:20px;max-width:320px;width:100%"></div>
       <div id="successUpcomingArea" style="margin-top:14px;width:100%;max-width:380px"></div>
       <div id="lineMessageArea" style="margin-top:14px;width:100%;max-width:380px"></div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:14px;width:100%;max-width:320px">
+      <div id="successActions" style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:14px;width:100%;max-width:320px">
         <button class="btn btn-ink" style="width:100%;font-size:16px;padding:14px" onclick="renderTeachers();goScreen('sc-teachers')">完成，返回首頁</button>
         <div id="undoSignInArea"></div>
       </div>
