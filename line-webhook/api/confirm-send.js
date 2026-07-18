@@ -8,16 +8,10 @@
 // push "to" field works identically for all three ID types, so no branching
 // needed here; see line_reminder.py's resolution of `to`.
 
-const FB_URL = 'https://qingjing-studio-default-rtdb.firebaseio.com';
-const FB_API_KEY = 'AIzaSyBg3_toi-Kqyi9iw2IbW9C5HhkbgJappxI';
+const { fb } = require('../lib/firebaseAdmin');
+
 const CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 const CONFIRM_SECRET = process.env.CONFIRM_SECRET || '';
-
-async function fb(path, opts) {
-  const res = await fetch(`${FB_URL}${path}.json?auth=${FB_API_KEY}`, opts);
-  if (!res.ok) throw new Error(`Firebase ${path} failed: ${res.status}`);
-  return res.json();
-}
 
 async function pushLine(userId, text) {
   const res = await fetch('https://api.line.me/v2/bot/message/push', {

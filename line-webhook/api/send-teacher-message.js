@@ -7,19 +7,13 @@
 // qingjing_line_bindings) so a teacher and a student sharing a phone's last 8 digits
 // can never resolve to each other's binding.
 
-const FB_URL = 'https://qingjing-studio-default-rtdb.firebaseio.com';
-const FB_API_KEY = 'AIzaSyBg3_toi-Kqyi9iw2IbW9C5HhkbgJappxI';
+const { fb } = require('../lib/firebaseAdmin');
+
 const CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 // Separate from CHECKIN_PUSH_SECRET/CONFIRM_SECRET on purpose — this key is embedded
 // client-side in index.html (GitHub Pages is fully public), so isolating it means a
 // leak here can't be used to trigger the other push endpoints too.
 const TEACHER_PUSH_SECRET = process.env.TEACHER_PUSH_SECRET || '';
-
-async function fb(path, opts) {
-  const res = await fetch(`${FB_URL}${path}.json?auth=${FB_API_KEY}`, opts);
-  if (!res.ok) throw new Error(`Firebase ${path} failed: ${res.status}`);
-  return res.json();
-}
 
 function phoneKey(phone) {
   const digits = (phone || '').replace(/\D/g, '');

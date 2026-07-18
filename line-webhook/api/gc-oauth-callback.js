@@ -9,17 +9,11 @@
 // access_token back to the popup's opener via postMessage. From then on the
 // frontend never talks to Google's auth servers again — see gc-token.js.
 
-const FB_URL = 'https://qingjing-studio-default-rtdb.firebaseio.com';
-const FB_API_KEY = 'AIzaSyBg3_toi-Kqyi9iw2IbW9C5HhkbgJappxI';
+const { fb } = require('../lib/firebaseAdmin');
+
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 // 一定要跟 index.html 開授權視窗時用的 redirect_uri 完全一致，Google 才會接受
 const REDIRECT_URI = 'https://line-webhook-gules.vercel.app/api/gc-oauth-callback';
-
-async function fb(path, opts) {
-  const res = await fetch(`${FB_URL}${path}.json?auth=${FB_API_KEY}`, opts);
-  if (!res.ok) throw new Error(`Firebase ${path} failed: ${res.status}`);
-  return res.json();
-}
 
 function popupResponsePage(payload) {
   // 回傳一個小頁面給彈出視窗本身，用 postMessage 把結果丟回開啟它的主視窗，然後自己關掉

@@ -5,5 +5,8 @@
   "description": "LINE Messaging API webhook — binds students' LINE userId to their phone number for class reminders",
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.0.0"
   }
 }

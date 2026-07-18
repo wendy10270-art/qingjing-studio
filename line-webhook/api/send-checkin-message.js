@@ -4,8 +4,8 @@
 // daily reminder flow in confirm-send.js), so no separate confirm step is needed here;
 // the tap itself IS the confirmation.
 
-const FB_URL = 'https://qingjing-studio-default-rtdb.firebaseio.com';
-const FB_API_KEY = 'AIzaSyBg3_toi-Kqyi9iw2IbW9C5HhkbgJappxI';
+const { fb } = require('../lib/firebaseAdmin');
+
 const CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 // Separate from CONFIRM_SECRET on purpose: this key is embedded client-side in index.html
 // (GitHub Pages is fully public), so it's visible to anyone who views page source. Keeping
@@ -22,12 +22,6 @@ const ALONG_IMAGES = Array.from({ length: 8 }, (_, i) => ({
 }));
 function pickAlongImage() {
   return ALONG_IMAGES[Math.floor(Math.random() * ALONG_IMAGES.length)];
-}
-
-async function fb(path, opts) {
-  const res = await fetch(`${FB_URL}${path}.json?auth=${FB_API_KEY}`, opts);
-  if (!res.ok) throw new Error(`Firebase ${path} failed: ${res.status}`);
-  return res.json();
 }
 
 function phoneKey(phone) {

@@ -24,6 +24,7 @@ vercel --prod
 - `LINE_CHANNEL_ACCESS_TOKEN` — LINE Developers Console → Messaging API 頁「發行」的長期權杖（`webhook.js` 回覆綁定訊息、`confirm-send.js` 推播提醒都會用到）
 - `LINE_CHANNEL_SECRET` — LINE Developers Console → 基本設定頁（`webhook.js` 驗證來源用）
 - `CONFIRM_SECRET` — 自己設一組隨機字串即可，用來保護「確認送出」網址不被亂猜到亂觸發
+- `FIREBASE_SERVICE_ACCOUNT_KEY` — 所有 function 存取 Firebase 都是透過 `lib/firebaseAdmin.js`（Admin SDK），不再用裸 REST API + 公開 API Key。這個變數的值是 Firebase 主控台「專案設定 → 服務帳戶 → 產生新的私密金鑰」下載的整包 JSON 內容，貼進去存成一個環境變數即可。這把金鑰等同資料庫最高權限，只能存在這裡（Vercel 加密環境變數），不能出現在程式碼或任何公開頁面裡。
 
 ## 接上 LINE
 

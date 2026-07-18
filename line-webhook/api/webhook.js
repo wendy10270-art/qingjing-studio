@@ -10,9 +10,8 @@
 // into a student record here would race with that and could silently get clobbered.
 
 const crypto = require('crypto');
+const { fb } = require('../lib/firebaseAdmin');
 
-const FB_URL = 'https://qingjing-studio-default-rtdb.firebaseio.com';
-const FB_API_KEY = 'AIzaSyBg3_toi-Kqyi9iw2IbW9C5HhkbgJappxI';
 const CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET || '';
 const CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 
@@ -34,12 +33,6 @@ function verifySignature(rawBody, signature) {
   const b = Buffer.from(signature);
   if (a.length !== b.length) return false;
   return crypto.timingSafeEqual(a, b);
-}
-
-async function fb(path, opts) {
-  const res = await fetch(`${FB_URL}${path}.json?auth=${FB_API_KEY}`, opts);
-  if (!res.ok) throw new Error(`Firebase ${path} failed: ${res.status}`);
-  return res.json();
 }
 
 // Mirrors the phone matching already used in index.html (s.phone.replace(/\D/g,'').slice(-8))

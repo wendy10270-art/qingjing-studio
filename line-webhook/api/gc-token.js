@@ -5,17 +5,11 @@
 // just because the browser tab was closed, unlike the ~1hr access_token the old
 // client-only flow relied on.
 
-const FB_URL = 'https://qingjing-studio-default-rtdb.firebaseio.com';
-const FB_API_KEY = 'AIzaSyBg3_toi-Kqyi9iw2IbW9C5HhkbgJappxI';
+const { fb } = require('../lib/firebaseAdmin');
+
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 // 前端每次呼叫都要帶這把鑰匙，避免任何人拿到這支網址就能換到工作室的 Google 日曆存取權
 const GC_TOKEN_SECRET = process.env.GC_TOKEN_SECRET || '';
-
-async function fb(path) {
-  const res = await fetch(`${FB_URL}${path}.json?auth=${FB_API_KEY}`);
-  if (!res.ok) throw new Error(`Firebase ${path} failed: ${res.status}`);
-  return res.json();
-}
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
