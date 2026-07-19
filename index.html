@@ -510,7 +510,9 @@ input:focus,select:focus{border-color:var(--gold2)}
   #sc-success #nextBookingArea,
   #sc-success #successUpcomingArea,
   #sc-success #lineMessageArea{grid-column:2;max-width:none!important;width:100%;justify-self:stretch;margin-top:0!important}
-  #sc-success #nextBookingArea{margin-top:0!important}
+  #sc-success #nextBookingArea{grid-row:1;margin-top:0!important}
+  #sc-success #successUpcomingArea{grid-row:2}
+  #sc-success #lineMessageArea{grid-row:3}
   #sc-success #successActions{grid-column:1/-1;max-width:320px;margin:24px auto 0}
 }
 </style>
@@ -1871,13 +1873,16 @@ async function syncFutureRentBookings(){
     }catch(e){console.warn('future rent scan err:',teacher,e);}
   }));
   if(!found.length)return;
-  found.forEach(b=>{
-    RENT_BOOKING_NOTIFIED.add(b.key);
+  // 一定要等推播真的成功才標記已通知——先標記再推播的話，萬一那次推播剛好失敗，
+  // 這筆事件就會被誤判成「已經通知過」，下次同步不會再重試，訊息就這樣悄悄消失
+  let notifiedChanged=false;
+  await Promise.all(found.map(async b=>{
     const wd=WD[parseDate(b.date).getDay()];
     const msg=b.teacher+'老師您好，\n您有一筆新場租已登記：\n📅 '+b.date+'（星期'+wd+'）'+(b.time?' '+b.time:'')+'\n\n輕境運動工作室';
-    pushTeacherLineMessage(b.teacher,msg);
-  });
-  saveRentBookingNotified();
+    const sent=await pushTeacherLineMessage(b.teacher,msg);
+    if(sent){RENT_BOOKING_NOTIFIED.add(b.key);notifiedChanged=true;}
+  }));
+  if(notifiedChanged)saveRentBookingNotified();
 }
 function startPeriodicGcSync(){
   if(_periodicGcSyncTimer)clearInterval(_periodicGcSyncTimer);
@@ -2135,7 +2140,7 @@ function goTab(tab){
     goScreen('sc-students-all');
     renderStudentZone();
   } else if(tab==='admin'){
-    openPin();
+    enterAdminScreen('helper');
   }
 }
 
@@ -3151,14 +3156,26 @@ let pinStr='';
 function pIn(n){if(pinStr.length>=4)return;pinStr+=n;updPinDots()}
 function pDel(){pinStr=pinStr.slice(0,-1);updPinDots()}
 function updPinDots(){for(let i=0;i<4;i++)document.getElementById('pd'+i).classList.toggle('filled',i<pinStr.length)}
+let _financeUnlocked=false; // PIN 只保護薪資結算／流水帳，其他後台分頁不需要密碼
 function pConfirm(){
   if(pinStr===ADMIN_PIN){
+    _financeUnlocked=true;
     closePinOv();
-    const bn=document.getElementById('bottomNav');if(bn)bn.style.display='none';
-    document.getElementById('mainScroll').style.display='none';
-    document.getElementById('sc-admin').classList.add('active-admin');
-    renderDaily();buildMonthSelect();renderWage();renderMgrList();renderBackupBar();renderDashboard();try{renderHelper();}catch(e){console.warn('helper render error:',e);}
+    const target=window._adminTargetTab||'helper';
+    if(!document.getElementById('sc-admin').classList.contains('active-admin')){
+      enterAdminScreen(target);
+    } else {
+      aTab(target);
+    }
   } else {document.getElementById('pinErr').textContent='密碼錯誤，請再試一次';pinStr='';updPinDots()}
+}
+// 進入後台畫面本身不需要密碼，只有點到薪資結算／流水帳分頁時才會另外要求 PIN（見 aTab）
+function enterAdminScreen(defaultTab){
+  const bn=document.getElementById('bottomNav');if(bn)bn.style.display='none';
+  document.getElementById('mainScroll').style.display='none';
+  document.getElementById('sc-admin').classList.add('active-admin');
+  renderBackupBar();renderDashboard();renderMgrList();try{renderHelper();}catch(e){console.warn('helper render error:',e);}
+  aTab(defaultTab||'helper');
 }
 
 function renderDashboard(){
@@ -3181,8 +3198,9 @@ function wageSub(v){
   if(v==='daily')renderDaily();
   else{buildMonthSelect();renderWage();}
 }
-function openDailyConfirm(){aTab('wage');wageSub('daily');}
+function openDailyConfirm(){_wageSub='daily';aTab('wage');}
 function aTab(t){
+  if((t==='wage'||t==='ledger')&&!_financeUnlocked){openPin(t);return;}
   renderDashboard();
   const ns=['helper','ledger','wage','mgr','tch','gcal','notify'];
   document.querySelectorAll('.a-tab').forEach((el,i)=>el.classList.toggle('active',ns[i]===t));
@@ -3957,14 +3975,19 @@ function gcRentSavePrepaid(key){
   renderDaily();
 }
 // 通用老師端 LINE 推播（老師需已用手機號碼＋LINE綁定；沒綁定就靜默略過，不影響呼叫端的主要動作）
+// 回傳是否真的推播成功（fetch 本身不會因為 HTTP 錯誤狀態 throw，一定要自己檢查 res.ok／回傳的 ok 欄位，
+// 不然像 forbidden、LINE API 失敗這類狀況會被誤判成「已送出」）
 async function pushTeacherLineMessage(teacher,message){
-  const phone=TEACHER_PHONES[teacher];if(!phone)return;
+  const phone=TEACHER_PHONES[teacher];if(!phone)return false;
   try{
-    await fetch(LINE_WEBHOOK_BASE+'/api/send-teacher-message?key='+TEACHER_PUSH_SECRET,{
+    const res=await fetch(LINE_WEBHOOK_BASE+'/api/send-teacher-message?key='+TEACHER_PUSH_SECRET,{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({phone,message})
     });
-  }catch(e){console.warn('teacher LINE push failed:',e);}
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok||!data.ok){console.warn('teacher LINE push failed:',res.status,data);return false;}
+    return true;
+  }catch(e){console.warn('teacher LINE push failed:',e);return false;}
 }
 function gcRentEditFee(id){
   const r=RENT.find(x=>x.id===id);if(!r)return;
@@ -6906,7 +6929,7 @@ async function gcSyncToday(ev,opts){
         // 先從「此老師」找，找不到再從「所有老師」找（應對空中Amanda等別名情況）
         let stu=null;
         for(const scope of[true,false]){
-          stu=S.find(s=>{
+          const candidates=S.filter(s=>{
             if(scope&&s.teacher!==teacher)return false;
             const sp=(s.phone||'').replace(/[\s\-]/g,'');
             // 1. 電話完整比對
@@ -6926,6 +6949,10 @@ async function gcSyncToday(ev,opts){
             }
             return false;
           });
+          // 同一人可能同時持有不同人數方案的課卡（例如同時買了 1on1 跟 1on2），
+          // 電話姓名都比對得上時，優先挑跟日曆標題人數方案（parsed.type，如 1on1/1on2）相符的那張，
+          // 不然固定挑到 S 陣列裡排序較前的那張卡，跟當天實際上課人數對不上
+          if(candidates.length)stu=candidates.find(s=>parsed.type&&s.course&&s.course.includes(parsed.type))||candidates[0];
           if(stu)break;
         }
         if(stu){
