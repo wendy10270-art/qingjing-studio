@@ -2010,6 +2010,7 @@ function renderTeachers(){
         <div style="font-size:11px;color:var(--brown3);margin-top:2px">${hEsc(it.teacher||'')} 老師</div>
       </div>
       ${chip(it.status)}
+      ${it.status==='signed'&&!it.trial&&it.rid?`<span onclick="event.stopPropagation();openResendLineMsg('${it.rid}')" style="font-size:15px;cursor:pointer;opacity:.6;padding:2px 4px;flex-shrink:0" title="補發 LINE 課後訊息">📨</span>`:''}
       ${it.status==='pending'?`<span onclick="event.stopPropagation();homeRemoveItem('${it.trial?it.tid:it.sid}','${jsQ(it.teacher||'')}','${it.evType}')" style="font-size:15px;color:var(--brown3);opacity:.5;padding:2px 4px;flex-shrink:0" title="這堂排錯了，移除">✕</span>`:''}
     </div>`).join('')}
   ${nf.map((n,i)=>`
@@ -7378,6 +7379,7 @@ function dayScheduleItems(dateObj){
     const rec=R.find(r=>r.sid===it.sid&&r.date===td);
     const lv=L.find(l=>l.sid===it.sid&&l.date===td);
     it.status=rec?'signed':lv?'leave':'pending';
+    if(rec)it.rid=rec.id;
   });
   T.forEach(t=>{if(t.date===td)items.push({sid:'',tid:t.id,name:t.name,teacher:t.teacher,time:t.time||'',trial:true,evType:'trial',status:t.sig?'signed':'pending'});});
   items.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
