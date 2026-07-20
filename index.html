@@ -537,6 +537,8 @@ const GC_OAUTH_REDIRECT_URI=LINE_WEBHOOK_BASE+'/api/gc-oauth-callback';
 // 薪資明細寄 email 給老師用（line-webhook/api/send-payroll-email.js）。跟其他推播金鑰分開，
 // 理由同上：這支金鑰也是寫死在前端公開頁面裡，外流的話不該連帶讓其他推播管道一起被濫用
 const EMAIL_PUSH_SECRET='4ad825d60e6fdcdc2bd77315a98291e48655ae53';
+// 支出登記面板的常見固定成本快速帶入清單，工作室常見開銷項目，點一下帶入項目名稱、金額自己填
+const FIXED_COST_PRESETS=['房租','水電費','網路/電話費','保全費','清潔費','器材維護/保養','公共意外責任險','記帳/會計服務費','雲端服務訂閱（Vercel/Firebase/Resend等）','LINE官方帳號費用','廣告行銷費','耗材（瑜珈墊消毒/清潔用品等）','音樂/影音授權費','貸款利息'];
 
 // Firebase 錯誤回應（如 Permission denied）HTTP 狀態非 2xx 或 body 帶 error 欄位，
 // 必須丟出例外，否則會誤判為同步成功
@@ -6727,6 +6729,10 @@ function renderExpenses(){
     <button onclick="toggleExpensePanel()" style="width:100%;padding:11px;background:var(--red2);color:var(--red);border:1.5px dashed #F7C1C1;border-radius:11px;font-size:14px;cursor:pointer;font-weight:500">＋ 登記支出</button>
     <div id="expenseAddPanel" style="display:none;background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-top:10px;box-shadow:var(--shadow)">
       <input type="hidden" id="exEditId">
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:6px">常見固定成本，點一下帶入項目名稱：</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+        ${FIXED_COST_PRESETS.map(n=>`<span onclick="document.getElementById('exName').value='${jsQ(n)}'" style="background:var(--bg);border:1px solid var(--border);border-radius:99px;padding:5px 12px;font-size:12px;cursor:pointer;color:var(--ink2)">${hEsc(n)}</span>`).join('')}
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
         <div><label style="font-size:12px;color:var(--ink3)">日期</label><input type="date" id="exDate" class="native-date-inp" style="margin-bottom:0" value="${todayStr().replace(/\//g,'-')}"></div>
         <div><label style="font-size:12px;color:var(--ink3)">金額</label><input type="number" id="exAmount" placeholder="例：3000" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:0"></div>
@@ -7677,7 +7683,17 @@ function showMonthReport(){
   const courseIncome=LEDGER.filter(l=>monthKey(l.createdAt||l.payDate||'')===mk).reduce((a,l)=>a+(l.actualPayment||0),0);
   const monthIncome=courseIncome+monthRentCash;
   const monthExpense=EXPENSES.filter(x=>x.date&&monthKey(x.date)===mk).reduce((a,x)=>a+(x.amount||0),0);
-  const netProfit=monthIncome-totalFee-hourlyFee-monthExpense;
+  const monthLedger=LEDGER.filter(l=>monthKey(l.createdAt||l.payDate||'')===mk);
+  const bonusTotal=monthLedger.reduce((a,l)=>a+(l.bonus||0),0);
+  // 刷卡／匯款手續費：只對這兩種收款方式的實收金額估算，現金不用扣
+  const CARD_FEE_RATE=0.025;
+  const cardTransferIncome=monthLedger.filter(l=>l.payMethod==='card'||(l.payMethod||'').startsWith('transfer')).reduce((a,l)=>a+(l.actualPayment||0),0);
+  const cardFee=Math.round(cardTransferIncome*CARD_FEE_RATE);
+  // 營業稅：每筆開發票收入（流水帳每一筆實收金額）各自算 5%、逐筆四捨五入後加總，
+  // 不是拿月總營收一次算，才會跟實際開立的發票金額對得起來
+  const BIZ_TAX_RATE=0.05;
+  const bizTax=monthLedger.reduce((a,l)=>a+Math.round((l.actualPayment||0)*BIZ_TAX_RATE),0);
+  const netProfit=monthIncome-totalFee-hourlyFee-monthExpense-bonusTotal-cardFee-bizTax;
   const monthNew=S.filter(s=>s.payDate&&monthKey(s.payDate)===mk);
   const sessionsByTeacher={};
   monthR.forEach(r=>{const s=S.find(x=>x.id===r.sid);const t=r.isSub?r.subTeacher:(s?.teacher||'其他');if(!sessionsByTeacher[t])sessionsByTeacher[t]=0;sessionsByTeacher[t]++;});
@@ -7718,10 +7734,14 @@ h1{font-family:'Noto Serif TC',serif;font-size:24px;margin-bottom:5px}
   <div class="row"><span>師資費用${monthRentDeduct>0?'（已扣場租 $'+monthRentDeduct.toLocaleString()+'）':''}</span><span class="amount" style="color:#C05A20">$${totalFee.toLocaleString()}</span></div>
   ${hourlyFee>0?`<div class="row"><span>工讀費用</span><span class="amount" style="color:#C05A20">$${hourlyFee.toLocaleString()}</span></div>`:''}
   ${monthExpense>0?`<div class="row"><span>其他支出（房租／水電／耗材等）</span><span class="amount" style="color:#C05A20">$${monthExpense.toLocaleString()}</span></div>`:''}
-  <div class="row" style="font-weight:500"><span>總支出</span><span class="amount" style="color:#C05A20">$${(totalFee+hourlyFee+monthExpense).toLocaleString()}</span></div>
+  ${bonusTotal>0?`<div class="row"><span>續課獎金</span><span class="amount" style="color:#C05A20">$${bonusTotal.toLocaleString()}</span></div>`:''}
+  ${cardFee>0?`<div class="row"><span>刷卡／轉帳手續費（估算 ${(CARD_FEE_RATE*100).toFixed(1)}%）</span><span class="amount" style="color:#C05A20">$${cardFee.toLocaleString()}</span></div>`:''}
+  <div class="row"><span>營業稅（估算 ${(BIZ_TAX_RATE*100).toFixed(0)}%）</span><span class="amount" style="color:#C05A20">$${bizTax.toLocaleString()}</span></div>
+  <div class="row" style="font-weight:500"><span>總支出</span><span class="amount" style="color:#C05A20">$${(totalFee+hourlyFee+monthExpense+bonusTotal+cardFee+bizTax).toLocaleString()}</span></div>
 </div>
 <div class="section">
-  <div class="row" style="font-weight:600;border-bottom:none"><span style="font-size:16px">淨利（總收入－總支出）</span><span class="amount" style="font-size:22px;color:${netProfit<0?'#C0392B':'#2E7D52'}">${netProfit<0?'－':''}$${Math.abs(netProfit).toLocaleString()}</span></div>
+  <div class="row" style="font-weight:600;border-bottom:none"><span style="font-size:16px">淨賺（總收入－總支出）</span><span class="amount" style="font-size:22px;color:${netProfit<0?'#C0392B':'#2E7D52'}">${netProfit<0?'－':''}$${Math.abs(netProfit).toLocaleString()}</span></div>
+  <div style="font-size:11px;color:#aaa;margin-top:6px">刷卡/轉帳手續費與營業稅為估算值，實際費率請以合作銀行、金流商與記帳士認定為準</div>
 </div>
 <div class="section">
   <div class="section-title">各老師課堂數</div>
