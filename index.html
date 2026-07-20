@@ -488,13 +488,13 @@ input:focus,select:focus{border-color:var(--gold2)}
   #sc-card .sc-pad{
     max-width:1120px;margin:0 auto;
     display:grid;grid-template-columns:1fr 360px;column-gap:26px;
-    grid-template-areas:"backbar backbar" "top sign" "grid sign" "upcoming sign";
+    grid-template-areas:"backbar backbar" "top sign" "grid sign" ". upcoming";
     align-items:start;
   }
   #sc-card .back-bar{grid-area:backbar}
   #sc-card #cardTop{grid-area:top}
   #sc-card #gridCard{grid-area:grid}
-  #sc-card #cardUpcomingArea{grid-area:upcoming;margin:0 0 20px}
+  #sc-card #cardUpcomingArea{grid-area:upcoming;margin:14px 0 0!important} /* 接下來的課程跟簽名放同一欄，簽名下方 */
   #sc-card #signArea{grid-area:sign}
 
   #sc-success .sc-pad{max-width:960px;margin:0 auto}
