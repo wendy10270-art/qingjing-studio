@@ -333,6 +333,7 @@ input:focus,select:focus{border-color:var(--gold2)}
 .wc-footer{padding:9px 15px 13px;display:flex;gap:7px}
 .wc-btn{flex:1;padding:9px;border-radius:8px;border:none;font-size:12px;cursor:pointer;font-weight:500;display:flex;align-items:center;justify-content:center;gap:4px}
 .wc-btn-copy{background:var(--bg2);color:var(--ink2);border:1px solid var(--border)}
+.wc-btn-email{background:var(--gold4);color:var(--gold);border:1px solid var(--gold2)}
 .wc-no-record{font-size:12px;color:var(--ink3);text-align:center;padding:11px 0}
 .adjusted-badge{font-size:10px;background:var(--orange2);color:var(--orange);border:1px solid var(--orange3);border-radius:4px;padding:1px 6px;margin-left:5px;vertical-align:middle}
 .daily-tc{background:var(--white);border:1px solid var(--border);border-radius:12px;margin-bottom:11px;overflow:hidden;box-shadow:var(--shadow)}
@@ -533,6 +534,9 @@ const TEACHER_PUSH_SECRET='571af36b802c6c269a5264649b8748cdf62774fcf74ed081';
 const GC_TOKEN_ENDPOINT=LINE_WEBHOOK_BASE+'/api/gc-token';
 const GC_TOKEN_SECRET='170ebdb59d2a9a4317fe35c1f1021aba69159bfb0dcd2513';
 const GC_OAUTH_REDIRECT_URI=LINE_WEBHOOK_BASE+'/api/gc-oauth-callback';
+// 薪資明細寄 email 給老師用（line-webhook/api/send-payroll-email.js）。跟其他推播金鑰分開，
+// 理由同上：這支金鑰也是寫死在前端公開頁面裡，外流的話不該連帶讓其他推播管道一起被濫用
+const EMAIL_PUSH_SECRET='4ad825d60e6fdcdc2bd77315a98291e48655ae53';
 
 // Firebase 錯誤回應（如 Permission denied）HTTP 狀態非 2xx 或 body 帶 error 欄位，
 // 必須丟出例外，否則會誤判為同步成功
@@ -811,6 +815,7 @@ const db={
         <select class="month-select" id="monthSelect" onchange="wageBackToMonth()"></select>
         <button class="export-btn btn-csv" onclick="exportCSV()">↓ CSV</button>
         <button class="export-btn btn-copy-all" onclick="copyAll()">複製全部薪資</button>
+        <button class="export-btn" onclick="emailAll()" style="background:var(--gold4);color:var(--gold);border:1px solid var(--gold2)">✉️ 全部寄送Email</button>
         <button class="export-btn" onclick="showMonthReport()" style="background:var(--teal2);color:var(--teal);border:1px solid var(--teal3)">📊 月報表</button>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 4px;background:var(--white);border:1.5px dashed var(--gold2);border-radius:11px;padding:10px 12px">
@@ -1111,6 +1116,8 @@ const db={
     <label>手機號碼（給老師用 LINE 綁定＋收通知）</label>
     <input type="tel" id="rentCfgPhone" placeholder="例：0912345678" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:6px">
     <div id="rentCfgBoundHint" style="font-size:11px;margin-bottom:12px"></div>
+    <label>Email（薪資明細寄送用）</label>
+    <input type="email" id="rentCfgEmail" placeholder="例：teacher@example.com" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:12px">
     <label>結算方式</label>
     <select id="rentCfgMode" onchange="toggleRentCfgFields()" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;font-family:'Noto Sans TC',sans-serif;outline:none;margin-bottom:12px">
       <option value="">— 未設定（日曆偵測到場租時手動判斷）—</option>
@@ -1441,6 +1448,8 @@ let RENT=JSON.parse(localStorage.getItem('qjf_rent')||'[]');
 let RENT_CFG=JSON.parse(localStorage.getItem('qjf_rcfg')||'{}');
 // TEACHER_PHONES：老師的手機號碼（LINE綁定+推播用），{[teacherName]: phone}，跟學員清單分開存
 let TEACHER_PHONES=JSON.parse(localStorage.getItem('qjf_tphone')||'{}');
+// TEACHER_EMAILS：老師的 email（薪資明細寄送用），{[teacherName]: email}，跟手機號碼分開存
+let TEACHER_EMAILS=JSON.parse(localStorage.getItem('qjf_temail')||'{}');
 // TEACHER_LINE_BOUND：唯讀快取，記錄哪些老師已經完成 LINE 綁定（qingjing_line_bindings_teacher 的 name 值），
 // 只用來在師資管理畫面顯示「📱已綁定」小標籤，不是綁定資料本身的來源
 let TEACHER_LINE_BOUND=new Set();
@@ -1531,7 +1540,7 @@ function manualSync(){
     loadGwFromFB();
     loadRentFromFB();
     loadRentCfgFromFB();
-    loadTeacherPhonesFromFB();
+    loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();
     loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
     loadLedgerFromFB(()=>{
       renderTeachers();
@@ -1642,6 +1651,16 @@ function loadTeacherPhonesFromFB(){
     if(d&&typeof d==='object'){TEACHER_PHONES=d;localStorage.setItem('qjf_tphone',JSON.stringify(TEACHER_PHONES));}
   }).catch(e=>{});
 }
+function saveTeacherEmails(){
+  localStorage.setItem('qjf_temail',JSON.stringify(TEACHER_EMAILS));
+  db.ref('qingjing_teacher_emails').set(TEACHER_EMAILS).catch(e=>console.warn('TeacherEmails sync error:',e));
+}
+function loadTeacherEmailsFromFB(){
+  db.ref('qingjing_teacher_emails').once('value').then(snap=>{
+    const d=snap.val();
+    if(d&&typeof d==='object'){TEACHER_EMAILS=d;localStorage.setItem('qjf_temail',JSON.stringify(TEACHER_EMAILS));}
+  }).catch(e=>{});
+}
 // 只讀，用來在師資管理畫面顯示綁定狀態；老師端實際綁定是 line-webhook/api/webhook.js 寫入的
 function loadTeacherLineBoundFromFB(){
   db.ref('qingjing_line_bindings_teacher').once('value').then(snap=>{
@@ -1741,7 +1760,7 @@ window.addEventListener('load', ()=>{
     loadGwFromFB();
     loadRentFromFB();
     loadRentCfgFromFB();
-    loadTeacherPhonesFromFB();
+    loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();
     loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
     loadLedgerFromFB(()=>{
       renderTeachers();
@@ -1772,7 +1791,7 @@ function startPeriodicSync(){
       loadGwFromFB();
       loadRentFromFB();
       loadRentCfgFromFB();
-      loadTeacherPhonesFromFB();
+      loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();
       loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
       loadLedgerFromFB(()=>{
       try{renderTeachers();}catch(e){console.warn('renderTeachers error:',e);}
@@ -1801,7 +1820,7 @@ function startPeriodicSync(){
         loadGwFromFB();
         loadRentFromFB();
         loadRentCfgFromFB();
-        loadTeacherPhonesFromFB();
+        loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();
         loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
         loadLedgerFromFB(()=>{
           _syncing=false;
@@ -4387,7 +4406,7 @@ function renderWage(){
         </div>`).join('')}
         <div class="wc-note" style="margin-top:6px">${sessions.length} 堂${tp?' ・ '+tp+' 人次':''}${trialCount?' ・ 含體驗 '+trialCount+' 堂':''}${gcCount?' ・ 含GC核銷 '+gcCount+' 堂':''}${adjSessions.length?' ・ 含 '+adjSessions.length+' 筆調整':''}${teacherRentDeduct.length?' ・ 已扣場租 $'+rentDeductTotal.toLocaleString():''}${teacherPrepaidRent.length?' ・ 預付扣'+teacherPrepaidRent.length+'堂':''}${bonusPending>0?' ・ 獎金待撥 $'+bonusPending.toLocaleString():''}</div>
       </div>
-      <div class="wc-footer"><button class="wc-btn wc-btn-copy" onclick="copyTeacher('${t}','${mk}')">📋 複製薪資</button></div>
+      <div class="wc-footer"><button class="wc-btn wc-btn-copy" onclick="copyTeacher('${t}','${mk}')">📋 複製薪資</button>${TEACHER_EMAILS[t]?`<button class="wc-btn wc-btn-email" onclick="emailTeacher('${t}','${mk}')">📧 寄送Email</button>`:''}</div>
     </div>`;
   }).join('');
 }
@@ -4466,8 +4485,8 @@ function closeEditOut(e){if(e.target===document.getElementById('editOv'))closeEd
 function copyTeacher(teacher,mk){
   const[y,mo]=mk.split('/');
   const sessions=[
-    ...R.filter(r=>wageInRange(r.date,mk)).filter(r=>{const s=S.find(x=>x.id===r.sid);return s&&(r.isSub?r.subTeacher:s.teacher)===teacher}).map(r=>{const s=S.find(x=>x.id===r.sid);return{type:'regular',s,r,fee:getRecFee(r,s)}}),
-    ...T.filter(t=>wageInRange(t.date,mk)&&t.teacher===teacher).map(tr=>({type:'trial',tr,fee:tr.manualFee!=null?tr.manualFee:tr.teacherFee})),
+    ...R.filter(r=>r.date&&wageInRange(r.date,mk)&&r.confirmed!==false).filter(r=>{const s=S.find(x=>x.id===r.sid);return s&&(r.isSub?r.subTeacher:s.teacher)===teacher}).map(r=>{const s=S.find(x=>x.id===r.sid);return{type:'regular',s,r,fee:getRecFee(r,s)}}),
+    ...T.filter(t=>t.date&&wageInRange(t.date,mk)&&t.confirmed===true&&t.teacher===teacher).map(tr=>({type:'trial',tr,fee:tr.manualFee!=null?tr.manualFee:tr.teacherFee})),
     ...GW.filter(g=>wageInRange(g.date,mk)&&g.teacher===teacher).map(g=>({type:'gc',g,fee:g.fee||0}))
   ];
   const rentDeduct=RENT.filter(r=>wageInRange(r.date,mk)&&r.teacher===teacher&&r.mode==='deduct');
@@ -4505,8 +4524,8 @@ function copyAll(){
   const period=(_wageMode==='range'&&_wageStart&&_wageEnd)?`${_wageStart}～${_wageEnd}（週結）`:`${y}年${parseInt(mo)}月`;
   let text=`輕境運動工作室 ${period} 師資費用總覽\n════════════════\n`;
   const tMap={};
-  R.filter(r=>wageInRange(r.date,mk)).forEach(r=>{const s=S.find(x=>x.id===r.sid);if(!s)return;const t=r.isSub?r.subTeacher:(s.teacher||'其他');if(!tMap[t])tMap[t]=0;tMap[t]+=getRecFee(r,s)});
-  T.filter(t=>t.date&&wageInRange(t.date,mk)).forEach(t=>{if(!tMap[t.teacher])tMap[t.teacher]=0;tMap[t.teacher]+=(t.manualFee!=null?t.manualFee:t.teacherFee)});
+  R.filter(r=>r.date&&wageInRange(r.date,mk)&&r.confirmed!==false).forEach(r=>{const s=S.find(x=>x.id===r.sid);if(!s)return;const t=r.isSub?r.subTeacher:(s.teacher||'其他');if(!tMap[t])tMap[t]=0;tMap[t]+=getRecFee(r,s)});
+  T.filter(t=>t.date&&wageInRange(t.date,mk)&&t.confirmed===true).forEach(t=>{if(!tMap[t.teacher])tMap[t.teacher]=0;tMap[t.teacher]+=(t.manualFee!=null?t.manualFee:t.teacherFee)});
   GW.filter(g=>g.date&&wageInRange(g.date,mk)).forEach(g=>{const t=g.teacher||'其他';if(!tMap[t])tMap[t]=0;tMap[t]+=(g.fee||0)});
   RENT.filter(r=>r.date&&wageInRange(r.date,mk)&&r.mode==='deduct').forEach(r=>{const t=r.teacher||'其他';if(!tMap[t])tMap[t]=0;tMap[t]-=(r.fee||0)});
   LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.bonusPaid&&(l.bonus||0)>0).forEach(l=>{const t=l.teacher||'其他';if(!tMap[t])tMap[t]=0;tMap[t]+=(l.bonus||0)});
@@ -4515,14 +4534,116 @@ function copyAll(){
   text+=`────────────\n合計：$${grand.toLocaleString()}\n`;
   copyText(text,'全部薪資已複製');
 }
+
+// ── Email 薪資明細（跟 copyTeacher 同一套資料邏輯，只是排成 HTML 表格而不是純文字）──
+function buildPayrollEmailHtml(teacher,mk){
+  const[y,mo]=mk.split('/');
+  const sessions=[
+    ...R.filter(r=>r.date&&wageInRange(r.date,mk)&&r.confirmed!==false).filter(r=>{const s=S.find(x=>x.id===r.sid);return s&&(r.isSub?r.subTeacher:s.teacher)===teacher}).map(r=>{const s=S.find(x=>x.id===r.sid);return{type:'regular',s,r,fee:getRecFee(r,s)}}),
+    ...T.filter(t=>t.date&&wageInRange(t.date,mk)&&t.confirmed===true&&t.teacher===teacher).map(tr=>({type:'trial',tr,fee:tr.manualFee!=null?tr.manualFee:tr.teacherFee})),
+    ...GW.filter(g=>wageInRange(g.date,mk)&&g.teacher===teacher).map(g=>({type:'gc',g,fee:g.fee||0}))
+  ];
+  const rentDeduct=RENT.filter(r=>wageInRange(r.date,mk)&&r.teacher===teacher&&r.mode==='deduct');
+  const rentTotal=rentDeduct.reduce((a,r)=>a+(r.fee||0),0);
+  const bonusEntries=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.teacher===teacher&&(l.bonus||0)>0);
+  const bonusPaidEntries=bonusEntries.filter(l=>l.bonusPaid);
+  const bonusPaidTotal=bonusPaidEntries.reduce((a,l)=>a+(l.bonus||0),0);
+  const bonusPendingTotal=bonusEntries.filter(l=>!l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
+  const total=sessions.reduce((a,x)=>a+x.fee,0)-rentTotal+bonusPaidTotal;
+  const period=(_wageMode==='range'&&_wageStart&&_wageEnd)?`${_wageStart}～${_wageEnd}（週結）`:`${y}年${parseInt(mo)}月`;
+
+  const rowsHtml=sessions.sort((a,b)=>{const da=a.type==='regular'?a.r.date:a.type==='trial'?a.tr.date:a.g.date;const db=b.type==='regular'?b.r.date:b.type==='trial'?b.tr.date:b.g.date;const ta=a.type==='regular'?a.r.time:a.type==='trial'?a.tr.time:a.g.time;const tb=b.type==='regular'?b.r.time:b.type==='trial'?b.tr.time:b.g.time;return(da+(ta||'')).localeCompare(db+(tb||''))}).map(x=>{
+    let date,time,name,label,adj=false,note='';
+    if(x.type==='regular'){
+      date=x.r.date;time=x.r.time;name=x.s.name;
+      label=(x.r.isUpgraded?x.s.course.split(' ')[0]+' ＋1人｜'+x.r.upgradedTo:x.s.course)+(x.r.isSub?'（代課）':'');
+      adj=isAdj(x.r);if(adj&&x.r.manualNote)note=x.r.manualNote;
+    }else if(x.type==='trial'){
+      date=x.tr.date;time=x.tr.time;name=x.tr.name;label=`${x.tr.course} ${x.tr.ratio}（體驗）`;
+      adj=x.tr.manualFee!=null;if(adj&&x.tr.manualNote)note=x.tr.manualNote;
+    }else{
+      date=x.g.date;time=x.g.time||'';name=cleanGcName(x.g.name);label=`${x.g.course} ${x.g.ratio}（GC核銷）`;
+    }
+    return`<tr>
+      <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;color:#8a8072;white-space:nowrap">${hEsc(date.slice(5))} ${hEsc(time||'')}</td>
+      <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;color:#3a332a">${hEsc(name)}<div style="color:#a39a8a;font-size:11px">${hEsc(label)}${note?'・'+hEsc(note):''}</div></td>
+      <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;text-align:right;color:${adj?'#c17a3a':'#3a332a'};white-space:nowrap">$${x.fee.toLocaleString()}${adj?'　✏️':''}</td>
+    </tr>`;
+  }).join('');
+
+  const rentRowsHtml=rentDeduct.length?`<tr><td colspan="3" style="padding:14px 6px 6px;font-size:13px;font-weight:600;color:#3a332a">場租扣款</td></tr>`+
+    rentDeduct.sort((a,b)=>a.date.localeCompare(b.date)).map(r=>`<tr>
+      <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;color:#8a8072;white-space:nowrap">${hEsc(r.date.slice(5))} ${hEsc(r.time||'')}</td>
+      <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;color:#3a332a">場租${r.label?'・'+hEsc(r.label):''}</td>
+      <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;text-align:right;color:#c0392b;white-space:nowrap">－$${(r.fee||0).toLocaleString()}</td>
+    </tr>`).join(''):'';
+
+  const bonusRowsHtml=bonusEntries.length?`<tr><td colspan="3" style="padding:14px 6px 6px;font-size:13px;font-weight:600;color:#3a332a">續課獎金</td></tr>`+
+    bonusEntries.sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||'')).map(l=>`<tr>
+      <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;color:#8a8072;white-space:nowrap">${hEsc((l.createdAt||'').slice(5))}</td>
+      <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;color:#3a332a">${hEsc(l.name)}</td>
+      <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;text-align:right;color:${l.bonusPaid?'#2f8f5b':'#c17a3a'};white-space:nowrap">$${(l.bonus||0).toLocaleString()}${l.bonusPaid?'':'（待撥）'}</td>
+    </tr>`).join(''):'';
+
+  const noteBits=[`${sessions.length} 堂`];
+  if(rentDeduct.length)noteBits.push(`已扣場租 $${rentTotal.toLocaleString()}`);
+  if(bonusPendingTotal>0)noteBits.push(`獎金待撥 $${bonusPendingTotal.toLocaleString()}`);
+
+  return`<div style="max-width:560px;margin:0 auto;font-family:'PingFang TC','Microsoft JhengHei',sans-serif;color:#3a332a">
+    <div style="background:#3a2e22;padding:22px 24px;border-radius:14px 14px 0 0">
+      <div style="color:#e8ddc8;font-size:12px;letter-spacing:2px;margin-bottom:4px">輕境運動工作室</div>
+      <div style="color:#fff;font-size:18px;font-weight:600">${hEsc(period)}　師資費用明細</div>
+      <div style="color:#c9bda3;font-size:13px;margin-top:6px">老師：${hEsc(teacher)}</div>
+    </div>
+    <div style="background:#fbf8f2;border:1px solid #eee2cc;border-top:none;padding:18px 24px;border-radius:0 0 14px 14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;margin-bottom:6px;border-bottom:2px solid #e8ddc8">
+        <span style="font-size:13px;color:#8a8072">本期合計</span>
+        <span style="font-size:24px;font-weight:700;color:${total<0?'#c0392b':'#2f8f5b'}">${total<0?'－':''}$${Math.abs(total).toLocaleString()}</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse">${rowsHtml}${rentRowsHtml}${bonusRowsHtml}</table>
+      <div style="font-size:12px;color:#a39a8a;margin-top:12px">${hEsc(noteBits.join('・'))}</div>
+    </div>
+    <div style="text-align:center;font-size:11px;color:#a39a8a;padding:14px 0 0">此為系統自動寄送，若有疑問請聯繫工作室</div>
+  </div>`;
+}
+async function sendPayrollEmail(teacher,mk,{silent}={}){
+  const email=(TEACHER_EMAILS[teacher]||'').trim();
+  if(!email){if(!silent)showToast(teacher+' 尚未設定 Email','r');return false;}
+  const[y,mo]=mk.split('/');
+  const period=(_wageMode==='range'&&_wageStart&&_wageEnd)?`${_wageStart}～${_wageEnd}`:`${y}年${parseInt(mo)}月`;
+  const html=buildPayrollEmailHtml(teacher,mk);
+  try{
+    const res=await fetch(LINE_WEBHOOK_BASE+'/api/send-payroll-email?key='+EMAIL_PUSH_SECRET,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({to:email,subject:`輕境運動工作室 ${period} 薪資明細・${teacher}`,html})
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok||!data.ok)throw new Error(data.error||('HTTP '+res.status));
+    if(!silent)showToast('✓ 已寄送給 '+teacher);
+    return true;
+  }catch(e){
+    if(!silent)showToast('寄送失敗：'+e.message,'r');
+    return false;
+  }
+}
+function emailTeacher(teacher,mk){sendPayrollEmail(teacher,mk);}
+async function emailAll(){
+  const mk=document.getElementById('monthSelect').value;
+  const targets=ALL_TEACHERS.filter(t=>(TEACHER_EMAILS[t]||'').trim());
+  if(!targets.length){showToast('尚未有任何老師設定 Email','r');return;}
+  showToast(`寄送中…（共 ${targets.length} 位）`);
+  let ok=0;
+  for(const t of targets){if(await sendPayrollEmail(t,mk,{silent:true}))ok++;}
+  showToast(`✓ 已寄送 ${ok}/${targets.length} 位老師`,ok===targets.length?'g':'r');
+}
 function exportCSV(){
   const mk=document.getElementById('monthSelect').value;const[y,mo]=mk.split('/');
   let csv='日期,時間,學員,課程,老師,師資費,類型,備註\n';
-  R.filter(r=>wageInRange(r.date,mk)).sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{
+  R.filter(r=>r.date&&wageInRange(r.date,mk)&&r.confirmed!==false).sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{
     const s=S.find(x=>x.id===r.sid);if(!s)return;const t=r.isSub?r.subTeacher:(s.teacher||'其他');const fee=getRecFee(r,s);
     csv+=`${r.date},${r.time},${s.name},${s.course},${t},$${fee},${r.isSub?'代課':r.isUpgraded?'升級':'正式'},${r.manualNote||''}\n`;
   });
-  T.filter(t=>wageInRange(t.date,mk)).sort((a,b)=>a.date.localeCompare(b.date)).forEach(t=>{
+  T.filter(t=>t.date&&wageInRange(t.date,mk)&&t.confirmed===true).sort((a,b)=>a.date.localeCompare(b.date)).forEach(t=>{
     const fee=t.manualFee!=null?t.manualFee:t.teacherFee;
     csv+=`${t.date},${t.time},${t.name},${t.course} ${t.ratio},${t.teacher},$${fee},體驗,${t.manualNote||''}\n`;
   });
@@ -5591,6 +5712,7 @@ function openRentCfg(name){
   document.getElementById('rentCfgTitle').textContent=name+' 老師・場租結算設定';
   document.getElementById('rentCfgTeacher').value=name;
   document.getElementById('rentCfgPhone').value=TEACHER_PHONES[name]||'';
+  document.getElementById('rentCfgEmail').value=TEACHER_EMAILS[name]||'';
   document.getElementById('rentCfgBoundHint').innerHTML=TEACHER_LINE_BOUND.has(name)
     ?'<span style="color:var(--green)">📱 已完成 LINE 綁定</span>'
     :'<span style="color:var(--ink3)">尚未綁定：請老師加官方帳號好友，輸入「綁定」後回覆這支手機號碼</span>';
@@ -5606,6 +5728,9 @@ function saveRentCfgModal(){
   const phone=document.getElementById('rentCfgPhone').value.trim();
   if(phone)TEACHER_PHONES[name]=phone;else delete TEACHER_PHONES[name];
   saveTeacherPhones();
+  const email=document.getElementById('rentCfgEmail').value.trim();
+  if(email)TEACHER_EMAILS[name]=email;else delete TEACHER_EMAILS[name];
+  saveTeacherEmails();
   const mode=document.getElementById('rentCfgMode').value;
   if(!mode){delete RENT_CFG[name];saveRentCfg();document.getElementById('rentCfgOv').classList.remove('open');renderTchMgr();showToast('✓ '+name+' 的設定已儲存');return;}
   const cfg={mode};
