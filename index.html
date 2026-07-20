@@ -797,7 +797,14 @@ const db={
   </div>
   <div class="admin-scroll">
     <div class="a-page active" id="ap-helper"><div id="helperContent" style="padding:4px 0"></div></div>
-    <div class="a-page" id="ap-ledger"><div id="ledgerContent"></div></div>
+    <div class="a-page" id="ap-ledger">
+      <div style="display:flex;gap:8px;padding:12px 0 4px">
+        <button id="lsubIncomeBtn" onclick="ledgerSub('income')" style="flex:1;padding:11px;border-radius:11px;font-size:14px;cursor:pointer;font-weight:600;font-family:'Noto Sans TC',sans-serif;border:1.5px solid var(--ink);background:var(--ink);color:#fff">💰 收入</button>
+        <button id="lsubExpenseBtn" onclick="ledgerSub('expense')" style="flex:1;padding:11px;border-radius:11px;font-size:14px;cursor:pointer;font-weight:600;font-family:'Noto Sans TC',sans-serif;border:1.5px solid var(--border);background:var(--white);color:var(--ink3)">🧾 支出</button>
+      </div>
+      <div id="ledgerSubIncome"><div id="ledgerContent"></div></div>
+      <div id="ledgerSubExpense" style="display:none"><div id="expenseContent"></div></div>
+    </div>
     <div class="a-page" id="ap-wage">
       <div style="display:flex;gap:8px;padding:12px 0 4px">
         <button id="wsubDailyBtn" onclick="wageSub('daily')" style="flex:1;padding:11px;border-radius:11px;font-size:14px;cursor:pointer;font-weight:600;font-family:'Noto Sans TC',sans-serif;border:1.5px solid var(--ink);background:var(--ink);color:#fff">📋 核對課堂</button>
@@ -1459,6 +1466,9 @@ let SCH=JSON.parse(localStorage.getItem('qjf_sch')||'{}');
 let T=JSON.parse(localStorage.getItem('qjf_t')||'[]');
 let L=JSON.parse(localStorage.getItem('qjf_l')||'[]');
 let LEDGER=JSON.parse(localStorage.getItem('qjf_ledger')||'[]');
+// EXPENSES：手動登記的支出（房租/水電/耗材…自由輸入項目名稱＋金額），跟 LEDGER 分開存，
+// 在「流水帳」用收入／支出分頁籤切換；月報表淨利＝營業額－師資費用－這裡的支出總和
+let EXPENSES=JSON.parse(localStorage.getItem('qjf_expenses')||'[]');
 // GW: Google 日曆核銷紀錄 {id,date,time,teacher,name,course,ratio,fee,gcKey,createdAt}
 // 學員未建檔也能核銷師資費，計入月薪資
 let GW=JSON.parse(localStorage.getItem('qjf_gw')||'[]');
@@ -1571,7 +1581,7 @@ function manualSync(){
     loadRentCfgFromFB();
     loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();loadTeacherCalMapFromFB();
     loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
-    loadLedgerFromFB(()=>{
+    loadExpensesFromFB();loadLedgerFromFB(()=>{
       renderTeachers();
       showSyncStatus('synced');
       try{renderDashboard();}catch(e){}
@@ -1819,7 +1829,7 @@ window.addEventListener('load', ()=>{
     loadRentCfgFromFB();
     loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();loadTeacherCalMapFromFB();
     loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
-    loadLedgerFromFB(()=>{
+    loadExpensesFromFB();loadLedgerFromFB(()=>{
       renderTeachers();
       showSyncStatus('synced');
       startFbListener(); // 啟動即時監聽
@@ -1850,7 +1860,7 @@ function startPeriodicSync(){
       loadRentCfgFromFB();
       loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();loadTeacherCalMapFromFB();
       loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
-      loadLedgerFromFB(()=>{
+      loadExpensesFromFB();loadLedgerFromFB(()=>{
       try{renderTeachers();}catch(e){console.warn('renderTeachers error:',e);}
       try{renderDashboard();}catch(e){}
       const adminActive=document.getElementById('sc-admin')?.classList.contains('active-admin');
@@ -1879,7 +1889,7 @@ function startPeriodicSync(){
         loadRentCfgFromFB();
         loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();loadTeacherCalMapFromFB();
         loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
-        loadLedgerFromFB(()=>{
+        loadExpensesFromFB();loadLedgerFromFB(()=>{
           _syncing=false;
           try{renderTeachers();}catch(e){console.warn('renderTeachers error:',e);}
           showSyncStatus('synced');
@@ -3321,6 +3331,20 @@ function wageSub(v){
   else{buildMonthSelect();renderWage();}
 }
 function openDailyConfirm(){_wageSub='daily';aTab('wage');}
+let _ledgerSub='income';
+function ledgerSub(v){
+  _ledgerSub=v;
+  const inc=document.getElementById('ledgerSubIncome'),exp=document.getElementById('ledgerSubExpense');
+  const bi=document.getElementById('lsubIncomeBtn'),be=document.getElementById('lsubExpenseBtn');
+  if(inc)inc.style.display=v==='income'?'block':'none';
+  if(exp)exp.style.display=v==='expense'?'block':'none';
+  const on='flex:1;padding:11px;border-radius:11px;font-size:14px;cursor:pointer;font-weight:600;font-family:\'Noto Sans TC\',sans-serif;border:1.5px solid var(--ink);background:var(--ink);color:#fff';
+  const off='flex:1;padding:11px;border-radius:11px;font-size:14px;cursor:pointer;font-weight:600;font-family:\'Noto Sans TC\',sans-serif;border:1.5px solid var(--border);background:var(--white);color:var(--ink3)';
+  if(bi)bi.style.cssText=v==='income'?on:off;
+  if(be)be.style.cssText=v==='expense'?on:off;
+  if(v==='income')renderLedger();
+  else renderExpenses();
+}
 function aTab(t){
   if((t==='wage'||t==='ledger')&&!_financeUnlocked){openPin(t);return;}
   renderDashboard();
@@ -3328,7 +3352,7 @@ function aTab(t){
   document.querySelectorAll('.a-tab').forEach((el,i)=>el.classList.toggle('active',ns[i]===t));
   ns.forEach(n=>document.getElementById('ap-'+n).classList.toggle('active',n===t));
   if(t==='helper')renderHelper();
-  if(t==='ledger')renderLedger();
+  if(t==='ledger')ledgerSub(_ledgerSub);
   if(t==='wage')wageSub(_wageSub);
   if(t==='mgr')renderMgrList();
   if(t==='tch')renderTchMgr();
@@ -6496,6 +6520,18 @@ function saveLedger(){
   localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
   db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync error:',e));
 }
+function saveExpenses(){
+  localStorage.setItem('qjf_expenses',JSON.stringify(EXPENSES));
+  db.ref('qingjing_expenses').set(EXPENSES).catch(e=>console.warn('Expenses sync error:',e));
+}
+function loadExpensesFromFB(callback){
+  const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000));
+  Promise.race([db.ref('qingjing_expenses').once('value'),timeout]).then(snap=>{
+    const d=snap.val();
+    if(d&&Array.isArray(d)){EXPENSES=d;localStorage.setItem('qjf_expenses',JSON.stringify(EXPENSES));}
+    if(callback)callback();
+  }).catch(e=>{console.warn('Expenses load error:',e);if(callback)callback();});
+}
 
 // ── 體驗課費登記 ──
 // 近 60 天已上、但還沒登記到流水帳的體驗課
@@ -6666,7 +6702,99 @@ function deleteLedgerEntry(id){
   showToast('✓ 已刪除這筆流水帳記錄');
 }
 
-
+// ── 支出登記（自由輸入項目名稱＋金額，跟 LEDGER 的收入分開存）──
+function renderExpenses(){
+  const el=document.getElementById('expenseContent');if(!el)return;
+  const months=[...new Set(EXPENSES.map(x=>monthKey(x.date)))].sort().reverse();
+  const now=new Date();const curMk=`${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}`;
+  if(!months.includes(curMk))months.unshift(curMk);
+  const selMonth=el.dataset.month||curMk;
+  const monthEntries=EXPENSES.filter(x=>monthKey(x.date)===selMonth);
+  const total=monthEntries.reduce((a,x)=>a+(x.amount||0),0);
+  const[y,mo]=selMonth.split('/');
+  el.innerHTML=`
+  <div style="padding:14px 0 10px;display:flex;align-items:center;justify-content:space-between">
+    <div style="font-size:17px;letter-spacing:2px">${y}年${parseInt(mo)}月 支出</div>
+    <select onchange="document.getElementById('expenseContent').dataset.month=this.value;renderExpenses()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--white);font-size:13px;outline:none">
+      ${months.map(m=>{const[my,mm]=m.split('/');return`<option value="${m}" ${m===selMonth?'selected':''}>${my}年${parseInt(mm)}月</option>`}).join('')}
+    </select>
+  </div>
+  <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:var(--shadow);margin-bottom:16px">
+    <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">當月支出總計</div>
+    <div style="font-size:22px;color:var(--red)">$${total.toLocaleString()}</div>
+  </div>
+  <div style="margin-bottom:14px">
+    <button onclick="toggleExpensePanel()" style="width:100%;padding:11px;background:var(--red2);color:var(--red);border:1.5px dashed #F7C1C1;border-radius:11px;font-size:14px;cursor:pointer;font-weight:500">＋ 登記支出</button>
+    <div id="expenseAddPanel" style="display:none;background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-top:10px;box-shadow:var(--shadow)">
+      <input type="hidden" id="exEditId">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label style="font-size:12px;color:var(--ink3)">日期</label><input type="date" id="exDate" class="native-date-inp" style="margin-bottom:0" value="${todayStr().replace(/\//g,'-')}"></div>
+        <div><label style="font-size:12px;color:var(--ink3)">金額</label><input type="number" id="exAmount" placeholder="例：3000" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:0"></div>
+      </div>
+      <div style="margin-bottom:10px"><label style="font-size:12px;color:var(--ink3)">項目名稱</label><input type="text" id="exName" placeholder="例：房租、水電、耗材" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:0"></div>
+      <div style="margin-bottom:12px"><label style="font-size:12px;color:var(--ink3)">備註（選填）</label><input type="text" id="exNote" placeholder="例：7月份" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;outline:none;margin-bottom:0"></div>
+      <button onclick="saveExpenseEntry()" style="width:100%;padding:12px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:15px;cursor:pointer;font-weight:500">儲存支出</button>
+    </div>
+  </div>
+  ${monthEntries.length?monthEntries.sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`
+  <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <div style="font-size:16px;letter-spacing:1px">${hEsc(x.name)}</div>
+      <div style="font-size:11px;color:var(--ink3);margin-top:3px">${x.date}${x.note?'・'+hEsc(x.note):''}</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="font-size:18px;color:var(--red)">－$${(x.amount||0).toLocaleString()}</div>
+      <button onclick="editExpenseEntry('${x.id}')" style="padding:4px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--ink2)">編輯</button>
+      <button onclick="deleteExpenseEntry('${x.id}')" style="padding:4px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:6px;font-size:11px;cursor:pointer;color:var(--red)">刪除</button>
+    </div>
+  </div>`).join(''):`<div style="text-align:center;color:var(--ink3);padding:30px 0;font-size:14px">本月尚無支出記錄</div>`}
+  `;
+}
+function toggleExpensePanel(){
+  const p=document.getElementById('expenseAddPanel');
+  if(!p)return;
+  const opening=p.style.display==='none';
+  p.style.display=opening?'block':'none';
+  if(opening){document.getElementById('exEditId').value='';document.getElementById('exDate').value=todayStr().replace(/\//g,'-');document.getElementById('exAmount').value='';document.getElementById('exName').value='';document.getElementById('exNote').value='';}
+}
+function saveExpenseEntry(){
+  const id=document.getElementById('exEditId').value;
+  const dateInp=document.getElementById('exDate').value;
+  const date=dateInp?dateInp.replace(/-/g,'/'):todayStr();
+  const name=document.getElementById('exName').value.trim();
+  const amount=parseInt(document.getElementById('exAmount').value);
+  const note=document.getElementById('exNote').value.trim();
+  if(!name){showToast('請輸入項目名稱','r');return;}
+  if(isNaN(amount)||amount<=0){showToast('請輸入金額','r');return;}
+  if(id){
+    const x=EXPENSES.find(e=>e.id===id);
+    if(x){x.date=date;x.name=name;x.amount=amount;x.note=note;}
+  }else{
+    EXPENSES.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2),date,name,amount,note,createdAt:new Date().toISOString()});
+  }
+  saveExpenses();
+  document.getElementById('expenseAddPanel').style.display='none';
+  document.getElementById('expenseContent').dataset.month=monthKey(date);
+  renderExpenses();
+  showToast(id?'✓ 支出已更新':'✓ 支出已登記');
+}
+function editExpenseEntry(id){
+  const x=EXPENSES.find(e=>e.id===id);if(!x)return;
+  document.getElementById('expenseAddPanel').style.display='block';
+  document.getElementById('exEditId').value=x.id;
+  document.getElementById('exDate').value=(x.date||'').replace(/\//g,'-');
+  document.getElementById('exAmount').value=x.amount||'';
+  document.getElementById('exName').value=x.name||'';
+  document.getElementById('exNote').value=x.note||'';
+  document.getElementById('expenseAddPanel').scrollIntoView({behavior:'smooth'});
+}
+function deleteExpenseEntry(id){
+  const x=EXPENSES.find(e=>e.id===id);if(!x)return;
+  if(!confirm('確定要刪除「'+x.name+'」這筆支出？'))return;
+  EXPENSES=EXPENSES.filter(e=>e.id!==id);
+  saveExpenses();renderExpenses();
+  showToast('✓ 已刪除這筆支出記錄');
+}
 
 
 function toggleBonusPaid(id){
@@ -7533,9 +7661,12 @@ function showMonthReport(){
   // transfer（發薪日轉帳）本質上還是現金收入，只是晚一點才實際入帳，先一起算進場租收入
   const monthRentCash=RENT.filter(r=>r.date&&monthKey(r.date)===mk&&(r.mode==='cash'||r.mode==='transfer')).reduce((a,r)=>a+(r.fee||0),0);
   const totalFee=monthR.reduce((a,r)=>{const s=S.find(x=>x.id===r.sid);return a+(getRecFee(r,s)||0)},0)+monthT.reduce((a,t)=>a+(t.manualFee!=null?t.manualFee:t.teacherFee),0)+GW.filter(g=>monthKey(g.date)===mk).reduce((a,g)=>a+(g.fee||0),0)-monthRentDeduct;
+  const hourlyFee=HOURLY_SHIFTS.filter(x=>x.date&&monthKey(x.date)===mk).reduce((a,x)=>a+(x.fee||0),0);
   // 收入計入所有流水帳項目（新購/續課/首頁購課/體驗課費）+ 場租現金收入
   const courseIncome=LEDGER.filter(l=>monthKey(l.createdAt||l.payDate||'')===mk).reduce((a,l)=>a+(l.actualPayment||0),0);
   const monthIncome=courseIncome+monthRentCash;
+  const monthExpense=EXPENSES.filter(x=>x.date&&monthKey(x.date)===mk).reduce((a,x)=>a+(x.amount||0),0);
+  const netProfit=monthIncome-totalFee-hourlyFee-monthExpense;
   const monthNew=S.filter(s=>s.payDate&&monthKey(s.payDate)===mk);
   const sessionsByTeacher={};
   monthR.forEach(r=>{const s=S.find(x=>x.id===r.sid);const t=r.isSub?r.subTeacher:(s?.teacher||'其他');if(!sessionsByTeacher[t])sessionsByTeacher[t]=0;sessionsByTeacher[t]++;});
@@ -7569,8 +7700,17 @@ h1{font-family:'Noto Serif TC',serif;font-size:24px;margin-bottom:5px}
   <div class="section-title">收入明細</div>
   <div class="row"><span>課程收入</span><span class="amount big">$${courseIncome.toLocaleString()}</span></div>
   ${monthRentCash>0?`<div class="row"><span>場租收入（現金）</span><span class="amount">$${monthRentCash.toLocaleString()}</span></div>`:''}
-  <div class="row"><span>師資費用支出${monthRentDeduct>0?'（已扣場租 $'+monthRentDeduct.toLocaleString()+'）':''}</span><span class="amount" style="color:#C05A20">$${totalFee.toLocaleString()}</span></div>
-  <div class="row" style="font-weight:500"><span>毛利（收入 - 師資費）</span><span class="amount" style="color:#2E7D52">$${(monthIncome-totalFee).toLocaleString()}</span></div>
+  <div class="row" style="font-weight:500"><span>總收入</span><span class="amount" style="color:#2E7D52">$${monthIncome.toLocaleString()}</span></div>
+</div>
+<div class="section">
+  <div class="section-title">支出明細</div>
+  <div class="row"><span>師資費用${monthRentDeduct>0?'（已扣場租 $'+monthRentDeduct.toLocaleString()+'）':''}</span><span class="amount" style="color:#C05A20">$${totalFee.toLocaleString()}</span></div>
+  ${hourlyFee>0?`<div class="row"><span>工讀費用</span><span class="amount" style="color:#C05A20">$${hourlyFee.toLocaleString()}</span></div>`:''}
+  ${monthExpense>0?`<div class="row"><span>其他支出（房租／水電／耗材等）</span><span class="amount" style="color:#C05A20">$${monthExpense.toLocaleString()}</span></div>`:''}
+  <div class="row" style="font-weight:500"><span>總支出</span><span class="amount" style="color:#C05A20">$${(totalFee+hourlyFee+monthExpense).toLocaleString()}</span></div>
+</div>
+<div class="section">
+  <div class="row" style="font-weight:600;border-bottom:none"><span style="font-size:16px">淨利（總收入－總支出）</span><span class="amount" style="font-size:22px;color:${netProfit<0?'#C0392B':'#2E7D52'}">${netProfit<0?'－':''}$${Math.abs(netProfit).toLocaleString()}</span></div>
 </div>
 <div class="section">
   <div class="section-title">各老師課堂數</div>
