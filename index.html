@@ -791,6 +791,7 @@ const db={
     <div class="a-tab" onclick="aTab(&#39;mgr&#39;)">學員管理</div>
     <div class="a-tab" onclick="aTab(&#39;tch&#39;)">師資管理</div>
     <div class="a-tab" onclick="aTab(&#39;gcal&#39;)">Google日曆</div>
+    <div class="a-tab" onclick="aTab(&#39;hourly&#39;)">工讀管理</div>
     <div class="a-tab" onclick="aTab(&#39;notify&#39;)">明日通知</div>
     <div class="a-tab" onclick="leaveAdmin()" style="color:#8A5A50">← 離開</div>
   </div>
@@ -842,6 +843,7 @@ const db={
     </div>
     <div class="a-page" id="ap-tch"><div style="padding:4px 0"><div id="tchLeaveContent" style="margin-bottom:16px"></div><div id="tchContent"></div></div></div>
     <div class="a-page" id="ap-gcal"><div id="gcalContent" style="padding:4px 0"></div></div>
+    <div class="a-page" id="ap-hourly"><div id="hourlyContent" style="padding:4px 0"></div></div>
     <div class="a-page" id="ap-notify"><div id="notifyContent" style="padding:4px 0"></div></div>
   </div>
 </div>
@@ -1139,6 +1141,27 @@ const db={
     </div>
     <button class="btn-full bf-ink" onclick="saveRentCfgModal()" style="margin-top:6px">儲存場租設定</button>
     <button class="btn-full bf-soft" style="margin-top:9px" onclick="document.getElementById('rentCfgOv').classList.remove('open')">取消</button>
+  </div>
+</div>
+
+<!-- 工讀生設定 Modal -->
+<div class="add-ov" id="hstaffOv" onclick="if(event.target===this)this.classList.remove(&#39;open&#39;)">
+  <div class="add-modal">
+    <div class="modal-ttl" id="hstaffTitle">新增工讀生</div>
+    <input type="hidden" id="hstaffOrigName">
+    <label>姓名</label>
+    <input type="text" id="hstaffName" placeholder="例：蕭妹妹" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:12px">
+    <label>時薪</label>
+    <input type="number" id="hstaffRate" placeholder="例：200" value="200" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:12px;text-align:right">
+    <label>Email（薪資明細寄送用，可留空）</label>
+    <input type="email" id="hstaffEmail" placeholder="例：staff@example.com" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:12px">
+    <label>對應 Google 日曆</label>
+    <select id="hstaffCal" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;font-family:'Noto Sans TC',sans-serif;outline:none;margin-bottom:6px">
+      <option value="">載入中…</option>
+    </select>
+    <div style="font-size:11px;color:var(--ink3);margin-bottom:12px">日曆上每個事件視為一個班次，用起訖時間自動算時數；請先請工讀生把自己的班表建到獨立日曆，並在 Google 日曆帳號分享給店長的帳號</div>
+    <button class="btn-full bf-ink" onclick="saveHourlyStaffModal()" style="margin-top:6px">儲存</button>
+    <button class="btn-full bf-soft" style="margin-top:9px" onclick="document.getElementById('hstaffOv').classList.remove('open')">取消</button>
   </div>
 </div>
 
@@ -1450,6 +1473,12 @@ let RENT_CFG=JSON.parse(localStorage.getItem('qjf_rcfg')||'{}');
 let TEACHER_PHONES=JSON.parse(localStorage.getItem('qjf_tphone')||'{}');
 // TEACHER_EMAILS：老師的 email（薪資明細寄送用），{[teacherName]: email}，跟手機號碼分開存
 let TEACHER_EMAILS=JSON.parse(localStorage.getItem('qjf_temail')||'{}');
+// HOURLY_STAFF：時薪工讀生設定，{[name]: {rate, calId, email}}——各自有獨立 Google 日曆，
+// 日曆上的每個事件視為一個班次，用 gcSyncHourlyShifts() 同步時數
+let HOURLY_STAFF=JSON.parse(localStorage.getItem('qjf_hstaff')||'{}');
+// HOURLY_SHIFTS：從工讀生 Google 日曆同步下來的班次紀錄，
+// [{id,staff,date,start,end,hours,fee,gcKey,createdAt}]，gcKey 用來跟日曆事件對應避免重複建立
+let HOURLY_SHIFTS=JSON.parse(localStorage.getItem('qjf_hshifts')||'[]');
 // TEACHER_LINE_BOUND：唯讀快取，記錄哪些老師已經完成 LINE 綁定（qingjing_line_bindings_teacher 的 name 值），
 // 只用來在師資管理畫面顯示「📱已綁定」小標籤，不是綁定資料本身的來源
 let TEACHER_LINE_BOUND=new Set();
@@ -1540,7 +1569,7 @@ function manualSync(){
     loadGwFromFB();
     loadRentFromFB();
     loadRentCfgFromFB();
-    loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();
+    loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();
     loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
     loadLedgerFromFB(()=>{
       renderTeachers();
@@ -1661,6 +1690,26 @@ function loadTeacherEmailsFromFB(){
     if(d&&typeof d==='object'){TEACHER_EMAILS=d;localStorage.setItem('qjf_temail',JSON.stringify(TEACHER_EMAILS));}
   }).catch(e=>{});
 }
+function saveHourlyStaff(){
+  localStorage.setItem('qjf_hstaff',JSON.stringify(HOURLY_STAFF));
+  db.ref('qingjing_hourly_staff').set(HOURLY_STAFF).catch(e=>console.warn('HourlyStaff sync error:',e));
+}
+function loadHourlyStaffFromFB(){
+  db.ref('qingjing_hourly_staff').once('value').then(snap=>{
+    const d=snap.val();
+    if(d&&typeof d==='object'){HOURLY_STAFF=d;localStorage.setItem('qjf_hstaff',JSON.stringify(HOURLY_STAFF));}
+  }).catch(e=>{});
+}
+function saveHourlyShifts(){
+  localStorage.setItem('qjf_hshifts',JSON.stringify(HOURLY_SHIFTS));
+  db.ref('qingjing_hourly_shifts').set(HOURLY_SHIFTS).catch(e=>console.warn('HourlyShifts sync error:',e));
+}
+function loadHourlyShiftsFromFB(){
+  db.ref('qingjing_hourly_shifts').once('value').then(snap=>{
+    const d=snap.val();
+    if(d&&Array.isArray(d)){HOURLY_SHIFTS=d;localStorage.setItem('qjf_hshifts',JSON.stringify(HOURLY_SHIFTS));}
+  }).catch(e=>{});
+}
 // 只讀，用來在師資管理畫面顯示綁定狀態；老師端實際綁定是 line-webhook/api/webhook.js 寫入的
 function loadTeacherLineBoundFromFB(){
   db.ref('qingjing_line_bindings_teacher').once('value').then(snap=>{
@@ -1760,7 +1809,7 @@ window.addEventListener('load', ()=>{
     loadGwFromFB();
     loadRentFromFB();
     loadRentCfgFromFB();
-    loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();
+    loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();
     loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
     loadLedgerFromFB(()=>{
       renderTeachers();
@@ -1791,7 +1840,7 @@ function startPeriodicSync(){
       loadGwFromFB();
       loadRentFromFB();
       loadRentCfgFromFB();
-      loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();
+      loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();
       loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
       loadLedgerFromFB(()=>{
       try{renderTeachers();}catch(e){console.warn('renderTeachers error:',e);}
@@ -1820,7 +1869,7 @@ function startPeriodicSync(){
         loadGwFromFB();
         loadRentFromFB();
         loadRentCfgFromFB();
-        loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();
+        loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();
         loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
         loadLedgerFromFB(()=>{
           _syncing=false;
@@ -1854,6 +1903,7 @@ function autoGcSyncOnLoad(){
       .then(()=>{try{renderTeachers();}catch(e){}})
       .catch(e=>console.warn('Auto GC sync failed:',e));
     syncFutureRentBookings().catch(e=>console.warn('Future rent booking scan failed:',e));
+    gcSyncHourlyShifts().catch(e=>console.warn('Hourly shift sync failed:',e));
   },1500);
 }
 
@@ -1861,9 +1911,52 @@ function autoGcSyncOnLoad(){
 let _periodicGcSyncTimer=null;
 function silentGcSync(){
   if(typeof GC==='undefined'||!GC.ok())return;
+  gcSyncHourlyShifts().catch(e=>console.warn('Hourly shift sync failed:',e));
   if(!Object.keys(GC.calMap||{}).length)return;
   gcSyncToday(undefined,{silent:true}).catch(e=>console.warn('Silent GC sync failed:',e));
   syncFutureRentBookings().catch(e=>console.warn('Future rent booking scan failed:',e));
+}
+// 工讀生時薪同步：各自獨立 Google 日曆，日曆上每個事件＝一個班次（不用像正課事件解析標題），
+// 直接用起訖時間算時數 × 時薪。用 gcKey（日曆ID+事件ID）比對是否已存在，同步時順便更新時間異動、
+// 刪除已取消的班次；掃 -60~+14 天，涵蓋補登過去班表跟已排好的近期班表
+async function gcSyncHourlyShifts(){
+  if(typeof GC==='undefined'||!GC.ok())return false;
+  const staffEntries=Object.entries(HOURLY_STAFF).filter(([,cfg])=>cfg&&cfg.calId);
+  if(!staffEntries.length)return false;
+  const now=new Date();
+  const tMin=encodeURIComponent(new Date(now.getTime()-60*864e5).toISOString());
+  const tMax=encodeURIComponent(new Date(now.getTime()+14*864e5).toISOString());
+  let changed=false;
+  await Promise.all(staffEntries.map(async([staff,cfg])=>{
+    try{
+      const data=await GC.api(`/calendars/${encodeURIComponent(cfg.calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=250`);
+      (data.items||[]).forEach(ev=>{
+        const gcKey=cfg.calId+'_'+(ev.iCalUID||ev.id);
+        const idx=HOURLY_SHIFTS.findIndex(x=>x.gcKey===gcKey);
+        if(ev.status==='cancelled'||!ev.start?.dateTime||!ev.end?.dateTime){
+          if(idx>=0){HOURLY_SHIFTS.splice(idx,1);changed=true;}
+          return;
+        }
+        const start=new Date(ev.start.dateTime),end=new Date(ev.end.dateTime);
+        const hours=Math.max(0,Math.round(((end-start)/3600000)*100)/100);
+        const fee=Math.round(hours*(cfg.rate||0));
+        const rec={
+          id:idx>=0?HOURLY_SHIFTS[idx].id:(Date.now()+Math.random()).toString(36).slice(2),
+          staff,date:fmt(start),
+          start:String(start.getHours()).padStart(2,'0')+':'+String(start.getMinutes()).padStart(2,'0'),
+          end:String(end.getHours()).padStart(2,'0')+':'+String(end.getMinutes()).padStart(2,'0'),
+          hours,fee,gcKey,
+          createdAt:idx>=0?HOURLY_SHIFTS[idx].createdAt:new Date().toISOString()
+        };
+        if(idx>=0){
+          const old=HOURLY_SHIFTS[idx];
+          if(old.date!==rec.date||old.start!==rec.start||old.end!==rec.end||old.hours!==rec.hours||old.fee!==rec.fee){HOURLY_SHIFTS[idx]=rec;changed=true;}
+        }else{HOURLY_SHIFTS.push(rec);changed=true;}
+      });
+    }catch(e){console.warn('Hourly shift sync err:',staff,e);}
+  }));
+  if(changed)saveHourlyShifts();
+  return changed;
 }
 // 掃未來60天內各老師日曆裡新出現的「場租」事件，只要偵測到、老師又已綁定LINE，
 // 立刻推播確認通知；已經通知過的事件（用 gcKey 記錄）不會重複發送。
@@ -3223,7 +3316,7 @@ function openDailyConfirm(){_wageSub='daily';aTab('wage');}
 function aTab(t){
   if((t==='wage'||t==='ledger')&&!_financeUnlocked){openPin(t);return;}
   renderDashboard();
-  const ns=['helper','ledger','wage','mgr','tch','gcal','notify'];
+  const ns=['helper','ledger','wage','mgr','tch','gcal','hourly','notify'];
   document.querySelectorAll('.a-tab').forEach((el,i)=>el.classList.toggle('active',ns[i]===t));
   ns.forEach(n=>document.getElementById('ap-'+n).classList.toggle('active',n===t));
   if(t==='helper')renderHelper();
@@ -3232,6 +3325,7 @@ function aTab(t){
   if(t==='mgr')renderMgrList();
   if(t==='tch')renderTchMgr();
   if(t==='gcal')renderGcalPage();
+  if(t==='hourly')renderHourlyMgr();
   if(t==='notify')renderTomorrowNotify();
 }
 
@@ -4408,6 +4502,29 @@ function renderWage(){
       </div>
       <div class="wc-footer"><button class="wc-btn wc-btn-copy" onclick="copyTeacher('${t}','${mk}')">📋 複製薪資</button>${TEACHER_EMAILS[t]?`<button class="wc-btn wc-btn-email" onclick="emailTeacher('${t}','${mk}')">📧 寄送Email</button>`:''}</div>
     </div>`;
+  }).join('')+renderHourlyWageCards(mk);
+}
+// 工讀生薪資卡片，接在老師清單最後面；跟老師卡片同一套視覺，但明細是班次時段而不是課堂
+function renderHourlyWageCards(mk){
+  return Object.keys(HOURLY_STAFF).map(staff=>{
+    const cfg=HOURLY_STAFF[staff]||{};
+    const shifts=HOURLY_SHIFTS.filter(s=>s.date&&wageInRange(s.date,mk)&&s.staff===staff).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
+    if(!shifts.length)return`<div class="wage-card no-data"><div class="wc-header"><div class="wc-name">${hEsc(staff)}<span class="adjusted-badge" style="background:var(--blue2);color:var(--blue);border-color:var(--blue3)">工讀</span></div><div class="wc-no-data-lbl">尚無記錄</div></div><div class="wc-body"><div class="wc-no-record">本期尚無班次</div></div></div>`;
+    const totalHours=shifts.reduce((a,s)=>a+(s.hours||0),0);
+    const total=shifts.reduce((a,s)=>a+(s.fee||0),0);
+    return`<div class="wage-card">
+      <div class="wc-header"><div class="wc-name">${hEsc(staff)}<span class="adjusted-badge" style="background:var(--blue2);color:var(--blue);border-color:var(--blue3)">工讀・$${(cfg.rate||0).toLocaleString()}/hr</span></div><div class="wc-total">$${total.toLocaleString()}</div></div>
+      <div class="wc-divider"></div>
+      <div class="wc-body">
+        ${shifts.map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px">
+          <div style="color:var(--ink3);width:120px;flex-shrink:0">${s.date.slice(5)} ${s.start}-${s.end}</div>
+          <div style="flex:1;color:var(--ink)">${s.hours} 小時</div>
+          <div style="color:var(--ink2);flex-shrink:0">$${(s.fee||0).toLocaleString()}</div>
+        </div>`).join('')}
+        <div class="wc-note" style="margin-top:6px">${shifts.length} 個班次 ・ 共 ${Math.round(totalHours*100)/100} 小時</div>
+      </div>
+      <div class="wc-footer"><button class="wc-btn wc-btn-copy" onclick="copyHourlyStaff('${jsQ(staff)}','${mk}')">📋 複製薪資</button>${cfg.email?`<button class="wc-btn wc-btn-email" onclick="emailHourlyStaff('${jsQ(staff)}','${mk}')">📧 寄送Email</button>`:''}</div>
+    </div>`;
   }).join('');
 }
 
@@ -4531,8 +4648,56 @@ function copyAll(){
   LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.bonusPaid&&(l.bonus||0)>0).forEach(l=>{const t=l.teacher||'其他';if(!tMap[t])tMap[t]=0;tMap[t]+=(l.bonus||0)});
   let grand=0;
   Object.entries(tMap).forEach(([t,total])=>{grand+=total;text+=`${t}：$${total.toLocaleString()}\n`});
+  const hMap={};
+  HOURLY_SHIFTS.filter(s=>s.date&&wageInRange(s.date,mk)).forEach(s=>{if(!hMap[s.staff])hMap[s.staff]=0;hMap[s.staff]+=(s.fee||0)});
+  if(Object.keys(hMap).length){
+    text+=`── 工讀 ──\n`;
+    Object.entries(hMap).forEach(([staff,total])=>{grand+=total;text+=`${staff}（工讀）：$${total.toLocaleString()}\n`});
+  }
   text+=`────────────\n合計：$${grand.toLocaleString()}\n`;
   copyText(text,'全部薪資已複製');
+}
+// ── 工讀生複製薪資／Email（跟 copyTeacher/buildPayrollEmailHtml 同一套模式，明細是班次時段）──
+function copyHourlyStaff(staff,mk){
+  const[y,mo]=mk.split('/');
+  const cfg=HOURLY_STAFF[staff]||{};
+  const shifts=HOURLY_SHIFTS.filter(s=>s.date&&wageInRange(s.date,mk)&&s.staff===staff).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
+  const total=shifts.reduce((a,s)=>a+(s.fee||0),0);
+  const totalHours=shifts.reduce((a,s)=>a+(s.hours||0),0);
+  const period=(_wageMode==='range'&&_wageStart&&_wageEnd)?`${_wageStart}～${_wageEnd}（週結）`:`${y}年${parseInt(mo)}月`;
+  let text=`輕境運動工作室 ${period} 工讀薪資\n工讀生：${staff}（時薪 $${(cfg.rate||0).toLocaleString()}）\n────────────\n`;
+  shifts.forEach(s=>{text+=`${s.date.slice(5)} ${s.start}-${s.end}（${s.hours}小時） $${(s.fee||0).toLocaleString()}\n`});
+  text+=`────────────\n共 ${shifts.length} 個班次・${Math.round(totalHours*100)/100} 小時\n合計：$${total.toLocaleString()}\n`;
+  copyText(text,staff+' 薪資已複製');
+}
+function buildHourlyEmailHtml(staff,mk){
+  const[y,mo]=mk.split('/');
+  const cfg=HOURLY_STAFF[staff]||{};
+  const shifts=HOURLY_SHIFTS.filter(s=>s.date&&wageInRange(s.date,mk)&&s.staff===staff).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
+  const total=shifts.reduce((a,s)=>a+(s.fee||0),0);
+  const totalHours=shifts.reduce((a,s)=>a+(s.hours||0),0);
+  const period=(_wageMode==='range'&&_wageStart&&_wageEnd)?`${_wageStart}～${_wageEnd}`:`${y}年${parseInt(mo)}月`;
+  const rowsHtml=shifts.map(s=>`<tr>
+    <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;color:#8a8072;white-space:nowrap">${hEsc(s.date.slice(5))} ${hEsc(s.start)}-${hEsc(s.end)}</td>
+    <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;color:#3a332a">${s.hours} 小時</td>
+    <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;text-align:right;color:#3a332a;white-space:nowrap">$${(s.fee||0).toLocaleString()}</td>
+  </tr>`).join('');
+  return`<div style="max-width:560px;margin:0 auto;font-family:'PingFang TC','Microsoft JhengHei',sans-serif;color:#3a332a">
+    <div style="background:#3a2e22;padding:22px 24px;border-radius:14px 14px 0 0">
+      <div style="color:#e8ddc8;font-size:12px;letter-spacing:2px;margin-bottom:4px">輕境運動工作室</div>
+      <div style="color:#fff;font-size:18px;font-weight:600">${hEsc(period)}　工讀薪資明細</div>
+      <div style="color:#c9bda3;font-size:13px;margin-top:6px">工讀生：${hEsc(staff)}（時薪 $${(cfg.rate||0).toLocaleString()}）</div>
+    </div>
+    <div style="background:#fbf8f2;border:1px solid #eee2cc;border-top:none;padding:18px 24px;border-radius:0 0 14px 14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;margin-bottom:6px;border-bottom:2px solid #e8ddc8">
+        <span style="font-size:13px;color:#8a8072">本期合計</span>
+        <span style="font-size:24px;font-weight:700;color:#2f8f5b">$${total.toLocaleString()}</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse">${rowsHtml}</table>
+      <div style="font-size:12px;color:#a39a8a;margin-top:12px">${shifts.length} 個班次・${Math.round(totalHours*100)/100} 小時</div>
+    </div>
+    <div style="text-align:center;font-size:11px;color:#a39a8a;padding:14px 0 0">此為系統自動寄送，若有疑問請聯繫工作室</div>
+  </div>`;
 }
 
 // ── Email 薪資明細（跟 copyTeacher 同一套資料邏輯，只是排成 HTML 表格而不是純文字）──
@@ -4606,35 +4771,50 @@ function buildPayrollEmailHtml(teacher,mk){
     <div style="text-align:center;font-size:11px;color:#a39a8a;padding:14px 0 0">此為系統自動寄送，若有疑問請聯繫工作室</div>
   </div>`;
 }
-async function sendPayrollEmail(teacher,mk,{silent}={}){
-  const email=(TEACHER_EMAILS[teacher]||'').trim();
-  if(!email){if(!silent)showToast(teacher+' 尚未設定 Email','r');return false;}
-  const[y,mo]=mk.split('/');
-  const period=(_wageMode==='range'&&_wageStart&&_wageEnd)?`${_wageStart}～${_wageEnd}`:`${y}年${parseInt(mo)}月`;
-  const html=buildPayrollEmailHtml(teacher,mk);
+async function sendPayrollHtmlEmail(to,subject,html,{silent,successMsg}={}){
   try{
     const res=await fetch(LINE_WEBHOOK_BASE+'/api/send-payroll-email?key='+EMAIL_PUSH_SECRET,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({to:email,subject:`輕境運動工作室 ${period} 薪資明細・${teacher}`,html})
+      body:JSON.stringify({to,subject,html})
     });
     const data=await res.json().catch(()=>({}));
     if(!res.ok||!data.ok)throw new Error(data.error||('HTTP '+res.status));
-    if(!silent)showToast('✓ 已寄送給 '+teacher);
+    if(!silent)showToast(successMsg||'✓ 已寄送');
     return true;
   }catch(e){
     if(!silent)showToast('寄送失敗：'+e.message,'r');
     return false;
   }
 }
+async function sendPayrollEmail(teacher,mk,{silent}={}){
+  const email=(TEACHER_EMAILS[teacher]||'').trim();
+  if(!email){if(!silent)showToast(teacher+' 尚未設定 Email','r');return false;}
+  const[y,mo]=mk.split('/');
+  const period=(_wageMode==='range'&&_wageStart&&_wageEnd)?`${_wageStart}～${_wageEnd}`:`${y}年${parseInt(mo)}月`;
+  const html=buildPayrollEmailHtml(teacher,mk);
+  return sendPayrollHtmlEmail(email,`輕境運動工作室 ${period} 薪資明細・${teacher}`,html,{silent,successMsg:'✓ 已寄送給 '+teacher});
+}
 function emailTeacher(teacher,mk){sendPayrollEmail(teacher,mk);}
+async function sendHourlyEmail(staff,mk,{silent}={}){
+  const email=(HOURLY_STAFF[staff]?.email||'').trim();
+  if(!email){if(!silent)showToast(staff+' 尚未設定 Email','r');return false;}
+  const[y,mo]=mk.split('/');
+  const period=(_wageMode==='range'&&_wageStart&&_wageEnd)?`${_wageStart}～${_wageEnd}`:`${y}年${parseInt(mo)}月`;
+  const html=buildHourlyEmailHtml(staff,mk);
+  return sendPayrollHtmlEmail(email,`輕境運動工作室 ${period} 工讀薪資明細・${staff}`,html,{silent,successMsg:'✓ 已寄送給 '+staff});
+}
+function emailHourlyStaff(staff,mk){sendHourlyEmail(staff,mk);}
 async function emailAll(){
   const mk=document.getElementById('monthSelect').value;
-  const targets=ALL_TEACHERS.filter(t=>(TEACHER_EMAILS[t]||'').trim());
-  if(!targets.length){showToast('尚未有任何老師設定 Email','r');return;}
-  showToast(`寄送中…（共 ${targets.length} 位）`);
+  const teacherTargets=ALL_TEACHERS.filter(t=>(TEACHER_EMAILS[t]||'').trim());
+  const hourlyTargets=Object.keys(HOURLY_STAFF).filter(n=>(HOURLY_STAFF[n].email||'').trim());
+  const total=teacherTargets.length+hourlyTargets.length;
+  if(!total){showToast('尚未有任何老師／工讀生設定 Email','r');return;}
+  showToast(`寄送中…（共 ${total} 位）`);
   let ok=0;
-  for(const t of targets){if(await sendPayrollEmail(t,mk,{silent:true}))ok++;}
-  showToast(`✓ 已寄送 ${ok}/${targets.length} 位老師`,ok===targets.length?'g':'r');
+  for(const t of teacherTargets){if(await sendPayrollEmail(t,mk,{silent:true}))ok++;}
+  for(const n of hourlyTargets){if(await sendHourlyEmail(n,mk,{silent:true}))ok++;}
+  showToast(`✓ 已寄送 ${ok}/${total} 位`,ok===total?'g':'r');
 }
 function exportCSV(){
   const mk=document.getElementById('monthSelect').value;const[y,mo]=mk.split('/');
@@ -4653,6 +4833,9 @@ function exportCSV(){
   RENT.filter(r=>wageInRange(r.date,mk)).sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{
     const rentLabel={deduct:'場租扣款',cash:'場租(已付現金)',transfer:'場租(發薪日轉帳)',prepaid:'場租(預付堂數，剩'+(r.remainingAfter??'?')+'堂)'}[r.mode]||'場租';
     csv+=`${r.date},${r.time||''},,${r.label||'場租'},${r.teacher},${r.mode==='deduct'?'-':''}$${r.fee||0},${rentLabel},\n`;
+  });
+  HOURLY_SHIFTS.filter(s=>s.date&&wageInRange(s.date,mk)).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start)).forEach(s=>{
+    csv+=`${s.date},${s.start}-${s.end},,,${s.staff},$${s.fee||0},工讀(${s.hours}小時),\n`;
   });
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);const a=document.createElement('a');
@@ -7023,6 +7206,72 @@ function gcSaveMap(){
   });
   GC.calMap=map;
   showToast('✓ 日曆對照已儲存（'+Object.keys(map).length+' 位老師）');
+}
+
+// ── 工讀管理（時薪工讀生，各自獨立 Google 日曆）──
+function renderHourlyMgr(){
+  const el=document.getElementById('hourlyContent');if(!el)return;
+  const ok=typeof GC!=='undefined'&&GC.ok();
+  const names=Object.keys(HOURLY_STAFF);
+  el.innerHTML=`
+${ok?'':`<div style="background:#FFF4EE;border:1px solid #F5C4A1;border-radius:10px;padding:11px 15px;margin-bottom:16px;font-size:13px;color:#C05A20">尚未連接 Google 日曆，請先到「Google日曆」分頁連接帳號，才能選擇工讀生的日曆</div>`}
+<button onclick="openHourlyStaffOv()" style="width:100%;padding:12px;background:var(--ink);color:#fff;border:none;border-radius:9px;font-size:14px;cursor:pointer;margin-bottom:16px">＋ 新增工讀生</button>
+${names.length?names.map(n=>{
+  const cfg=HOURLY_STAFF[n]||{};
+  const calName=(_gcAvailCals||[]).find(c=>c.id===cfg.calId)?.summary||(cfg.calId?'（日曆已設定）':'尚未設定日曆');
+  return`<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+    <div style="min-width:0">
+      <div style="font-size:15px;font-weight:500">${hEsc(n)}</div>
+      <div style="font-size:12px;color:var(--ink3);margin-top:3px">時薪 $${(cfg.rate||0).toLocaleString()}・📅 ${hEsc(calName)}${cfg.email?'・📧 已設Email':''}</div>
+    </div>
+    <div style="display:flex;gap:6px;flex-shrink:0">
+      <button onclick="openHourlyStaffOv('${jsQ(n)}')" style="padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:12px;cursor:pointer;color:var(--ink2)">編輯</button>
+      <button onclick="deleteHourlyStaff('${jsQ(n)}')" style="padding:8px 12px;background:var(--red2);border:1px solid #F7C1C1;border-radius:8px;font-size:12px;cursor:pointer;color:var(--red)">刪除</button>
+    </div>
+  </div>`;
+}).join(''):'<div style="text-align:center;color:var(--ink3);padding:24px;font-size:13px">尚未新增任何工讀生</div>'}`;
+  if(ok&&(!_gcAvailCals||!_gcAvailCals.length))GC.listCals().then(cals=>{_gcAvailCals=cals;renderHourlyMgr();}).catch(()=>{});
+}
+async function openHourlyStaffOv(name){
+  const isEdit=!!name;
+  const cfg=isEdit?(HOURLY_STAFF[name]||{}):{};
+  document.getElementById('hstaffTitle').textContent=isEdit?'編輯工讀生':'新增工讀生';
+  document.getElementById('hstaffOrigName').value=name||'';
+  document.getElementById('hstaffName').value=name||'';
+  document.getElementById('hstaffRate').value=cfg.rate||200;
+  document.getElementById('hstaffEmail').value=cfg.email||'';
+  const calSel=document.getElementById('hstaffCal');
+  calSel.innerHTML='<option value="">載入中…</option>';
+  document.getElementById('hstaffOv').classList.add('open');
+  if(typeof GC==='undefined'||!GC.ok()){calSel.innerHTML='<option value="">請先連接 Google 帳號</option>';return;}
+  try{
+    if(!_gcAvailCals||!_gcAvailCals.length)_gcAvailCals=await GC.listCals();
+    calSel.innerHTML='<option value="">— 未設定 —</option>'+_gcAvailCals.map(c=>`<option value="${c.id}">${hEsc(c.summary)}</option>`).join('');
+    calSel.value=cfg.calId||'';
+  }catch(e){calSel.innerHTML='<option value="">日曆清單載入失敗</option>';}
+}
+function saveHourlyStaffModal(){
+  const origName=document.getElementById('hstaffOrigName').value;
+  const name=document.getElementById('hstaffName').value.trim();
+  if(!name){showToast('請輸入姓名','r');return;}
+  const rate=parseInt(document.getElementById('hstaffRate').value);
+  if(isNaN(rate)||rate<0){showToast('請輸入時薪','r');return;}
+  const email=document.getElementById('hstaffEmail').value.trim();
+  const calId=document.getElementById('hstaffCal').value;
+  if(origName&&origName!==name)delete HOURLY_STAFF[origName];
+  HOURLY_STAFF[name]={rate,calId,email};
+  saveHourlyStaff();
+  document.getElementById('hstaffOv').classList.remove('open');
+  renderHourlyMgr();
+  showToast('✓ '+name+' 已儲存');
+  gcSyncHourlyShifts().then(()=>{if(document.getElementById('ap-wage')?.classList.contains('active'))renderWage();}).catch(()=>{});
+}
+function deleteHourlyStaff(name){
+  if(!confirm(`確定要刪除工讀生「${name}」嗎？已同步的班次紀錄不會被刪除。`))return;
+  delete HOURLY_STAFF[name];
+  saveHourlyStaff();
+  renderHourlyMgr();
+  showToast('已刪除 '+name);
 }
 
 async function gcSyncToday(ev,opts){
