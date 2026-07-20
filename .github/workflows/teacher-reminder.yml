@@ -1,0 +1,16 @@
+name: 老師明日提醒（課表＋場租）
+# 直接推播給已綁定 LINE 的老師，不像學員版需要店長先按確認——店長與老師之間的內部溝通，
+# 風險比對外發給學員低，詳見 scripts/teacher_reminder.py 開頭說明。
+on:
+  schedule:
+    - cron: '0 10 * * *'   # UTC 10:00 = 台北 18:00
+  workflow_dispatch: {}
+jobs:
+  reminder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 推播老師明日課表＋場租
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python3 scripts/teacher_reminder.py

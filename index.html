@@ -1569,7 +1569,7 @@ function manualSync(){
     loadGwFromFB();
     loadRentFromFB();
     loadRentCfgFromFB();
-    loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();
+    loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();loadTeacherCalMapFromFB();
     loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
     loadLedgerFromFB(()=>{
       renderTeachers();
@@ -1678,6 +1678,14 @@ function loadTeacherPhonesFromFB(){
   db.ref('qingjing_teacher_phones').once('value').then(snap=>{
     const d=snap.val();
     if(d&&typeof d==='object'){TEACHER_PHONES=d;localStorage.setItem('qjf_tphone',JSON.stringify(TEACHER_PHONES));}
+  }).catch(e=>{});
+}
+// 老師日曆對照本來只存 localStorage（單裝置），teacher_reminder.py 排程要在伺服器端讀日曆
+// 找場租，所以跟老師電話一樣同步一份到 Firebase
+function loadTeacherCalMapFromFB(){
+  db.ref('qingjing_teacher_calmap').once('value').then(snap=>{
+    const d=snap.val();
+    if(d&&typeof d==='object')GC.calMap=d;
   }).catch(e=>{});
 }
 function saveTeacherEmails(){
@@ -1809,7 +1817,7 @@ window.addEventListener('load', ()=>{
     loadGwFromFB();
     loadRentFromFB();
     loadRentCfgFromFB();
-    loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();
+    loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();loadTeacherCalMapFromFB();
     loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
     loadLedgerFromFB(()=>{
       renderTeachers();
@@ -1840,7 +1848,7 @@ function startPeriodicSync(){
       loadGwFromFB();
       loadRentFromFB();
       loadRentCfgFromFB();
-      loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();
+      loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();loadTeacherCalMapFromFB();
       loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
       loadLedgerFromFB(()=>{
       try{renderTeachers();}catch(e){console.warn('renderTeachers error:',e);}
@@ -1869,7 +1877,7 @@ function startPeriodicSync(){
         loadGwFromFB();
         loadRentFromFB();
         loadRentCfgFromFB();
-        loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();
+        loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();loadTeacherCalMapFromFB();
         loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
         loadLedgerFromFB(()=>{
           _syncing=false;
@@ -7205,6 +7213,7 @@ function gcSaveMap(){
     if(s&&s.value)map[t]=s.value;
   });
   GC.calMap=map;
+  db.ref('qingjing_teacher_calmap').set(map).catch(e=>console.warn('calMap sync error:',e));
   showToast('✓ 日曆對照已儲存（'+Object.keys(map).length+' 位老師）');
 }
 
