@@ -7682,6 +7682,7 @@ async function renderTomorrowNotify(){
       for(const ev of evs){
         const parsed=GC.parseTitle(ev.summary||'');
         if(!parsed)continue;
+        if(gcIsRent(parsed.type))continue; // 場租不是學員課程，老師的場租提醒走 gcNotifyRentBookings 直接推播，不列入這裡
         // 日曆標題常常沒帶電話，退而求其次用姓名比對系統學員名單拿電話（跟 runDataCheck 同一套邏輯）
         let phone=parsed.phone;
         if(!phone){
