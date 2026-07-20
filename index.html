@@ -218,6 +218,7 @@ canvas#sigC{display:block;width:100%;touch-action:none;cursor:crosshair}
 
 /* 成功 */
 .success-wrap{text-align:center;padding:52px 22px;display:flex;flex-direction:column;align-items:center}
+.success-left,.success-right{display:contents} /* 直向時左右兩塊只是分組用，子元素照原本順序直接排 */
 .success-icon{width:84px;height:84px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 22px;font-size:38px}
 .success-icon.normal{background:var(--gold4);border:3px solid var(--gold2)}
 .success-icon.trial{background:var(--teal2);border:3px solid var(--teal3)}
@@ -501,18 +502,14 @@ input:focus,select:focus{border-color:var(--gold2)}
     display:grid;grid-template-columns:1fr 1fr;column-gap:40px;
     text-align:center;padding-top:36px;align-items:start;
   }
-  #sc-success .success-icon,
-  #sc-success .success-ttl,
-  #sc-success #supplementAlert,
-  #sc-success .success-sub,
-  #sc-success .success-n,
-  #sc-success .success-lbl{grid-column:1;justify-self:center}
+  /* 左右各自是一個真正的格子，裡面的內容自己直向排列，
+     不用再一格一格對齊列數——這是之前排版跑掉的根本原因 */
+  #sc-success .success-left{display:flex;flex-direction:column;align-items:center;grid-column:1}
+  #sc-success .success-right{display:flex;flex-direction:column;align-items:stretch;grid-column:2}
   #sc-success #nextBookingArea,
   #sc-success #successUpcomingArea,
-  #sc-success #lineMessageArea{grid-column:2;max-width:none!important;width:100%;justify-self:stretch;margin-top:0!important}
-  #sc-success #nextBookingArea{grid-row:1;margin-top:0!important}
-  #sc-success #successUpcomingArea{grid-row:2}
-  #sc-success #lineMessageArea{grid-row:3}
+  #sc-success #lineMessageArea{max-width:none!important;width:100%}
+  #sc-success #nextBookingArea{margin-top:0!important}
   #sc-success #successActions{grid-column:1/-1;max-width:320px;margin:24px auto 0}
 }
 </style>
@@ -713,15 +710,19 @@ const db={
   <!-- 成功 -->
   <div class="screen" id="sc-success"><div class="sc-pad">
     <div class="success-wrap">
-      <div class="success-icon" id="successIcon">✦</div>
-      <div class="success-ttl" id="successName"></div>
-      <div id="supplementAlert"></div>
-      <div class="success-sub" id="successSub"></div>
-      <div class="success-n" id="successRemain"></div>
-      <div class="success-lbl" id="successLbl">堂課程可用</div>
-      <div id="nextBookingArea" style="margin-top:20px;max-width:320px;width:100%"></div>
-      <div id="successUpcomingArea" style="margin-top:14px;width:100%;max-width:380px"></div>
-      <div id="lineMessageArea" style="margin-top:14px;width:100%;max-width:380px"></div>
+      <div class="success-left">
+        <div class="success-icon" id="successIcon">✦</div>
+        <div class="success-ttl" id="successName"></div>
+        <div id="supplementAlert"></div>
+        <div class="success-sub" id="successSub"></div>
+        <div class="success-n" id="successRemain"></div>
+        <div class="success-lbl" id="successLbl">堂課程可用</div>
+      </div>
+      <div class="success-right">
+        <div id="nextBookingArea" style="margin-top:20px;max-width:320px;width:100%"></div>
+        <div id="successUpcomingArea" style="margin-top:14px;width:100%;max-width:380px"></div>
+        <div id="lineMessageArea" style="margin-top:14px;width:100%;max-width:380px"></div>
+      </div>
       <div id="successActions" style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:14px;width:100%;max-width:320px">
         <button class="btn btn-ink" style="width:100%;font-size:16px;padding:14px" onclick="renderTeachers();goScreen('sc-teachers')">完成，返回首頁</button>
         <div id="undoSignInArea"></div>
