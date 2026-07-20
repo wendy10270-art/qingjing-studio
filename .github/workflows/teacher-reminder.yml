@@ -3,7 +3,7 @@ name: 老師明日提醒（課表＋場租）
 # 風險比對外發給學員低，詳見 scripts/teacher_reminder.py 開頭說明。
 on:
   schedule:
-    - cron: '0 10 * * *'   # UTC 10:00 = 台北 18:00
+    - cron: '0 2 * * *'   # UTC 02:00 = 台北 10:00
   workflow_dispatch: {}
 jobs:
   reminder:
