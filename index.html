@@ -7469,15 +7469,26 @@ async function gcSyncToday(ev,opts){
           //    避免像瑜珈跟皮拉提斯課卡同時存在時，因為方案格式對不上就 fallback 到錯的課種
           // 3. 篩過課種後再試用人數方案（1on1/1on2/1on3）進一步比對
           // 4. 真的都比對不出來，才退回候選清單第一張（跟以前一樣的保底邏輯）
+          // 例外：日曆標題常常只寫「1on1｜姓名電話」，完全沒提到課種——這種情況下
+          // getCT(parsed.type) 會因為找不到關鍵字而預設猜成瑜珈，若候選課卡橫跨多種課種
+          // 就會系統性地猜錯（例如同時有瑜珈卡跟皮拉提斯卡，永遠猜成瑜珈）。
+          // 這種真的無從判斷課種的情況，寧可交給下方「未能匹配系統學員」讓人工指定，
+          // 也不要用猜的（用猜的等於一直靜默記錯課，本人跟老師都不會發現）。
           if(candidates.length){
-            const parsedCT=getCT(parsed.type||'');
-            const sameSubject=candidates.filter(s=>s.course&&getCT(s.course)===parsedCT);
-            const pool=sameSubject.length?sameSubject:candidates;
-            const ratioM=(parsed.type||'').match(/1on[123]/);
-            const ratio=ratioM?ratioM[0]:'';
-            stu=pool.find(s=>parsed.type&&s.course&&s.course.includes(parsed.type))
-              ||(ratio?pool.find(s=>s.course&&s.course.includes(ratio)):null)
-              ||pool[0];
+            const hasCTKeyword=/皮拉提斯|重訓/.test(parsed.type||'');
+            const distinctCTs=new Set(candidates.map(s=>getCT(s.course||'')));
+            if(!hasCTKeyword&&distinctCTs.size>1){
+              stu=null;
+            }else{
+              const parsedCT=getCT(parsed.type||'');
+              const sameSubject=candidates.filter(s=>s.course&&getCT(s.course)===parsedCT);
+              const pool=sameSubject.length?sameSubject:candidates;
+              const ratioM=(parsed.type||'').match(/1on[123]/);
+              const ratio=ratioM?ratioM[0]:'';
+              stu=pool.find(s=>parsed.type&&s.course&&s.course.includes(parsed.type))
+                ||(ratio?pool.find(s=>s.course&&s.course.includes(ratio)):null)
+                ||pool[0];
+            }
           }
           if(stu)break;
         }
