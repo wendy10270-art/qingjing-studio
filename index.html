@@ -7325,10 +7325,23 @@ async function gcSyncToday(ev,opts){
             }
             return false;
           });
-          // 同一人可能同時持有不同人數方案的課卡（例如同時買了 1on1 跟 1on2），
-          // 電話姓名都比對得上時，優先挑跟日曆標題人數方案（parsed.type，如 1on1/1on2）相符的那張，
-          // 不然固定挑到 S 陣列裡排序較前的那張卡，跟當天實際上課人數對不上
-          if(candidates.length)stu=candidates.find(s=>parsed.type&&s.course&&s.course.includes(parsed.type))||candidates[0];
+          // 同一人可能同時持有不同課種／不同人數方案的課卡（例如同時買了瑜珈跟皮拉提斯，
+          // 或同時買了 1on1 跟 1on2），電話姓名都比對得上時：
+          // 1. 先試跟日曆標題（parsed.type，如「器械皮拉提斯 1on1」）完全對上課種＋方案的那張
+          // 2. 對不上就先用課種分類（皮拉提斯／重訓／瑜珈，見 getCT()）篩掉課種不符的候選，
+          //    避免像瑜珈跟皮拉提斯課卡同時存在時，因為方案格式對不上就 fallback 到錯的課種
+          // 3. 篩過課種後再試用人數方案（1on1/1on2/1on3）進一步比對
+          // 4. 真的都比對不出來，才退回候選清單第一張（跟以前一樣的保底邏輯）
+          if(candidates.length){
+            const parsedCT=getCT(parsed.type||'');
+            const sameSubject=candidates.filter(s=>s.course&&getCT(s.course)===parsedCT);
+            const pool=sameSubject.length?sameSubject:candidates;
+            const ratioM=(parsed.type||'').match(/1on[123]/);
+            const ratio=ratioM?ratioM[0]:'';
+            stu=pool.find(s=>parsed.type&&s.course&&s.course.includes(parsed.type))
+              ||(ratio?pool.find(s=>s.course&&s.course.includes(ratio)):null)
+              ||pool[0];
+          }
           if(stu)break;
         }
         if(stu){
