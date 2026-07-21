@@ -3030,6 +3030,12 @@ function confirmSig(){
   const newRecId='r'+Date.now();
   R.push({id:newRecId,sid:curSid,date:todayStr(),time:nowTime(),session:s.used,sig:document.getElementById('sigC')?.toDataURL()||null,isSub,subTeacher,isUpgraded,upgradedTo:isUpgraded?curUpgradeRatio:'',upgradeDiff:isUpgraded?curUpgradeDiff:0,actualFee,manualFee:null,manualNote:'',confirmed:false,upgPayMethod:isUpgraded?upgPayMethod:'',feeCollected:isUpgraded?feeCollected:false});
   _lastSignInRecId=newRecId;_lastSignInSid=curSid;
+  // 升級加人的補費如果店長當場就打勾「已收款」，直接記進流水帳收入——
+  // 不然這筆錢只會留在這堂簽到記錄的 feeCollected 欄位，沒有任何報表會讀到它，
+  // 但同一堂課升級後較高的師資費卻已經算進師資費用支出了，淨利會悄悄少算
+  if(isUpgraded&&feeCollected&&curUpgradeDiff>0){
+    addLedgerEntry({type:'upgrade',sid:curSid,name:s.name,teacher:s.teacher,course:parts[0]+' '+curUpgradeRatio+'（升級補費）',total:0,price:curUpgradeDiff,actualPayment:curUpgradeDiff,payMethod:upgPayMethod,payDate:todayStr(),bonus:0,bonusPaid:true});
+  }
   save();renderTeachers();
   const remain=s.total-s.used;
   // 分期付款提醒
@@ -4346,6 +4352,13 @@ function jumpToAdminDate(ds){
 function toggleConfirm(id, type){
   if(type==='regular'){
     const r=R.find(x=>x.id===id);if(!r)return;
+    if(!r.confirmed){
+      // 即將變成「已確認」→ 檔一下是不是這堂已經先被 Google 核銷領過師資費了，
+      // 避免核銷發生在簽到確認「之前」時攔不到（gcAlreadyPaidElsewhere 只擋得住反過來的順序）
+      const s=S.find(x=>x.id===r.sid);
+      const dupG=s&&GW.find(g=>g.name===s.name&&g.date===r.date);
+      if(dupG&&!confirm(`⚠️ ${s.name} ${r.date} 這堂已經用 Google 核銷領過師資費了（$${(dupG.fee||0).toLocaleString()}）。\n\n確定要「同時」用簽到確認再領一次嗎？這樣這堂師資費會被算兩次。`))return;
+    }
     r.confirmed=!r.confirmed;
   } else {
     const tr=T.find(x=>x.id===id);if(!tr)return;
@@ -4375,11 +4388,19 @@ function deleteRec(id, type, name){
 }
 
 function confirmAllToday(ds){
-  R.filter(r=>r.date===ds&&!r.confirmed).forEach(r=>r.confirmed=true);
+  // 批次確認會跳過「已經被 Google 核銷領過師資費」的堂，避免一次全點反而重複計薪，
+  // 這些堂留給店長自己到「核對課堂」個別確認（會跳出提醒）
+  let skipped=0;
+  R.filter(r=>r.date===ds&&!r.confirmed).forEach(r=>{
+    const s=S.find(x=>x.id===r.sid);
+    const dupG=s&&GW.find(g=>g.name===s.name&&g.date===r.date);
+    if(dupG){skipped++;return;}
+    r.confirmed=true;
+  });
   T.filter(t=>t.date===ds&&t.sig&&!t.confirmed).forEach(t=>t.confirmed=true);
   save();renderDaily();
   if(document.getElementById('ap-wage').classList.contains('active'))renderWage();
-  showToast('✓ 今日所有課堂已確認消課');
+  showToast(skipped?`✓ 已確認消課（${skipped} 堂疑似跟 Google 核銷重複，已跳過，請個別確認）`:'✓ 今日所有課堂已確認消課');
 }
 
 
@@ -5418,6 +5439,7 @@ function saveEditStu(){
   const s=S.find(x=>x.id===editStuId);if(!s)return;
   const name=document.getElementById('eName').value.trim();
   if(!name){showToast('請填寫姓名','r');return}
+  const prevPayment=s.actualPayment,prevPayDate=s.payDate,prevPayMethod=s.payMethod;
   s.name=name;
   s.phone=document.getElementById('ePhone').value.trim();
   s.teacher=document.getElementById('eTeacher').value;
@@ -5437,6 +5459,18 @@ function saveEditStu(){
   s.bonusNote=document.getElementById('eBonusNote').value.trim();
   s.expiryDate=getDateSel('eExpiry')||'';
   s.healthNotes=document.getElementById('eHealthNotes')?.value.trim()||'';
+  // 課卡的付款金額/日期/方式如果被改過，同步到流水帳裡這位學員最新一筆記錄，
+  // 否則流水帳（月報表收入依據）會一直停在編輯前的舊金額，跟課卡對不上
+  if(s.actualPayment!==prevPayment||s.payDate!==prevPayDate||s.payMethod!==prevPayMethod){
+    const ledgerEntry=LEDGER.filter(l=>l.sid===s.id).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''))[0];
+    if(ledgerEntry){
+      ledgerEntry.actualPayment=s.actualPayment;
+      ledgerEntry.payMethod=s.payMethod;
+      ledgerEntry.payDate=s.payDate;
+      ledgerEntry.createdAt=s.payDate||ledgerEntry.createdAt;
+      saveLedger();
+    }
+  }
   save();renderMgrList();renderTeachers();
   closeOvById('editStuOv');
   showToast('✓ '+name+' 的資料已更新');
@@ -6568,6 +6602,38 @@ function saveTrialFee(){
   showToast('✓ 已登記 '+name+' 的體驗課費 $'+amount.toLocaleString());
 }
 
+// ── 分期付款收款登記 ──
+// 簽到當下只會跳「請提醒學員繳費」的 toast，收到後續期款時系統本身沒有記帳的地方，
+// 導致分期課賣出後只有第一期會進流水帳、後面收到的錢永遠不會出現在營業額裡（見月報表稽核）
+function dueInstallmentStudents(){
+  return S.filter(s=>s.installment&&s.installEvery&&s.used>0&&s.used%s.installEvery===0&&s.used<s.total);
+}
+function toggleInstallmentPanel(){
+  const p=document.getElementById('installmentPanel');if(!p)return;
+  p.style.display=p.style.display==='none'?'block':'none';
+}
+function fillInstallment(sid){
+  if(!sid)return;
+  const s=S.find(x=>x.id===sid);if(!s)return;
+  const p=document.getElementById('installmentPanel');if(p)p.style.display='block';
+  document.getElementById('inSid').value=sid;
+  document.getElementById('inStuSelect').value=sid;
+  document.getElementById('inDate').value=todayStr().replace(/\//g,'-');
+}
+function saveInstallmentPayment(){
+  const sid=document.getElementById('inSid').value||document.getElementById('inStuSelect').value;
+  const s=S.find(x=>x.id===sid);
+  if(!s){showToast('請先選擇學員','r');return;}
+  const amount=parseInt(document.getElementById('inAmount').value)||0;
+  if(amount<=0){showToast('請輸入收款金額','r');return;}
+  const payMethod=document.getElementById('inPay').value;
+  const date=(document.getElementById('inDate').value||'').replace(/-/g,'/')||todayStr();
+  const note=document.getElementById('inNote').value.trim();
+  addLedgerEntry({type:'installment',sid,name:s.name,teacher:s.teacher,course:s.course+'（分期收款）',total:0,price:amount,actualPayment:amount,payMethod,payDate:date,bonus:0,bonusPaid:true,bonusNote:'',note});
+  renderLedger();
+  showToast('✓ 已登記 '+s.name+' 的分期收款 $'+amount.toLocaleString());
+}
+
 function loadLedgerFromFirebase(callback){
   db.ref('qingjing_ledger').once('value').then(snap=>{
     const data=snap.val();
@@ -6644,15 +6710,37 @@ function renderLedger(){
     </div>
   </div>
 
+  <div style="margin-bottom:14px">
+    <button onclick="toggleInstallmentPanel()" style="width:100%;padding:11px;background:var(--gold4);color:var(--gold);border:1.5px dashed var(--gold2);border-radius:11px;font-size:14px;cursor:pointer;font-weight:500">＋ 登記分期收款</button>
+    <div id="installmentPanel" style="display:none;background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-top:10px;box-shadow:var(--shadow)">
+      ${(()=>{const due=dueInstallmentStudents();return due.length?`
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:6px">點一下快速帶入（分期堂數已到、待收下一期）：</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+        ${due.map(s=>`<span onclick="fillInstallment('${jsQ(s.id)}')" style="background:var(--bg);border:1px solid var(--border);border-radius:99px;padding:5px 12px;font-size:12px;cursor:pointer;color:var(--ink2)">${hEsc(s.name)}・已上${s.used}堂</span>`).join('')}
+      </div>`:''})()}
+      <input type="hidden" id="inSid">
+      <div style="margin-bottom:10px"><label style="font-size:12px;color:var(--ink3)">學員</label><select id="inStuSelect" onchange="fillInstallment(this.value)" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;outline:none;background:var(--white);margin-bottom:0"><option value="">— 選擇分期付款學員 —</option>${S.filter(s=>s.installment).map(s=>`<option value="${s.id}">${hEsc(s.name)}・${hEsc(s.course)}</option>`).join('')}</select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label style="font-size:12px;color:var(--ink3)">日期</label><input type="date" id="inDate" class="native-date-inp" style="margin-bottom:0" value="${todayStr().replace(/\//g,'-')}"></div>
+        <div><label style="font-size:12px;color:var(--ink3)">收款金額</label><input type="number" id="inAmount" placeholder="例：5000" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:15px;outline:none;margin-bottom:0"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div><label style="font-size:12px;color:var(--ink3)">付款方式</label><select id="inPay" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;outline:none;background:var(--white);margin-bottom:0"><option value="cash">付現金</option><option value="transfer_fubon">匯款聯邦</option><option value="transfer_cathay">匯款國泰</option><option value="card">刷卡</option></select></div>
+        <div><label style="font-size:12px;color:var(--ink3)">備註（選填）</label><input type="text" id="inNote" placeholder="例：第2期" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-size:14px;outline:none;margin-bottom:0"></div>
+      </div>
+      <button onclick="saveInstallmentPayment()" style="width:100%;padding:12px;background:var(--gold);color:#fff;border:none;border-radius:10px;font-size:15px;cursor:pointer;font-weight:500">儲存分期收款</button>
+    </div>
+  </div>
+
   ${monthEntries.length?monthEntries.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(l=>`
   <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
       <div>
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:16px;letter-spacing:1px">${l.name}</span>
-          <span style="font-size:11px;background:${l.type==='trial'?'var(--orange2)':l.type==='renew'?'var(--blue2)':'var(--green2)'};color:${l.type==='trial'?'var(--orange)':l.type==='renew'?'var(--blue)':'var(--green)'};border:1px solid ${l.type==='trial'?'var(--orange3)':l.type==='renew'?'var(--blue3)':'#90D4B0'};border-radius:4px;padding:1px 7px">${l.type==='trial'?'體驗':l.type==='renew'?'續課':'新購'}</span>
+          <span style="font-size:11px;background:${({trial:'var(--orange2)',renew:'var(--blue2)',upgrade:'var(--gold4)',installment:'var(--teal2)'}[l.type])||'var(--green2)'};color:${({trial:'var(--orange)',renew:'var(--blue)',upgrade:'var(--gold)',installment:'var(--teal)'}[l.type])||'var(--green)'};border:1px solid ${({trial:'var(--orange3)',renew:'var(--blue3)',upgrade:'var(--gold2)',installment:'var(--teal3)'}[l.type])||'#90D4B0'};border-radius:4px;padding:1px 7px">${({trial:'體驗',renew:'續課',upgrade:'升級補費',installment:'分期收款'}[l.type])||'新購'}</span>
         </div>
-        <div style="font-size:12px;color:var(--ink3);margin-top:3px">${l.type==='trial'?`體驗課${l.note?'・'+l.note:''}・${l.teacher||'—'}老師`:`${l.course}・${l.total}堂・${l.teacher}老師`}</div>
+        <div style="font-size:12px;color:var(--ink3);margin-top:3px">${l.type==='trial'?`體驗課${l.note?'・'+l.note:''}・${l.teacher||'—'}老師`:(l.type==='upgrade'||l.type==='installment')?`${l.course}${l.note?'・'+hEsc(l.note):''}・${l.teacher}老師`:`${l.course}・${l.total}堂・${l.teacher}老師`}</div>
         <div style="font-size:11px;color:var(--ink3);margin-top:2px">${l.createdAt}・${PAY_NAME[l.payMethod]||l.payMethod||'—'}</div>
       </div>
       <div style="text-align:right">
@@ -7681,14 +7769,16 @@ function showMonthReport(){
   const monthExpense=EXPENSES.filter(x=>x.date&&monthKey(x.date)===mk).reduce((a,x)=>a+(x.amount||0),0);
   const monthLedger=LEDGER.filter(l=>monthKey(l.createdAt||l.payDate||'')===mk);
   const bonusTotal=monthLedger.reduce((a,l)=>a+(l.bonus||0),0);
+  // 體驗課通常不開發票，稅金／刷卡手續費只算正式購課／續課這些有開發票的收入
+  const invoicedLedger=monthLedger.filter(l=>l.type!=='trial');
   // 刷卡／匯款手續費：只對這兩種收款方式的實收金額估算，現金不用扣
   const CARD_FEE_RATE=0.025;
-  const cardTransferIncome=monthLedger.filter(l=>l.payMethod==='card'||(l.payMethod||'').startsWith('transfer')).reduce((a,l)=>a+(l.actualPayment||0),0);
+  const cardTransferIncome=invoicedLedger.filter(l=>l.payMethod==='card'||(l.payMethod||'').startsWith('transfer')).reduce((a,l)=>a+(l.actualPayment||0),0);
   const cardFee=Math.round(cardTransferIncome*CARD_FEE_RATE);
   // 營業稅：每筆開發票收入（流水帳每一筆實收金額）各自算 5%、逐筆四捨五入後加總，
   // 不是拿月總營收一次算，才會跟實際開立的發票金額對得起來
   const BIZ_TAX_RATE=0.05;
-  const bizTax=monthLedger.reduce((a,l)=>a+Math.round((l.actualPayment||0)*BIZ_TAX_RATE),0);
+  const bizTax=invoicedLedger.reduce((a,l)=>a+Math.round((l.actualPayment||0)*BIZ_TAX_RATE),0);
   const netProfit=monthIncome-totalFee-hourlyFee-monthExpense-bonusTotal-cardFee-bizTax;
   const monthNew=S.filter(s=>s.payDate&&monthKey(s.payDate)===mk);
   const sessionsByTeacher={};
