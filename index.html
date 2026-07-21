@@ -7105,21 +7105,17 @@ const GC={
     let notes=[];
     raw=raw.replace(/[\(（]([^)\)）]*)[\)）]/g,(_,n)=>{notes.push(n.trim());return''}).trim();
     let name=raw,phone='';
-    // 多位學員（含兩個以上電話，如 1on2|王意蕾 09xx 林宛萱 09xx）→ 只取第一位
+    // 取姓名／電話：只要抓得到電話號碼，一律取「第一個電話號碼之前」的文字當姓名、
+    // 電話後面不管接什麼（備註逗號、第二位學員、手動加的別名文字…）一律丟棄不解析。
+    // 以前這裡用 /^...(\d{8,10})\s*$/ 硬性要求電話一定要在字串最後面，只要後面多接了
+    // 一個全形逗號或另一個人名（如「許瀞文 098814922林貞融」「高千涵 0958915885、」），
+    // 整條規則就直接比對失敗，導致姓名沒拆開、電話號碼整串黏在姓名後面，
+    // 學員比對／已核銷偵測都會因此對不上。
     const allPhones=[...raw.matchAll(/\d{8,10}/g)];
-    if(allPhones.length>=2){
+    if(allPhones.length){
       const first=allPhones[0];
       phone=first[0];
       name=raw.slice(0,first.index).trim();
-    } else {
-      // 方式1：空格分隔「姓名 0912345678」
-      const m1=raw.match(/^(.+?)\s+(\d{8,10})\s*$/);
-      if(m1){name=m1[1].trim();phone=m1[2];}
-      else{
-        // 方式2：緊貼「姓名0912345678」
-        const m2=raw.match(/^([一-龥A-Za-z][一-龥A-Za-z\s\.\-]*?)(\d{8,10})$/);
-        if(m2){name=m2[1].trim();phone=m2[2];}
-      }
     }
     return{type,name,phone,notes,raw};
   },
