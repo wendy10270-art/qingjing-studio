@@ -3,9 +3,9 @@
 # 跟學員版（line_reminder.py）不同：這支不走「店長先看過再按確認送出」那一套，
 # 是店長跟老師之間內部溝通，風險比對外發給學員低，所以直接推播，不用等人按按鈕。
 #
-# 內容分兩塊：① 明天課表（跟 daily_digest.py 一樣解析 SCH，改成依老師分組）
-#            ② 明天場租（SCH 同步時就把場租事件濾掉了，所以場租要另外直接打
-#               Google Calendar API 查老師自己的日曆，找標題含「場租」的明天事件）
+# 課表跟場租兩塊都直接查 Google 日曆（不吃 qingjing.json 的 sch 快取）——sch 只有
+# 使用者實際開過 App 同步過才會更新，店長沒開 App 的日子它就是舊的；日曆才是老師
+# 真正排課的第一手資料，明日通知分頁（index.html 的 renderTomorrowNotify）也是這樣做。
 import json
 import os
 import urllib.request
@@ -42,17 +42,32 @@ def phone_key(phone):
     return digits[-8:] if len(digits) >= 8 else None
 
 
-# 跟 index.html 的 GC.parseTitle 邏輯一致：標題格式「類型｜姓名」
+import re
+
+# 跟 index.html 的 GC.parseTitle 邏輯一致：標題格式「類型｜姓名」，姓名部分可能還帶
+# 括號備註（木床區）跟電話號碼，這裡只取乾淨的姓名
 def parse_title(t):
     if not t:
         return None
-    if t.startswith('取消') or t.startswith('(取消') or t.startswith('（取消') or t.startswith('(老師出國') or t.startswith('（老師出國'):
+    if re.match(r'^[\(（]取消', t) or re.match(r'^[\(（]老師出國', t) or t.startswith('取消'):
         return None
-    for sep in ('|', '｜'):
-        if sep in t:
-            kind, _, rest = t.partition(sep)
-            return kind.strip(), rest.strip()
-    return None
+    m = re.match(r'^(.+?)\s*[|｜]\s*(.+)$', t)
+    if not m:
+        return None
+    kind = m.group(1).strip()
+    raw = m.group(2).strip()
+    raw = re.sub(r'[\(（][^)\)）]*[\)）]', '', raw).strip()
+    phones = list(re.finditer(r'\d{8,10}', raw))
+    if len(phones) >= 2:
+        name = raw[:phones[0].start()].strip()
+    else:
+        m1 = re.match(r'^(.+?)\s+\d{8,10}\s*$', raw)
+        if m1:
+            name = m1.group(1).strip()
+        else:
+            m2 = re.match(r'^([一-龥A-Za-z][一-龥A-Za-z\s.\-]*?)\d{8,10}$', raw)
+            name = m2.group(1).strip() if m2 else raw
+    return kind, name
 
 
 def is_rent(kind):
@@ -100,9 +115,6 @@ def main():
     wd_label = f'週{WD[dow]}'
 
     try:
-        d = fetch(FB + '/qingjing.json') or {}
-        if isinstance(d, dict) and set(d.keys()) == {'error'}:
-            raise RuntimeError(d['error'])
         teacher_phones = fetch(FB + '/qingjing_teacher_phones.json') or {}
         cal_map = fetch(FB + '/qingjing_teacher_calmap.json') or {}
         bindings = fetch(FB + '/qingjing_line_bindings_teacher.json') or {}
@@ -110,61 +122,41 @@ def main():
         send_ntfy('輕境小幫手', f'⚠️ 老師明日提醒讀取雲端資料失敗（{e}）', 'warning')
         return
 
-    S = d.get('s') or []
-    SCH = d.get('sch') or {}
+    if not cal_map:
+        send_ntfy('輕境小幫手', '⚠️ 老師明日提醒：雲端還沒有老師日曆對照（qingjing_teacher_calmap），請開 App「Google日曆」頁面按一次「儲存日曆對照」。', 'warning')
+        return
 
-    # ── 明天課表，依老師分組（沿用 daily_digest.py 的排課解析邏輯）──
+    # ── 明天課表＋場租，直接查每位老師自己的 Google 日曆 ──
     by_teacher = {}
-    def add_item(teacher, time_, name):
-        if not teacher:
-            return
-        by_teacher.setdefault(teacher, []).append((time_ or '', name))
-
-    for teacher, slots in (SCH.get(td) or {}).items():
-        for sl in slots or []:
-            if not sl or sl.get('skip'):
+    rent_by_teacher = {}
+    try:
+        token = gc_access_token()
+        tmin = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
+        tmax = tmin + timedelta(days=1)
+        for teacher, cal_id in cal_map.items():
+            if not cal_id:
                 continue
-            st = next((x for x in S if x.get('id') == sl.get('sid')), None)
-            if st:
-                add_item(teacher, sl.get('time'), st['name'])
-    for st in S:
-        skipped = any(sl.get('sid') == st.get('id') and sl.get('skip')
-                      for slots in (SCH.get(td) or {}).values() for sl in slots or [])
-        for rc in st.get('recurring') or []:
-            if rc and rc.get('day') == dow and st.get('used', 0) < st.get('total', 0) and not skipped:
-                if not any(n == st['name'] and t == rc.get('time') for t, n in by_teacher.get(st.get('teacher', ''), [])):
-                    add_item(st.get('teacher'), rc.get('time'), st['name'])
-        nb = st.get('nextBooking')
-        if nb and nb.get('date') == td:
-            if not any(n == st['name'] for _, n in by_teacher.get(st.get('teacher', ''), [])):
-                add_item(st.get('teacher'), nb.get('time'), st['name'])
+            try:
+                evs = gc_tomorrow_events(token, cal_id, tmin.isoformat(), tmax.isoformat())
+            except Exception as e:
+                print(f'讀 {teacher} 日曆失敗：{e}')
+                continue
+            for ev in evs:
+                if ev.get('status') == 'cancelled':
+                    continue
+                parsed = parse_title(ev.get('summary') or '')
+                if not parsed:
+                    continue
+                kind, name = parsed
+                if is_rent(kind):
+                    rent_by_teacher.setdefault(teacher, []).append(event_time(ev))
+                else:
+                    by_teacher.setdefault(teacher, []).append((event_time(ev), name))
+    except Exception as e:
+        send_ntfy('輕境小幫手', f'⚠️ 老師明日提醒讀取 Google 日曆失敗（{e}）', 'warning')
+        return
     for teacher in by_teacher:
         by_teacher[teacher].sort()
-
-    # ── 明天場租：直接查老師自己的 Google 日曆 ──
-    rent_by_teacher = {}
-    if cal_map:
-        try:
-            token = gc_access_token()
-            tmin = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
-            tmax = tmin + timedelta(days=1)
-            for teacher, cal_id in cal_map.items():
-                if not cal_id:
-                    continue
-                try:
-                    evs = gc_tomorrow_events(token, cal_id, tmin.isoformat(), tmax.isoformat())
-                except Exception as e:
-                    print(f'讀 {teacher} 日曆失敗：{e}')
-                    continue
-                for ev in evs:
-                    if ev.get('status') == 'cancelled':
-                        continue
-                    parsed = parse_title(ev.get('summary') or '')
-                    if not parsed or not is_rent(parsed[0]):
-                        continue
-                    rent_by_teacher.setdefault(teacher, []).append(event_time(ev))
-        except Exception as e:
-            print(f'Google Calendar 讀取失敗：{e}')
 
     teachers = set(by_teacher) | set(rent_by_teacher)
     if not teachers:
