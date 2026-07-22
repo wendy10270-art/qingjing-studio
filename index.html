@@ -948,6 +948,29 @@ const db={
   </div>
 </div>
 
+<!-- 預排下堂改期並通知 Modal -->
+<div class="edit-ov" id="rescheduleOv" onclick="closeRescheduleOut(event)">
+  <div class="edit-modal">
+    <div class="em-ttl">改期並通知學員</div>
+    <div class="em-sub" id="rsSub"></div>
+    <div class="em-row">
+      <div class="em-label">新的上課日期／時間</div>
+      <div style="display:flex;gap:8px">
+        <input type="date" id="rsDate" class="native-date-inp" style="flex:1" oninput="updateRescheduleMsg()">
+        <input type="time" id="rsTime" class="native-date-inp" style="width:110px" oninput="updateRescheduleMsg()">
+      </div>
+    </div>
+    <div class="em-row">
+      <div class="em-label">LINE 通知內容</div>
+      <div class="line-msg-content" id="rsMsgPreview" style="background:var(--bg2);border-radius:9px;padding:10px 12px;font-size:13px;white-space:pre-wrap"></div>
+    </div>
+    <div class="em-actions">
+      <button class="em-btn em-btn-save" id="rsSendBtn" onclick="saveRescheduleAndNotify()">更新時間並傳送通知</button>
+      <button class="em-btn em-btn-cancel" onclick="closeRescheduleOv()">取消</button>
+    </div>
+  </div>
+</div>
+
 <!-- 新增學員 Modal -->
 <div class="add-ov" id="addOv" onclick="closeAddOut(event)">
   <div class="add-modal">
@@ -3634,6 +3657,60 @@ function setNextBooking(sid,date,time){
   if(s){s.nextBooking={date,time};save();showToast('✓ 下次上課已預排：'+date+' '+time);}
 }
 
+// ── 預排下堂改期並通知（保守型：店長手動改時間、手動按送出，不自動偵測日曆異動）──
+let rescheduleStuId=null;
+function openRescheduleNotify(sid){
+  const s=S.find(x=>x.id===sid);
+  if(!s||!s.nextBooking)return;
+  rescheduleStuId=sid;
+  document.getElementById('rsSub').textContent=s.name+'・'+s.course+'　原訂：'+s.nextBooking.date+' '+s.nextBooking.time;
+  document.getElementById('rsDate').value=s.nextBooking.date.replace(/\//g,'-');
+  document.getElementById('rsTime').value=s.nextBooking.time;
+  updateRescheduleMsg();
+  document.getElementById('rescheduleOv').classList.add('open');
+}
+function closeRescheduleOv(){document.getElementById('rescheduleOv').classList.remove('open');rescheduleStuId=null;}
+function closeRescheduleOut(e){if(e.target===document.getElementById('rescheduleOv'))closeRescheduleOv();}
+function updateRescheduleMsg(){
+  const s=S.find(x=>x.id===rescheduleStuId);
+  if(!s)return;
+  const newDate=document.getElementById('rsDate').value.replace(/-/g,'/');
+  const newTime=document.getElementById('rsTime').value;
+  const msg=s.name+'您好，我是阿勇店長 🐾\n跟您說一聲，'+s.course+' 課程時間有異動：\n原訂 '+s.nextBooking.date+' '+s.nextBooking.time+'\n已改為 '+(newDate||'—')+' '+(newTime||'—')+'\n期待到時候見到您！';
+  document.getElementById('rsMsgPreview').textContent=msg;
+}
+async function saveRescheduleAndNotify(){
+  const s=S.find(x=>x.id===rescheduleStuId);
+  if(!s)return;
+  const newDate=document.getElementById('rsDate').value.replace(/-/g,'/');
+  const newTime=document.getElementById('rsTime').value;
+  if(!newDate||!newTime){showToast('請選擇新的日期與時間','r');return;}
+  const msg=document.getElementById('rsMsgPreview').textContent;
+  const btn=document.getElementById('rsSendBtn');
+  btn.disabled=true;btn.textContent='傳送中…';
+  try{
+    const res=await fetch(LINE_WEBHOOK_BASE+'/api/send-checkin-message?key='+CHECKIN_PUSH_SECRET,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({phone:s.phone,message:msg})
+    });
+    const data=await res.json().catch(()=>({}));
+    s.nextBooking={date:newDate,time:newTime};save();renderMgrList();
+    if(data.ok){
+      showToast('✓ 已更新時間並通知 '+s.name);
+      closeRescheduleOv();
+    }else if(data.error==='notBound'){
+      showToast(s.name+' 尚未綁定 LINE，時間已更新，但請自行手動通知','r');
+      closeRescheduleOv();
+    }else{
+      showToast('時間已更新，但通知傳送失敗：'+(data.error||'未知錯誤'),'r');
+      btn.disabled=false;btn.textContent='更新時間並傳送通知';
+    }
+  }catch(e){
+    showToast('通知傳送失敗：'+e.message,'r');
+    btn.disabled=false;btn.textContent='更新時間並傳送通知';
+  }
+}
+
 // ── 今日開課設定 ──
 let tmpSch={};
 function renderSchEditor(resetTmp){
@@ -4939,7 +5016,7 @@ function renderMgrList(){
       '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bg2);display:flex;align-items:center;justify-content:space-between">'+
         '<div style="font-size:12px;color:var(--ink3)">'+
           (s.recurring&&s.recurring.length?'固定排課：'+s.recurring.map(r=>'每週'+WD_NAMES[r.day]+' '+r.time).join('・'):'尚未設定固定排課')+
-          (s.nextBooking?'<br>預排下堂：'+s.nextBooking.date+' '+s.nextBooking.time:'')+
+          (s.nextBooking?'<br>預排下堂：'+s.nextBooking.date+' '+s.nextBooking.time+' <span onclick="openRescheduleNotify(\''+s.id+'\')" style="cursor:pointer;color:var(--teal);text-decoration:underline">改期並通知</span>':'')+
         '</div>'+
         ('<button onclick="openRecurringModal(\'' + s.id + '\')" style="padding:6px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;font-size:12px;cursor:pointer;color:var(--ink2);flex-shrink:0">設定排課</button>')+
       '</div>'+
