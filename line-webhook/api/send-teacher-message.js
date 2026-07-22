@@ -15,6 +15,16 @@ const CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 // leak here can't be used to trigger the other push endpoints too.
 const TEACHER_PUSH_SECRET = process.env.TEACHER_PUSH_SECRET || '';
 
+// 跟 send-checkin-message.js 一樣附上阿勇（店長的狗）貼圖，維持「阿勇店長」人設一致——
+// 只要是這隻狗簽名發的訊息就都附一張，不分學員版還是老師版
+const ALONG_IMAGES = Array.from({ length: 8 }, (_, i) => ({
+  original: `https://line-webhook-gules.vercel.app/along${i + 1}.png`,
+  preview: `https://line-webhook-gules.vercel.app/along${i + 1}_preview.png`,
+}));
+function pickAlongImage() {
+  return ALONG_IMAGES[Math.floor(Math.random() * ALONG_IMAGES.length)];
+}
+
 function phoneKey(phone) {
   const digits = (phone || '').replace(/\D/g, '');
   return digits.length >= 8 ? digits.slice(-8) : null;
@@ -25,13 +35,18 @@ function bindingTarget(binding) {
 }
 
 async function pushLine(to, text) {
+  const img = pickAlongImage();
+  const messages = [
+    { type: 'text', text },
+    { type: 'image', originalContentUrl: img.original, previewImageUrl: img.preview },
+  ];
   const res = await fetch('https://api.line.me/v2/bot/message/push', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}`,
     },
-    body: JSON.stringify({ to, messages: [{ type: 'text', text }] }),
+    body: JSON.stringify({ to, messages }),
   });
   if (!res.ok) throw new Error(`LINE push failed: ${res.status} ${await res.text()}`);
 }
