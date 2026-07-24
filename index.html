@@ -1548,19 +1548,26 @@ function markSchChanged(){_schChanged=true;} // 課表變動時呼叫此函式
 // 上傳前轉成 YYYY-MM-DD、下載後轉回，否則整包寫入會被 Firebase 以 400 拒絕
 function encSchKeys(sch){const o={};Object.keys(sch||{}).forEach(k=>{o[k.replace(/\//g,'-')]=sch[k]});return o}
 function decSchKeys(sch){const o={};Object.keys(sch||{}).forEach(k=>{o[k.replace(/-/g,'/')]=sch[k]});return o}
+// lastUpdated 交給 Firebase 伺服器用 {".sv":"timestamp"} 產生（寫入後 response 會回傳實際值），
+// 不能用裝置自己的 Date.now()——兩台裝置系統時間沒對準時，會導致某台誤判自己資料比較新，
+// 而拒絕套用另一台剛同步上雲端的新資料（例如 iPad 建的課卡方案，手機端一直同步不到）
+function _applyServerTs(resolved){
+  if(!resolved||!resolved.lastUpdated)return;
+  _localLastUpdated=resolved.lastUpdated;
+  localStorage.setItem('qjf_localTs',String(_localLastUpdated));
+}
 function doFirebaseWrite(){
-  const ts2=_localLastUpdated;
   const writesSch=_schChanged;
   _schChanged=false;
   db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync:',e));
   if(writesSch){
     db.ref('qingjing').set({
-      s:S, r:R, sch:encSchKeys(SCH), t:T, l:L, lastUpdated:ts2
-    }).then(()=>showSyncStatus('synced')).catch(e=>{showSyncStatus('error');console.warn('Firebase sync error:',e);});
+      s:S, r:R, sch:encSchKeys(SCH), t:T, l:L, lastUpdated:{'.sv':'timestamp'}
+    }).then(resolved=>{_applyServerTs(resolved);showSyncStatus('synced');}).catch(e=>{showSyncStatus('error');console.warn('Firebase sync error:',e);});
   } else {
     db.ref('qingjing').patch({
-      s:S, r:R, t:T, l:L, lastUpdated:ts2
-    }).then(()=>showSyncStatus('synced')).catch(e=>{showSyncStatus('error');console.warn('Firebase sync error:',e);});
+      s:S, r:R, t:T, l:L, lastUpdated:{'.sv':'timestamp'}
+    }).then(resolved=>{_applyServerTs(resolved);showSyncStatus('synced');}).catch(e=>{showSyncStatus('error');console.warn('Firebase sync error:',e);});
   }
 }
 function syncToFirebase(){
@@ -7619,13 +7626,16 @@ async function gcSyncToday(ev,opts){
             // 3. 去除電話後的姓名比對
             if(cleanParsedName&&s.name&&s.name===cleanParsedName)return true;
             // 4. 包含比對（日曆名包含系統名，或系統名包含日曆名）
-            if(s.name&&parsed.name&&parsed.name.includes(s.name))return true;
-            if(s.name&&cleanParsedName&&cleanParsedName.includes(s.name))return true;
+            // 限制姓名至少 2 個字才能用「包含」比對——單字姓名（如「花」）用包含比對
+            // 幾乎任何日曆標題只要出現那個字就會誤中，曾經把別的老師「芬&花」共用課的
+            // 皮拉提斯出席，誤配到 Amanda 底下單獨一位叫「花」的瑜珈學員身上、扣錯課卡
+            if(s.name&&s.name.length>=2&&parsed.name&&parsed.name.includes(s.name))return true;
+            if(s.name&&s.name.length>=2&&cleanParsedName&&cleanParsedName.includes(s.name))return true;
             // 5. 共用方案別名比對：系統姓名用「｜」分隔多個人名（如「楊文玉｜怡潔媽｜衣彤」），
             // 只要其中一個別名跟日曆解析出的姓名相符，就算同一個共用課卡
             if(s.name&&s.name.includes('｜')){
               const aliases=s.name.split('｜').map(a=>a.trim()).filter(Boolean);
-              if(aliases.some(a=>a===parsed.name||a===cleanParsedName||(parsed.name&&parsed.name.includes(a))||(cleanParsedName&&cleanParsedName.includes(a))))return true;
+              if(aliases.some(a=>a===parsed.name||a===cleanParsedName||(a.length>=2&&parsed.name&&parsed.name.includes(a))||(a.length>=2&&cleanParsedName&&cleanParsedName.includes(a))))return true;
             }
             return false;
           });
