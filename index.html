@@ -1881,8 +1881,11 @@ window.addEventListener('load', ()=>{
 // ── 定期同步 + 前景偵測（iOS Safari SSE 備援）──
 let _periodicSyncTimer=null;
 function startPeriodicSync(){
-  // 每 30 秒從 Firebase 拉一次最新資料（保底）
+  // 每 3 分鐘從 Firebase 拉一次最新資料（保底；即時性主要靠 EventSource 監聽，這裡只是備援）。
+  // 原本是 30 秒一次、13 個節點分別讀取，分頁留在背景也不會停，長時間開著的裝置會把
+  // 免費方案的下載額度用爆（實測一個月刷出 70GB，資料庫本體卻只有 1.26MB）。
   _periodicSyncTimer=setInterval(()=>{
+    if(document.visibilityState!=='visible')return; // 背景分頁不輪詢，回前景時 visibilitychange 會立刻補一次
     if(Date.now()-_lastSaveMs<5000)return;
     loadFromFirebase(()=>{
       // GW（GC核銷）、場租、流水帳不在即時 SSE 監聽範圍內，必須跟著這裡一起拉，
@@ -1905,7 +1908,7 @@ function startPeriodicSync(){
       }
       });
     });
-  },30000);
+  },180000);
 
   // 手機/平板從背景回到前景時立刻同步
   let _syncing=false;
