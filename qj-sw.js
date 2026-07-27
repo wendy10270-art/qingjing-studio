@@ -33,7 +33,11 @@ self.addEventListener('fetch', e => {
       fetch(e.request, {cache: 'no-cache'})
         .then(r => {
           if (r.ok) {
-            caches.open(CACHE).then(c => c.put(e.request, r.clone()));
+            // clone() 一定要在這裡（拿到 r 的當下）同步呼叫，不能等 caches.open() 這個
+            // 非同步操作 resolve 後才 clone——那段等待期間瀏覽器可能已經開始消費 r 的
+            // body 去渲染頁面，body 一旦被讀過，clone() 就會丟「body 已經被使用」的錯誤。
+            const copy = r.clone();
+            caches.open(CACHE).then(c => c.put(e.request, copy));
             // 通知所有開著的頁面可以重新整理了
             self.clients.matchAll({type: 'window'}).then(clients => {
               clients.forEach(client => client.postMessage({type: 'SW_UPDATED'}));
