@@ -522,7 +522,6 @@ input:focus,select:focus{border-color:var(--gold2)}
 <script>
 // Firebase REST API（不需外部 SDK，任何瀏覽器都能跑）
 const FB_URL='https://qingjing-studio-default-rtdb.firebaseio.com';
-const FB_API_KEY='AIzaSyBg3_toi-Kqyi9iw2IbW9C5HhkbgJappxI';
 // 課後直接推播 LINE 訊息用（line-webhook/api/send-checkin-message.js）
 const LINE_WEBHOOK_BASE='https://line-webhook-gules.vercel.app';
 const CHECKIN_PUSH_SECRET='ffabf3fe078cf3c2d28da53b7a8c0add7b9d990d7a1abd91';
@@ -604,7 +603,7 @@ const db={
     return {
       set: async function(data){
         const headers=Object.assign({'Content-Type':'application/json'},await _appCheckHeaders());
-        return fetch(FB_URL+'/'+path+'.json?auth='+FB_API_KEY,{
+        return fetch(FB_URL+'/'+path+'.json',{
           method:'PUT',
           headers,
           body:JSON.stringify(data)
@@ -613,7 +612,7 @@ const db={
       // PATCH = 部分更新，不覆蓋未提供的欄位（用於簽到等不改課表的操作）
       patch: async function(data){
         const headers=Object.assign({'Content-Type':'application/json'},await _appCheckHeaders());
-        return fetch(FB_URL+'/'+path+'.json?auth='+FB_API_KEY,{
+        return fetch(FB_URL+'/'+path+'.json',{
           method:'PATCH',
           headers,
           body:JSON.stringify(data)
@@ -621,7 +620,7 @@ const db={
       },
       once: async function(event){
         const headers=await _appCheckHeaders();
-        return fetch(FB_URL+'/'+path+'.json?auth='+FB_API_KEY,{headers})
+        return fetch(FB_URL+'/'+path+'.json',{headers})
           .then(fbCheck)
           .then(data=>({val:()=>data}));
       }
@@ -1830,7 +1829,7 @@ function applyRemoteData(data){
 function startFbListener(){
   try{
     if(_fbEs){_fbEs.close();_fbEs=null;}
-    _fbEs=new EventSource(FB_URL+'/qingjing.json?auth='+FB_API_KEY);
+    _fbEs=new EventSource(FB_URL+'/qingjing.json');
     let initDone=false;
     _fbEs.addEventListener('put',e=>{
       try{
@@ -5639,7 +5638,7 @@ async function renderLineMsgActions(sid, phone, s, isUpgraded, upgradedTo, upgra
   try{
     const key=(phone||'').replace(/\D/g,'').slice(-8);
     if(key.length===8){
-      const res=await fetch(FB_URL+'/qingjing_line_bindings/'+key+'.json?auth='+FB_API_KEY);
+      const res=await fetch(FB_URL+'/qingjing_line_bindings/'+key+'.json');
       const data=await res.json();
       bound=!!(data&&(data.userId||data.groupId||data.roomId));
       lang=(data&&data.lang==='en')?'en':'zh';
@@ -5756,7 +5755,7 @@ async function renderResendLineMsgActions(sid, phone, s, isUpgraded, upgradedTo,
   try{
     const key=(phone||'').replace(/\D/g,'').slice(-8);
     if(key.length===8){
-      const res=await fetch(FB_URL+'/qingjing_line_bindings/'+key+'.json?auth='+FB_API_KEY);
+      const res=await fetch(FB_URL+'/qingjing_line_bindings/'+key+'.json');
       const data=await res.json();
       bound=!!(data&&(data.userId||data.groupId||data.roomId));
       lang=(data&&data.lang==='en')?'en':'zh';
@@ -7961,7 +7960,7 @@ async function tomorrowCheckBound(phone){
   try{
     const key=(phone||'').replace(/\D/g,'').slice(-8);
     if(key.length!==8)return false;
-    const res=await fetch(FB_URL+'/qingjing_line_bindings/'+key+'.json?auth='+FB_API_KEY);
+    const res=await fetch(FB_URL+'/qingjing_line_bindings/'+key+'.json');
     const data=await res.json();
     return !!(data&&(data.userId||data.groupId||data.roomId));
   }catch(e){return false;}
