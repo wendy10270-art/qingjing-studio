@@ -575,7 +575,11 @@ try{
 function _activateAppCheck(){
   try{
     _appCheck=firebase.appCheck();
-    _appCheck.activate('6Lf0vVktAAAAAFDGh8VugCbKil5JyNJclsLjNltc',true); // true = 權杖快過期時自動換新
+    // 這組 site key 是在 Google Cloud reCAPTCHA Enterprise（Fraud Defense）建的，不是 classic v3，
+    // 必須用 ReCaptchaEnterpriseProvider 才吃得動——原本傳字串等同 ReCaptchaV3Provider，
+    // 打到 classic 協定的 www.google.com/recaptcha/api2/clr 一律 400（2026-07-27 查出）。
+    const provider=new firebase.appCheck.ReCaptchaEnterpriseProvider('6Lf0vVktAAAAAFDGh8VugCbKil5JyNJclsLjNltc');
+    _appCheck.activate(provider,true); // true = 權杖快過期時自動換新
   }catch(e){
     console.warn('Firebase App Check 啟用失敗，改用不附權杖的方式繼續運作：',e);
     _appCheck=null;
