@@ -2291,7 +2291,10 @@ function homeGcCreate(i){
   },60);
   showToast('建檔完成後再按一次「同步課表」，課程就會出現在列表');
 }
-try{renderTeachers();}catch(e){console.error('renderTeachers init:',e);}
+// setTimeout 0：延到本次同步腳本跑完再執行，讓後面才宣告的 const GC（見 GC={...} 定義處）
+// 先完成初始化——renderTeachers 內部會呼叫 fetchHomeRentEvents，其中會存取 GC，若在這裡
+// 同步呼叫，GC 還在暫時死區（TDZ），typeof GC 都會直接丟 ReferenceError（2026-07-27 查出）。
+setTimeout(()=>{try{renderTeachers();}catch(e){console.error('renderTeachers init:',e);}},0);
 
 // ── 底部 Tab 導航 ──
 let _currentTab='home';
