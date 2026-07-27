@@ -7660,7 +7660,10 @@ async function gcSyncToday(ev,opts){
           // 這種真的無從判斷課種的情況，寧可交給下方「未能匹配系統學員」讓人工指定，
           // 也不要用猜的（用猜的等於一直靜默記錯課，本人跟老師都不會發現）。
           if(candidates.length){
-            const hasCTKeyword=/皮拉提斯|重訓/.test(parsed.type||'');
+            // 瑜珈沒有專屬關鍵字（getCT 找不到「皮拉提斯」「重訓」時就預設猜成瑜珈），
+            // 導致日曆標題明明寫著「瑜珈」，這裡卻判定成「沒寫課種、無從判斷」，
+            // 跨課種候選時直接丟進未建檔——即使該學員明明有對應課卡（2026-07-27 查出）。
+            const hasCTKeyword=/皮拉提斯|重訓|瑜珈/.test(parsed.type||'');
             const distinctCTs=new Set(candidates.map(s=>getCT(s.course||'')));
             if(!hasCTKeyword&&distinctCTs.size>1){
               stu=null;
@@ -7670,9 +7673,14 @@ async function gcSyncToday(ev,opts){
               const pool=sameSubject.length?sameSubject:candidates;
               const ratioM=(parsed.type||'').match(/1on[123]/);
               const ratio=ratioM?ratioM[0]:'';
+              // pool 裡如果剩不只一人（例如兩個學員剛好完全同名），且課程內容／人數方案
+              // 都分辨不出是哪一個，以前會無差別 fallback 選 pool[0]，等於用猜的把課扣到
+              // 「候選清單裡排第一個」身上——真的撞到同名時，扣錯課卡本人跟老師都不會發現。
+              // 跟上面 CT 歧義同一個設計哲學：分辨不出來就交給人工指定，不要用猜的
+              // （只有 pool 只剩一人時，選 pool[0] 才是唯一解，不是用猜的）。
               stu=pool.find(s=>parsed.type&&s.course&&s.course.includes(parsed.type))
                 ||(ratio?pool.find(s=>s.course&&s.course.includes(ratio)):null)
-                ||pool[0];
+                ||(pool.length===1?pool[0]:null);
             }
           }
           if(stu)break;
