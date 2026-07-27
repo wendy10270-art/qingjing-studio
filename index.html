@@ -1558,28 +1558,54 @@ function _applyServerTs(resolved){
   _localLastUpdated=resolved.lastUpdated;
   localStorage.setItem('qjf_localTs',String(_localLastUpdated));
 }
+// _pendingWrite：本機是否有「已呼叫 syncToFirebase，但雲端還沒確認寫入成功」的變更。
+// 2026-07-27 事故：Firebase 用量超標期間，簽到寫入雲端全部失敗，但 syncToFirebase()
+// 照樣把本機時間戳記往前推（見下面），失敗當下又只是 console.warn、不會重試。等配額
+// 解除，只要「任何一次跟這次簽到無關」的寫入成功，雲端時間戳記就會比這台裝置那個
+//「假裝成功」的舊時間戳記還新——這台裝置重新整理時，loadFromFirebase 的時間戳比較會
+// 誤判雲端比較新，把本機真正的簽到資料整包蓋掉、直接消失，且完全沒有警告。
+// 有這個 flag 之後：寫入失敗就不清掉它，loadFromFirebase/SSE 收到遠端資料時只要看到
+// 這個 flag 還是 true，就絕對不接受覆蓋，並自動重試寫入，直到真的成功為止。
+let _pendingWrite=localStorage.getItem('qjf_pendingWrite')==='1';
+function _setPendingWrite(v){_pendingWrite=v;localStorage.setItem('qjf_pendingWrite',v?'1':'0');}
+let _writeRetryTimer=null;
 function doFirebaseWrite(){
   const writesSch=_schChanged;
-  _schChanged=false;
   db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync:',e));
-  if(writesSch){
-    db.ref('qingjing').set({
-      s:S, r:R, sch:encSchKeys(SCH), t:T, l:L, lastUpdated:{'.sv':'timestamp'}
-    }).then(resolved=>{_applyServerTs(resolved);showSyncStatus('synced');}).catch(e=>{showSyncStatus('error');console.warn('Firebase sync error:',e);});
-  } else {
-    db.ref('qingjing').patch({
-      s:S, r:R, t:T, l:L, lastUpdated:{'.sv':'timestamp'}
-    }).then(resolved=>{_applyServerTs(resolved);showSyncStatus('synced');}).catch(e=>{showSyncStatus('error');console.warn('Firebase sync error:',e);});
-  }
+  const payload=writesSch
+    ?{s:S, r:R, sch:encSchKeys(SCH), t:T, l:L, lastUpdated:{'.sv':'timestamp'}}
+    :{s:S, r:R, t:T, l:L, lastUpdated:{'.sv':'timestamp'}};
+  db.ref('qingjing')[writesSch?'set':'patch'](payload).then(resolved=>{
+    if(writesSch)_schChanged=false; // 確認寫入成功才清掉，失敗的話下次重試還是會把 sch 一起送
+    _applyServerTs(resolved);
+    _setPendingWrite(false);
+    if(_writeRetryTimer){clearTimeout(_writeRetryTimer);_writeRetryTimer=null;}
+    showSyncStatus('synced');
+  }).catch(e=>{
+    showSyncStatus('error');
+    console.warn('Firebase sync error:',e);
+    // 寫入失敗：_pendingWrite 保持 true，本機資料在下次成功寫入前都當作「未確認」，
+    // 不能被雲端拉回的資料蓋掉；並排一次重試，配額/網路問題解除後能自動補上，
+    // 不需要使用者手動再操作一次才會發現資料其實沒同步成功
+    if(_writeRetryTimer)clearTimeout(_writeRetryTimer);
+    _writeRetryTimer=setTimeout(doFirebaseWrite,15000);
+  });
 }
 function syncToFirebase(){
   clearTimeout(syncTimer);
   _lastSaveMs=Date.now();
   _localLastUpdated=Date.now();
   localStorage.setItem('qjf_localTs',String(_localLastUpdated));
+  _setPendingWrite(true);
   // 若 800ms 內又呼叫（如連續簽到），clearTimeout 取消舊計時器，
   // _schChanged 仍保持 true，新計時器觸發時才讀取並 reset
   syncTimer=setTimeout(doFirebaseWrite, 800);
+}
+// 如果上次關閉/重新整理前還有未確認的寫入（例如那次網路剛好斷線、或配額被擋），
+// 頁面一載入就立刻重試，不要等到使用者剛好又觸發一次 syncToFirebase 才補救
+if(_pendingWrite){
+  console.warn('⚠ 偵測到上次有未確認送達雲端的變更，重新嘗試同步');
+  setTimeout(doFirebaseWrite,1500);
 }
 // app 被滑掉或切到背景時，立刻把待寫的資料強制送出
 document.addEventListener('visibilitychange',()=>{
@@ -1629,6 +1655,15 @@ function loadFromFirebase(callback){
   const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000));
   Promise.race([db.ref('qingjing').once('value'),timeout]).then(snap=>{
     const data=snap.val();
+    if(_pendingWrite){
+      // 本機還有未確認送達雲端的變更，這次拉回來的雲端資料絕對不可信任（很可能就是
+      // 「這筆變更還沒寫進去之前」的舊資料）——寧可繼續顯示本機資料，也不要覆蓋，
+      // 同時再踢一次寫入重試（2026-07-27 事故：這裡少了這道防線才會把簽到紀錄蓋掉）
+      console.log('⚠ 本機有未確認送達雲端的變更，略過這次 Firebase 覆蓋，改為重試寫入');
+      doFirebaseWrite();
+      if(callback)callback();
+      return;
+    }
     if(data&&data.lastUpdated){
       // ── 時間戳保護：只有 Firebase 資料比本地更新才覆蓋 ──
       // 避免「另一台設備的舊資料」或「Firebase write 失敗後 load」蓋掉本機剛儲存的課表
@@ -1808,6 +1843,13 @@ tick();setInterval(tick,1000);
 let _fbEs=null;
 function applyRemoteData(data){
   if(!data||!data.s)return;
+  // 本機還有未確認送達雲端的變更，同樣不能被 SSE 推來的遠端資料蓋掉（理由同
+  // loadFromFirebase 那邊的 _pendingWrite 檢查），順便再踢一次寫入重試
+  if(_pendingWrite){
+    console.log('⚠ 本機有未確認送達雲端的變更，略過這次 SSE 覆蓋，改為重試寫入');
+    doFirebaseWrite();
+    return;
+  }
   // 時間戳保護：只接受比本地更新的遠端資料
   if(data.lastUpdated&&data.lastUpdated<_localLastUpdated){
     console.log('⚠ SSE 遠端資料較舊，略過（遠端:'+new Date(data.lastUpdated).toLocaleTimeString()+' < 本地:'+new Date(_localLastUpdated).toLocaleTimeString()+')');
