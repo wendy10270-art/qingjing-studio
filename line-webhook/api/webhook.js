@@ -82,6 +82,22 @@ async function bindTeacherPhone(last8, dest, name, lang) {
   });
 }
 
+// 打關鍵字（提醒/remind）前先查這個對話是不是已經綁定過，避免重複綁定時又問一次電話號碼——
+// 之前完全沒有這個檢查，已綁定的人再打一次關鍵字，體驗上就像「綁定失效了」（2026-07-27 查出）
+function matchesDest(binding, dest) {
+  const k = Object.keys(dest)[0];
+  return !!(binding && binding[k] === dest[k]);
+}
+async function findExistingBinding(dest) {
+  const bindings = (await fb('/qingjing_line_bindings', { method: 'GET' })) || {};
+  const key = Object.keys(bindings).find((k) => matchesDest(bindings[k], dest));
+  if (key) return { name: bindings[key].name };
+  const tBindings = (await fb('/qingjing_line_bindings_teacher', { method: 'GET' })) || {};
+  const tKey = Object.keys(tBindings).find((k) => matchesDest(tBindings[k], dest));
+  if (tKey) return { name: tBindings[tKey].name };
+  return null;
+}
+
 async function unbindUserId(userId) {
   const bindings = (await fb('/qingjing_line_bindings', { method: 'GET' })) || {};
   const key = Object.keys(bindings).find((k) => bindings[k] && bindings[k].userId === userId);
@@ -159,6 +175,7 @@ const MSG = {
     bindError: '綁定時發生問題，請稍後再試一次，或直接聯繫工作室。',
     bindSuccess: (name) => `✅ 綁定成功，${name}！之後上課前一天會提醒您唷 🌿`,
     bindSuccessTeacher: (name) => `✅ 綁定成功，${name}老師！之後場租扣堂會通知您剩餘堂數 🌿`,
+    alreadyBound: (name) => `✅ ${name}，這個對話已經綁定過提醒通知囉，不用再輸入電話號碼 🌿`,
   },
   en: {
     askPhone: 'Please enter the phone number registered with the studio (e.g. 0912345678) to complete your class reminder registration 🌿',
@@ -169,6 +186,7 @@ const MSG = {
     bindError: 'Something went wrong while registering, please try again or contact the studio directly.',
     bindSuccess: (name) => `✅ Registered successfully, ${name}! We'll remind you the day before your class 🌿`,
     bindSuccessTeacher: (name) => `✅ Registered successfully, ${name}! We'll notify you when your rental sessions get deducted 🌿`,
+    alreadyBound: (name) => `✅ ${name}, this chat is already registered for reminders — no need to enter your phone number again 🌿`,
   },
 };
 
@@ -220,6 +238,14 @@ async function handleEvent(event) {
     const isEn = !isZh && KEYWORDS_EN.some((k) => textLower.includes(k));
     if (isZh || isEn) {
       const lang = isEn ? 'en' : 'zh';
+      const existing = await findExistingBinding(dest).catch((e) => {
+        console.error('existing bind check error', e);
+        return null; // 查詢失敗就當作沒查到，退回原本「問電話」的流程，不要卡住整個綁定功能
+      });
+      if (existing) {
+        await lineReply(event.replyToken, MSG[lang].alreadyBound(existing.name));
+        return;
+      }
       await setPendingBind(convoKey, lang).catch((e) => console.error('set pending error', e));
       await lineReply(event.replyToken, MSG[lang].askPhone);
     }
