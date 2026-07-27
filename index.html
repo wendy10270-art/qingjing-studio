@@ -4639,7 +4639,7 @@ function renderWage(){
       return`<div class="wage-card"><div class="wc-header"><div class="wc-name">${t}</div><div class="wc-total" style="color:${only<0?'var(--red)':'var(--green)'}">${only<0?'－':''}$${Math.abs(only).toLocaleString()}</div></div><div class="wc-divider"></div><div class="wc-body">
         ${teacherRentDeduct.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${r.date.slice(5)} ${r.time||''}</div><div style="flex:1;color:var(--red)">🏠 場租扣款${r.label?'・'+hEsc(r.label):''}</div><div style="color:var(--red);flex-shrink:0">－$${(r.fee||0).toLocaleString()}</div></div>`).join('')}
         ${teacherPrepaidRent.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${r.date.slice(5)} ${r.time||''}</div><div style="flex:1;color:var(--gold)">🏠 場租（預付扣堂）</div><div style="color:var(--gold);flex-shrink:0">剩${r.remainingAfter??'?'}堂</div></div>`).join('')}
-        ${teacherBonus.map(l=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${(l.createdAt||'').slice(5)}</div><div style="flex:1;color:var(--teal)">🎁 續課獎金・${hEsc(l.name)}</div><div style="color:${l.bonusPaid?'var(--teal)':'var(--orange)'};flex-shrink:0">$${(l.bonus||0).toLocaleString()}${l.bonusPaid?'':'（待撥）'}</div></div>`).join('')}
+        ${teacherBonus.map(l=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${(l.createdAt||'').slice(5)}</div><div style="flex:1;color:var(--teal)">🎁 續課獎金・${hEsc(l.name)}${l.course?'・'+hEsc(l.course):''}</div><div style="color:${l.bonusPaid?'var(--teal)':'var(--orange)'};flex-shrink:0">$${(l.bonus||0).toLocaleString()}${l.bonusPaid?'':'（待撥）'}</div></div>`).join('')}
         <div class="wc-note" style="margin-top:6px">本月無課堂${teacherRentDeduct.length?'・已扣場租 $'+rentDeductTotal.toLocaleString():''}${teacherPrepaidRent.length?'・預付扣'+teacherPrepaidRent.length+'堂':''}${bonusPend?'・獎金待撥 $'+bonusPend.toLocaleString():''}</div>
       </div></div>`;
     }
@@ -4684,7 +4684,7 @@ function renderWage(){
         </div>`).join('')}
         ${bonusEntries.map(l=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px">
           <div style="color:var(--ink3);width:78px;flex-shrink:0">${(l.createdAt||'').slice(5)}</div>
-          <div style="flex:1;color:var(--teal)">🎁 續課獎金・${hEsc(l.name)}</div>
+          <div style="flex:1;color:var(--teal)">🎁 續課獎金・${hEsc(l.name)}${l.course?'・'+hEsc(l.course):''}</div>
           <div style="color:${l.bonusPaid?'var(--teal)':'var(--orange)'};flex-shrink:0">$${(l.bonus||0).toLocaleString()}${l.bonusPaid?'':'（待撥）'}</div>
         </div>`).join('')}
         <div class="wc-note" style="margin-top:6px">${sessions.length} 堂${tp?' ・ '+tp+' 人次':''}${trialCount?' ・ 含體驗 '+trialCount+' 堂':''}${gcCount?' ・ 含GC核銷 '+gcCount+' 堂':''}${adjSessions.length?' ・ 含 '+adjSessions.length+' 筆調整':''}${teacherRentDeduct.length?' ・ 已扣場租 $'+rentDeductTotal.toLocaleString():''}${teacherPrepaidRent.length?' ・ 預付扣'+teacherPrepaidRent.length+'堂':''}${bonusPending>0?' ・ 獎金待撥 $'+bonusPending.toLocaleString():''}</div>
@@ -4821,7 +4821,7 @@ function copyTeacher(teacher,mk){
   }
   if(bonusEntries.length){
     text+=`\n續課獎金明細：\n`;
-    bonusEntries.sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||'')).forEach(l=>{text+=`${(l.createdAt||'').slice(5)} ${l.name} $${(l.bonus||0).toLocaleString()}${l.bonusPaid?'':'（待撥）'}\n`});
+    bonusEntries.sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||'')).forEach(l=>{text+=`${(l.createdAt||'').slice(5)} ${l.name}${l.course?'・'+l.course:''} $${(l.bonus||0).toLocaleString()}${l.bonusPaid?'':'（待撥）'}\n`});
   }
   copyText(text,`${teacher} 薪資已複製`);
 }
@@ -4935,7 +4935,7 @@ function buildPayrollEmailHtml(teacher,mk){
   const bonusRowsHtml=bonusEntries.length?`<tr><td colspan="3" style="padding:14px 6px 6px;font-size:13px;font-weight:600;color:#3a332a">續課獎金</td></tr>`+
     bonusEntries.sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||'')).map(l=>`<tr>
       <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;color:#8a8072;white-space:nowrap">${hEsc((l.createdAt||'').slice(5))}</td>
-      <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;color:#3a332a">${hEsc(l.name)}</td>
+      <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;color:#3a332a">${hEsc(l.name)}${l.course?'<span style="color:#8a8072">・'+hEsc(l.course)+'</span>':''}</td>
       <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;text-align:right;color:${l.bonusPaid?'#2f8f5b':'#c17a3a'};white-space:nowrap">$${(l.bonus||0).toLocaleString()}${l.bonusPaid?'':'（待撥）'}</td>
     </tr>`).join(''):'';
 
