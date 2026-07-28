@@ -231,11 +231,18 @@ async function handleEvent(event) {
     return null;
   });
 
+  // 群組/多人聊天室不觸發新的綁定流程——這種對話常常是跟課程無關的閒聊，子字串比對
+  // 一命中「提醒」「綁定」就會誤闖進去插話（2026-07-28 真實發生：私人聊天群組被誤觸發問電話號碼）。
+  // 共用課卡要綁群組的話，改由店長手動在 Firebase qingjing_line_bindings 補資料。
+  if (!pending && sourceType !== 'user') return;
+
   if (!pending) {
-    // 還沒有人打過關鍵字：只有打關鍵字才回應，其他訊息（客人問問題等）完全不打擾，交給店家手動聊天
+    // 還沒有人打過關鍵字：只有打「完全等於」關鍵字的訊息才回應，其他訊息（客人問問題、日常聊天等）
+    // 完全不打擾，交給店家手動聊天。改成精確比對（而非子字串 includes）是因為子字串太容易在正常
+    // 對話裡意外命中「提醒」「綁定」這兩個字（2026-07-28 誤觸發事故）。
     // 中英文關鍵字都認，用哪個語言的關鍵字觸發，後面就用哪個語言回覆
-    const isZh = KEYWORDS_ZH.some((k) => text.includes(k));
-    const isEn = !isZh && KEYWORDS_EN.some((k) => textLower.includes(k));
+    const isZh = KEYWORDS_ZH.includes(text);
+    const isEn = !isZh && KEYWORDS_EN.includes(textLower);
     if (isZh || isEn) {
       const lang = isEn ? 'en' : 'zh';
       const existing = await findExistingBinding(dest).catch((e) => {
