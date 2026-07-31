@@ -7307,14 +7307,14 @@ const GC={
     const tMin=encodeURIComponent(new Date(y,mo,d).toISOString());
     const tMax=encodeURIComponent(new Date(y,mo,d+1).toISOString());
     const data=await this.api(`/calendars/${encodeURIComponent(calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=100`);
-    return data.items||[];
+    return(data.items||[]).filter(ev=>ev.status!=='cancelled');
   },
   async tomorrowEvents(calId){
     const now=new Date(),y=now.getFullYear(),mo=now.getMonth(),d=now.getDate()+1;
     const tMin=encodeURIComponent(new Date(y,mo,d).toISOString());
     const tMax=encodeURIComponent(new Date(y,mo,d+1).toISOString());
     const data=await this.api(`/calendars/${encodeURIComponent(calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=100`);
-    return data.items||[];
+    return(data.items||[]).filter(ev=>ev.status!=='cancelled');
   },
   parseTitle(t){
     if(!t)return null;
@@ -7326,6 +7326,9 @@ const GC={
     // 去除括號備註：（木床區）（協助徵班友）（全場）（2位）等
     let notes=[];
     raw=raw.replace(/[\(（]([^)\)）]*)[\)）]/g,(_,n)=>{notes.push(n.trim());return''}).trim();
+    // 「取消」不是永遠寫在標題最前面，有時是加在姓名後面的括號備註裡（如「王小明 0912345678（取消）」），
+    // 這種寫法會被上面的括號備註規則吃掉、當成普通備註，導致明明取消的課還是被當正常課程匯入排課。
+    if(notes.some(n=>/取消/.test(n)))return null;
     let name=raw,phone='';
     // 取姓名／電話：只要抓得到電話號碼，一律取「第一個電話號碼之前」的文字當姓名、
     // 電話後面不管接什麼（備註逗號、第二位學員、手動加的別名文字…）一律丟棄不解析。
