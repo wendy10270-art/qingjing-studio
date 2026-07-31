@@ -7567,6 +7567,12 @@ function gcSaveMap(){
     const s=document.getElementById('gcmap_'+t.replace(/[^a-zA-Z一-鿿]/g,'_'));
     if(s&&s.value)map[t]=s.value;
   });
+  // 兩位老師被誤設成同一本日曆（常是「自動配對」猜錯，或手動選錯）會導致整批課表算到另一位老師頭上，
+  // 存檔前先攔一下、讓開店的人看得到才不會悄悄錯下去
+  const byCalId={};
+  Object.entries(map).forEach(([t,calId])=>{if(!byCalId[calId])byCalId[calId]=[];byCalId[calId].push(t);});
+  const dupes=Object.values(byCalId).filter(list=>list.length>1);
+  if(dupes.length&&!confirm('⚠️ 這幾位老師被設成同一本日曆：\n'+dupes.map(list=>list.join('、')).join('\n')+'\n\n如果不是刻意共用日曆，課表會混在一起算錯人。確定要這樣儲存嗎？'))return;
   GC.calMap=map;
   db.ref('qingjing_teacher_calmap').set(map).catch(e=>console.warn('calMap sync error:',e));
   showToast('✓ 日曆對照已儲存（'+Object.keys(map).length+' 位老師）');
