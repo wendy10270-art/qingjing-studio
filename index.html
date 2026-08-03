@@ -4082,9 +4082,11 @@ function gcGuessFee(teacher,type){
   const t=type||'';
   const ratio=(t.match(/1on\d/)||['1on1'])[0];
   let course='';
-  if(t.includes('皮拉提斯'))course='器械皮拉提斯';
-  else if(t.includes('重訓'))course='重訓課程';
-  else if(t.includes('瑜珈'))course='瑜珈課程';
+  // 中英文都認：老師排課慣例是皮拉提斯佔多數不特別標注，瑜珈/重訓才會寫「Yoga」「Fitness」
+  // （同 getCalCT 的判斷規則，見 gcMatchStudent）
+  if(/皮拉提斯|pilates/i.test(t))course='器械皮拉提斯';
+  else if(/重訓|fitness|strength|trx/i.test(t))course='重訓課程';
+  else if(/瑜珈|yoga/i.test(t))course='瑜珈課程';
   else{
     const ct=CUSTOM_TEACHERS.find(x=>x.name===teacher);
     course=Object.keys((ct&&ct.fees)||TEACHER_FEES[teacher]||{})[0]||'器械皮拉提斯';
@@ -7735,6 +7737,16 @@ function guessTrialCourse(type){
   if(/瑜珈|yoga/i.test(t))return'瑜珈課程';
   return null;
 }
+// 日曆標題課種判斷（給 gcMatchStudent／gcGuessFee 用，跟 getCT(課卡字串) 是不同語境）：
+// 2026-08-03 店長確認的排課慣例——皮拉提斯佔多數，老師標題通常直接寫「1on1/1on2/1on3」
+// 不特別標注課種；瑜珈、重訓才會額外寫「Yoga」「Fitness」。所以完全沒關鍵字時
+// 預設當皮拉提斯，不是「無法判斷」。中英文都認，大小寫不拘。
+function getCalCT(type){
+  const t=type||'';
+  if(/瑜珈|yoga/i.test(t))return'y';
+  if(/重訓|fitness|strength|trx/i.test(t))return's';
+  return'p';
+}
 // 單一事件比對學員：多層比對策略（電話→姓名→去電話姓名→包含比對→共用課卡別名）。
 // 無副作用的純函式，gcMatchDay() 用它逐一比對日曆事件，避免「同步課表」跟「日曆核銷」
 // 各自重新比對一次、比對結果還可能不一致（這正是核銷會重複算錢的根因）。
@@ -7770,38 +7782,27 @@ function gcMatchStudent(parsed,teacher){
     // 同一人可能同時持有不同課種／不同人數方案的課卡（例如同時買了瑜珈跟皮拉提斯，
     // 或同時買了 1on1 跟 1on2），電話姓名都比對得上時：
     // 1. 先試跟日曆標題（parsed.type，如「器械皮拉提斯 1on1」）完全對上課種＋方案的那張
-    // 2. 對不上就先用課種分類（皮拉提斯／重訓／瑜珈，見 getCT()）篩掉課種不符的候選，
+    // 2. 對不上就先用課種分類（getCalCT，見下方）篩掉課種不符的候選，
     //    避免像瑜珈跟皮拉提斯課卡同時存在時，因為方案格式對不上就 fallback 到錯的課種
     // 3. 篩過課種後再試用人數方案（1on1/1on2/1on3）進一步比對
     // 4. 真的都比對不出來，才退回候選清單第一張（跟以前一樣的保底邏輯）
-    // 例外：日曆標題常常只寫「1on1｜姓名電話」，完全沒提到課種——這種情況下
-    // getCT(parsed.type) 會因為找不到關鍵字而預設猜成瑜珈，若候選課卡橫跨多種課種
-    // 就會系統性地猜錯（例如同時有瑜珈卡跟皮拉提斯卡，永遠猜成瑜珈）。
-    // 這種真的無從判斷課種的情況，寧可交給下方「未能匹配系統學員」讓人工指定，
-    // 也不要用猜的（用猜的等於一直靜默記錯課，本人跟老師都不會發現）。
+    // 2026-08-03 店長確認的排課慣例：皮拉提斯佔多數，老師排課通常不特別標注，
+    // 只有瑜珈／重訓才會在標題寫「Yoga」「Fitness」——所以日曆標題完全沒提到課種
+    // 不代表「無法判斷」，而是預設就是皮拉提斯，不需要再交給人工指定
     if(candidates.length){
-      // 瑜珈沒有專屬關鍵字（getCT 找不到「皮拉提斯」「重訓」時就預設猜成瑜珈），
-      // 導致日曆標題明明寫著「瑜珈」，這裡卻判定成「沒寫課種、無從判斷」，
-      // 跨課種候選時直接丟進未建檔——即使該學員明明有對應課卡（2026-07-27 查出）。
-      const hasCTKeyword=/皮拉提斯|重訓|瑜珈/.test(parsed.type||'');
-      const distinctCTs=new Set(candidates.map(s=>getCT(s.course||'')));
-      if(!hasCTKeyword&&distinctCTs.size>1){
-        stu=null;
-      }else{
-        const parsedCT=getCT(parsed.type||'');
-        const sameSubject=candidates.filter(s=>s.course&&getCT(s.course)===parsedCT);
-        const pool=sameSubject.length?sameSubject:candidates;
-        const ratioM=(parsed.type||'').match(/1on[123]/);
-        const ratio=ratioM?ratioM[0]:'';
-        // pool 裡如果剩不只一人（例如兩個學員剛好完全同名），且課程內容／人數方案
-        // 都分辨不出是哪一個，以前會無差別 fallback 選 pool[0]，等於用猜的把課扣到
-        // 「候選清單裡排第一個」身上——真的撞到同名時，扣錯課卡本人跟老師都不會發現。
-        // 跟上面 CT 歧義同一個設計哲學：分辨不出來就交給人工指定，不要用猜的
-        // （只有 pool 只剩一人時，選 pool[0] 才是唯一解，不是用猜的）。
-        stu=pool.find(s=>parsed.type&&s.course&&s.course.includes(parsed.type))
-          ||(ratio?pool.find(s=>s.course&&s.course.includes(ratio)):null)
-          ||(pool.length===1?pool[0]:null);
-      }
+      const parsedCT=getCalCT(parsed.type||'');
+      const sameSubject=candidates.filter(s=>s.course&&getCT(s.course)===parsedCT);
+      const pool=sameSubject.length?sameSubject:candidates;
+      const ratioM=(parsed.type||'').match(/1on[123]/);
+      const ratio=ratioM?ratioM[0]:'';
+      // pool 裡如果剩不只一人（例如兩個學員剛好完全同名），且課程內容／人數方案
+      // 都分辨不出是哪一個，以前會無差別 fallback 選 pool[0]，等於用猜的把課扣到
+      // 「候選清單裡排第一個」身上——真的撞到同名時，扣錯課卡本人跟老師都不會發現。
+      // 分辨不出來就交給人工指定，不要用猜的（只有 pool 只剩一人時，選 pool[0]
+      // 才是唯一解，不是用猜的）。
+      stu=pool.find(s=>parsed.type&&s.course&&s.course.includes(parsed.type))
+        ||(ratio?pool.find(s=>s.course&&s.course.includes(ratio)):null)
+        ||(pool.length===1?pool[0]:null);
     }
     if(stu)break;
   }
