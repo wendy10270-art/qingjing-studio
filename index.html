@@ -3982,7 +3982,9 @@ function renderDaily(){
 // 但不能整個 renderDaily() 重來一次（會再觸發一次 renderGcSettle，變成無窮迴圈）
 function renderDailyList(ds){
   const recs=R.filter(r=>r.date===ds);
-  const trialRecs=T.filter(t=>t.date===ds&&(t.sig||t.noSigNeeded));
+  // 不再要求 t.sig 才顯示：補登過去日期／日曆比對自動建立的體驗課本來就不會有現場簽名，
+  // 跟 R（正課簽到）的顯示規則一樣，只看日期，不看有沒有簽名（R.filter 本來就沒有簽名限制）
+  const trialRecs=T.filter(t=>t.date===ds);
   const leaveRecs=L.filter(l=>l.date===ds);
   const el=document.getElementById('dailyContent');
   if(!recs.length&&!trialRecs.length&&!leaveRecs.length){
@@ -4615,7 +4617,7 @@ function confirmAllToday(ds){
     if(dupG){skipped++;return;}
     r.confirmed=true;
   });
-  T.filter(t=>t.date===ds&&(t.sig||t.noSigNeeded)&&!t.confirmed).forEach(t=>t.confirmed=true);
+  T.filter(t=>t.date===ds&&!t.confirmed).forEach(t=>t.confirmed=true);
   save();renderDaily();
   if(document.getElementById('ap-wage').classList.contains('active'))renderWage();
   showToast(skipped?`✓ 已確認消課（${skipped} 堂疑似跟 Google 核銷重複，已跳過，請個別確認）`:'✓ 今日所有課堂已確認消課');
@@ -8524,7 +8526,7 @@ function renderHelper(){
   // 45 天內未確認消課
   const cutoff=fmt(new Date(nowT.getTime()-45*864e5));
   const unconfR=R.filter(r=>r.confirmed===false&&r.date>=cutoff&&r.date<td);
-  const unconfT=T.filter(t=>t.confirmed!==true&&t.date&&t.date>=cutoff&&t.date<td&&(t.sig||t.noSigNeeded));
+  const unconfT=T.filter(t=>t.confirmed!==true&&t.date&&t.date>=cutoff&&t.date<td);
   if(unconfR.length+unconfT.length>0)todos.push({icon:'📝',ttl:`${unconfR.length+unconfT.length} 堂課待確認消課`,sub:'確認後才會計入師資費',jump:'wage-daily',btnLbl:'前往確認 →'});
   const stChip=s=>s==='signed'?'<span style="font-size:10px;background:var(--gold4);color:var(--gold);border-radius:99px;padding:2px 8px">已簽到</span>':s==='leave'?'<span style="font-size:10px;background:var(--purple2,#F0EAF8);color:var(--purple,#7B5EA7);border-radius:99px;padding:2px 8px">請假</span>':'<span style="font-size:10px;background:var(--bg);color:var(--ink3);border-radius:99px;padding:2px 8px">待簽到</span>';
   const card=(ttl,body,extra)=>`<div style="background:var(--white);border:1px solid var(--border);border-radius:13px;padding:14px 16px;margin-bottom:12px">${ttl?`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px"><div style="font-size:13px;font-weight:600;color:var(--ink2);letter-spacing:1px;white-space:nowrap">${ttl}</div>${extra||''}</div>`:''}${body}</div>`;
