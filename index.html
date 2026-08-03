@@ -4139,7 +4139,7 @@ async function renderGcSettle(ds){
   if(fmt(getAdminDate())!==ds)return;
   // 有補簽紀錄或自動建立的體驗紀錄，都要重畫一次上方「簽到/確認消課」清單（含這個容器本身）
   // 才會顯示出來；renderDailyList 不會再呼叫 renderGcSettle，所以不會無窮迴圈
-  if(rBackfilled>0||trialAdded>0){save();renderDailyList(ds);}
+  if(rBackfilled>0||trialAdded>0){save();renderDailyList(ds);try{renderTeachers();}catch(e){}}
   const cur=document.getElementById('gcSettleArea');if(!cur)return;
   _gcPend={};
   const rows=[];
@@ -8363,29 +8363,51 @@ function dayScheduleItems(dateObj){
 }
 
 // 月營運資料（與月薪資頁同一套算法）
-function helperMonthData(mk){
-  const monthR=R.filter(r=>r.date&&monthKey(r.date)===mk);
+// 週一為一週起點；傳入任一日期回傳當週週一
+function weekStart(d){const dt=new Date(d);const day=dt.getDay();dt.setDate(dt.getDate()-((day+6)%7));dt.setHours(0,0,0,0);return dt}
+function addDays(d,n){const dt=new Date(d);dt.setDate(dt.getDate()+n);return dt}
+
+// 依日期區間（含頭尾，'YYYY/MM/DD'）統計營運數據，month／week 共用同一套邏輯
+function helperStatsRange(startStr,endStr){
+  const inRange=ds=>ds&&ds>=startStr&&ds<=endStr;
+  const monthR=R.filter(r=>inRange(r.date));
   const confR=monthR.filter(r=>r.confirmed!==false);
-  const monthT=T.filter(t=>t.date&&monthKey(t.date)===mk);
+  const monthT=T.filter(t=>inRange(t.date));
   const confT=monthT.filter(t=>t.confirmed===true);
-  const monthG=GW.filter(g=>g.date&&monthKey(g.date)===mk);
-  const fee=confR.reduce((a,r)=>{const s=S.find(x=>x.id===r.sid);return a+getRecFee(r,s)},0)
-    +confT.reduce((a,t)=>a+(t.manualFee!=null?t.manualFee:t.teacherFee),0)
-    +monthG.reduce((a,g)=>a+(g.fee||0),0);
+  const monthG=GW.filter(g=>inRange(g.date));
+  // 各老師課堂數＋薪資明細
+  const teacherStats={};
+  const bump=(name,fee)=>{name=name||'其他';if(!teacherStats[name])teacherStats[name]={sessions:0,fee:0};teacherStats[name].sessions++;teacherStats[name].fee+=(fee||0)};
+  confR.forEach(r=>{const s=S.find(x=>x.id===r.sid);const t=r.isSub?r.subTeacher:(s?.teacher||'其他');bump(t,getRecFee(r,s))});
+  confT.forEach(t=>bump(t.teacher,t.manualFee!=null?t.manualFee:t.teacherFee));
+  monthG.forEach(g=>bump(g.teacher,g.fee||0));
+  const fee=Object.values(teacherStats).reduce((a,x)=>a+x.fee,0);
   // 收入計入所有流水帳項目（新購/續課/首頁購課/體驗課費）
-  const income=LEDGER.filter(l=>monthKey(l.createdAt||l.payDate||'')===mk).reduce((a,l)=>a+(l.actualPayment||0),0);
-  const newStu=S.filter(s=>s.payDate&&monthKey(s.payDate)===mk).length;
-  const bonusPaid=LEDGER.filter(l=>monthKey(l.createdAt||'')===mk&&l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
-  return{monthR,confR,monthT,confT,monthG,fee,income,newStu,bonusPaid};
+  const income=LEDGER.filter(l=>inRange(l.createdAt||l.payDate||'')).reduce((a,l)=>a+(l.actualPayment||0),0);
+  const newStu=S.filter(s=>inRange(s.payDate)).length;
+  const bonusPaid=LEDGER.filter(l=>inRange(l.createdAt||'')&&l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
+  return{monthR,confR,monthT,confT,monthG,fee,income,newStu,bonusPaid,teacherStats};
 }
 let _helperMk='';
+let _helperView='month'; // 'month' | 'week'
+let _helperWk=''; // 週檢視用：該週週一日期字串
 function renderHelperMonth(){
   const el=document.getElementById('helperMonthCard');if(!el)return;
-  const mk=_helperMk||monthKey(todayStr());
-  const d=helperMonthData(mk);
-  const[y,mo]=mk.split('/');
+  let startStr,endStr,label;
+  if(_helperView==='week'){
+    const wk=_helperWk||fmt(weekStart(new Date()));
+    startStr=wk;endStr=fmt(addDays(parseDate(wk),6));
+    label=`${startStr.slice(5)} ～ ${endStr.slice(5)}`;
+  }else{
+    const mk=_helperMk||monthKey(todayStr());
+    const[y,mo]=mk.split('/');
+    startStr=mk+'/01';endStr=fmt(new Date(+y,+mo,0));
+    label=y+'年'+parseInt(mo)+'月';
+  }
+  const d=helperStatsRange(startStr,endStr);
   const gross=d.income-d.fee;
-  _hMsgs['monthReport']=['🌿 輕境運動工作室 '+y+'年'+parseInt(mo)+'月營運摘要','────────────','💰 課程收入：$'+d.income.toLocaleString(),'👩‍🏫 師資費用：$'+d.fee.toLocaleString()+'（已確認 '+(d.confR.length+d.confT.length+d.monthG.length)+' 堂'+(d.monthG.length?'，含 GC 核銷 '+d.monthG.length+' 堂':'')+'）'+(d.bonusPaid?'，另撥獎金 $'+d.bonusPaid.toLocaleString():''),'📈 粗估毛利：$'+gross.toLocaleString(),'✍️ 簽到堂數：'+d.monthR.length+' 堂（已確認 '+d.confR.length+' 堂）','🧪 體驗課：'+d.monthT.length+' 堂','🙋 新學員：'+d.newStu+' 位'].join('\n');
+  const teacherLines=Object.entries(d.teacherStats).sort((a,b)=>b[1].sessions-a[1].sessions);
+  _hMsgs['monthReport']=['🌿 輕境運動工作室 '+label+' 營運摘要','────────────','💰 課程收入：$'+d.income.toLocaleString(),'👩‍🏫 師資費用：$'+d.fee.toLocaleString()+'（已確認 '+(d.confR.length+d.confT.length+d.monthG.length)+' 堂'+(d.monthG.length?'，含 GC 核銷 '+d.monthG.length+' 堂':'')+'）'+(d.bonusPaid?'，另撥獎金 $'+d.bonusPaid.toLocaleString():''),'📈 粗估毛利：$'+gross.toLocaleString(),'✍️ 簽到堂數：'+d.monthR.length+' 堂（已確認 '+d.confR.length+' 堂）','🧪 體驗課：'+d.monthT.length+' 堂','🙋 新學員：'+d.newStu+' 位',...(teacherLines.length?['────────────','各老師課堂數／薪資：',...teacherLines.map(([t,x])=>`・${t}：${x.sessions} 堂・$${x.fee.toLocaleString()}`)]:[])].join('\n');
   el.innerHTML=`
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
       <div style="text-align:center;padding:9px 4px;background:var(--bg);border-radius:9px"><div style="font-family:'Noto Serif TC',serif;font-size:17px;color:var(--green)">$${(d.income/1000).toFixed(1)}k</div><div style="font-size:11px;color:var(--ink3)">收入</div></div>
@@ -8393,12 +8415,29 @@ function renderHelperMonth(){
       <div style="text-align:center;padding:9px 4px;background:var(--bg);border-radius:9px"><div style="font-family:'Noto Serif TC',serif;font-size:17px;color:${gross>=0?'var(--gold)':'var(--red)'}">$${(gross/1000).toFixed(1)}k</div><div style="font-size:11px;color:var(--ink3)">粗估毛利</div></div>
     </div>
     <div style="font-size:12px;color:var(--ink2);line-height:1.9">✍️ 簽到 ${d.monthR.length} 堂（已確認 ${d.confR.length}）・🧪 體驗 ${d.monthT.length} 堂・🙋 新學員 ${d.newStu} 位</div>
+    ${teacherLines.length?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bg2)">
+      <div style="font-size:11.5px;color:var(--ink3);margin-bottom:6px">各老師課堂數／薪資</div>
+      ${teacherLines.map(([t,x])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px"><span style="color:var(--ink)">${hEsc(t)}</span><span style="color:var(--ink2)">${x.sessions} 堂・<span style="color:var(--orange)">$${x.fee.toLocaleString()}</span></span></div>`).join('')}
+    </div>`:''}
     <div style="display:flex;gap:8px;margin-top:10px">
-      <button onclick="copyHelperMsg('monthReport',false)" style="flex:1;background:var(--ink);color:#fff;border:none;border-radius:9px;padding:10px;font-size:13px;cursor:pointer">📋 複製月報文字</button>
+      <button onclick="copyHelperMsg('monthReport',false)" style="flex:1;background:var(--ink);color:#fff;border:none;border-radius:9px;padding:10px;font-size:13px;cursor:pointer">📋 複製報表文字</button>
       <button onclick="aTab('wage')" style="flex:1;background:var(--white);color:var(--ink2);border:1px solid var(--border);border-radius:9px;padding:10px;font-size:13px;cursor:pointer">查看薪資明細 →</button>
     </div>`;
 }
 function helperMonthChange(v){_helperMk=v;renderHelperMonth();}
+function helperWeekChange(v){_helperWk=v;renderHelperMonth();}
+function helperViewToggle(v){
+  _helperView=v;
+  const bm=document.getElementById('hvBtnMonth'),bw=document.getElementById('hvBtnWeek');
+  const on='padding:4px 10px;border-radius:7px;font-size:12px;cursor:pointer;border:1px solid var(--ink);background:var(--ink);color:#fff';
+  const off='padding:4px 10px;border-radius:7px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--ink2)';
+  if(bm)bm.style.cssText=v==='month'?on:off;
+  if(bw)bw.style.cssText=v==='week'?on:off;
+  const sm=document.getElementById('hvSelMonth'),sw=document.getElementById('hvSelWeek');
+  if(sm)sm.style.display=v==='month'?'inline-block':'none';
+  if(sw)sw.style.display=v==='week'?'inline-block':'none';
+  renderHelperMonth();
+}
 
 // 雲端同步健檢（真的打一次 Firebase 確認可讀）
 async function helperCheckSync(){
@@ -8542,6 +8581,14 @@ function renderHelper(){
     const mk=md.getFullYear()+'/'+String(md.getMonth()+1).padStart(2,'0');
     mkOpts+=`<option value="${mk}"${mk===_helperMk?' selected':''}>${md.getFullYear()}年${md.getMonth()+1}月</option>`;
   }
+  // ── 週選單（近 6 週，週一為起點）──
+  const wkNow=fmt(weekStart(d));if(!_helperWk)_helperWk=wkNow;
+  let wkOpts='';
+  for(let i=0;i<6;i++){
+    const ws=fmt(addDays(weekStart(d),-7*i));
+    const we=fmt(addDays(parseDate(ws),6));
+    wkOpts+=`<option value="${ws}"${ws===_helperWk?' selected':''}>${ws.slice(5)} ～ ${we.slice(5)}${i===0?'（本週）':''}</option>`;
+  }
   el.innerHTML=`
   <div style="padding:12px 2px 4px">
     <div style="font-family:'Noto Serif TC',serif;font-size:19px;letter-spacing:2px;color:var(--ink)">✨ 輕境小幫手</div>
@@ -8563,7 +8610,12 @@ function renderHelper(){
       ${stChip(it.status)}
     </div>`).join(''):'<div style="text-align:center;padding:10px;font-size:13px;color:var(--ink3)">今天沒有排課 🌿</div>')}
   ${card('💬 明日上課提醒',`<div style="font-size:12.5px;color:var(--ink2);line-height:1.8">自動抓明天 Google 日曆課表，逐一產生 LINE 提醒訊息。</div><button onclick="aTab('notify')" style="width:100%;margin-top:8px;background:var(--ink);color:#fff;border:none;border-radius:9px;padding:10px;font-size:13px;cursor:pointer">產生明日提醒訊息 →</button>`)}
-  ${card('📊 本月營運',`<div id="helperMonthCard"></div>`,`<select onchange="helperMonthChange(this.value)" style="width:auto;margin-bottom:0;font-size:12px;border:1px solid var(--border);border-radius:8px;padding:4px 8px;background:var(--white);color:var(--ink2);outline:none">${mkOpts}</select>`)}
+  ${card('📊 營運總覽',`<div id="helperMonthCard"></div>`,`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+    <button id="hvBtnMonth" onclick="helperViewToggle('month')" style="padding:4px 10px;border-radius:7px;font-size:12px;cursor:pointer;border:1px solid var(--ink);background:var(--ink);color:#fff">本月</button>
+    <button id="hvBtnWeek" onclick="helperViewToggle('week')" style="padding:4px 10px;border-radius:7px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--white);color:var(--ink2)">本週</button>
+    <select id="hvSelMonth" onchange="helperMonthChange(this.value)" style="width:auto;margin-bottom:0;font-size:12px;border:1px solid var(--border);border-radius:8px;padding:4px 8px;background:var(--white);color:var(--ink2);outline:none">${mkOpts}</select>
+    <select id="hvSelWeek" onchange="helperWeekChange(this.value)" style="display:none;width:auto;margin-bottom:0;font-size:12px;border:1px solid var(--border);border-radius:8px;padding:4px 8px;background:var(--white);color:var(--ink2);outline:none">${wkOpts}</select>
+  </div>`)}
   ${card('📅 Google 日曆核銷提醒',`<div style="font-size:12.5px;color:var(--ink2);line-height:1.8">檢查近 14 天日曆課程是否都已核銷師資費，列出還沒核銷的日期。</div><button onclick="helperCheckGcSettle()" style="width:100%;margin-top:8px;background:var(--white);color:var(--ink);border:1.5px solid var(--ink);border-radius:9px;padding:10px;font-size:13px;cursor:pointer;font-weight:500">檢查未核銷課程</button><div id="helperGcSettleResult" style="margin-top:10px"></div>`)}
   ${card('🔍 資料健康檢查',`<div style="font-size:12.5px;color:var(--ink2);line-height:1.8">檢查堂數異常、過期課程、重複簽到，並比對 Google 日曆找出漏簽。</div><button onclick="runDataCheck()" style="width:100%;margin-top:8px;background:var(--white);color:var(--ink);border:1.5px solid var(--ink);border-radius:9px;padding:10px;font-size:13px;cursor:pointer;font-weight:500">開始檢查</button><div id="dataCheckResult" style="margin-top:10px"></div>`)}
   <div style="height:20px"></div>`;
