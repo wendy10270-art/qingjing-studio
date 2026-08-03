@@ -4641,7 +4641,9 @@ function renderWage(){
         ${teacherPrepaidRent.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${r.date.slice(5)} ${r.time||''}</div><div style="flex:1;color:var(--gold)">🏠 場租（預付扣堂）</div><div style="color:var(--gold);flex-shrink:0">剩${r.remainingAfter??'?'}堂</div></div>`).join('')}
         ${teacherBonus.map(l=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:12px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${(l.createdAt||'').slice(5)}</div><div style="flex:1;color:var(--teal)">🎁 續課獎金・${hEsc(l.name)}${l.course?'・'+hEsc(l.course):''}</div><div style="color:${l.bonusPaid?'var(--teal)':'var(--orange)'};flex-shrink:0">$${(l.bonus||0).toLocaleString()}${l.bonusPaid?'':'（待撥）'}</div></div>`).join('')}
         <div class="wc-note" style="margin-top:6px">本月無課堂${teacherRentDeduct.length?'・已扣場租 $'+rentDeductTotal.toLocaleString():''}${teacherPrepaidRent.length?'・預付扣'+teacherPrepaidRent.length+'堂':''}${bonusPend?'・獎金待撥 $'+bonusPend.toLocaleString():''}</div>
-      </div></div>`;
+      </div>
+      <div class="wc-footer"><button class="wc-btn wc-btn-copy" onclick="copyTeacher('${t}','${mk}')">📋 複製薪資</button>${TEACHER_EMAILS[t]?`<button class="wc-btn wc-btn-email" onclick="emailTeacher('${t}','${mk}')">📧 寄送Email</button>`:''}</div>
+      </div>`;
     }
     // 逐堂明細：對帳要看誰、哪天哪個時段，不是只看課種小計
     const detailRows=sessions.map(item=>{
