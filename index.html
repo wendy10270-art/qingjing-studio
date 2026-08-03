@@ -2209,7 +2209,7 @@ function renderTeachers(){
     </div>`;return;
   }
   const leaveTeachers=ALL_TEACHERS.filter(t=>getTeacherLeavesToday(t).length>0);
-  const chip=st=>st==='signed'?'<span style="font-size:10px;background:#E8F7EF;color:#1F6B4A;border:0.5px solid #9FD4BC;border-radius:99px;padding:3px 9px;flex-shrink:0">已簽到 ✓</span>':st==='leave'?'<span style="font-size:10px;background:#F0EAF8;color:#7B5EA7;border-radius:99px;padding:3px 9px;flex-shrink:0">請假</span>':'<span style="font-size:10px;background:var(--cream2);color:var(--brown3);border-radius:99px;padding:3px 9px;flex-shrink:0">待簽到</span>';
+  const chip=st=>st==='signed'?'<span style="font-size:10px;background:#E8F7EF;color:#1F6B4A;border:0.5px solid #9FD4BC;border-radius:99px;padding:3px 9px;flex-shrink:0">已簽到 ✓</span>':st==='gcmatched'?'<span style="font-size:10px;background:#FFF4E5;color:#B9770E;border:0.5px solid #F0C896;border-radius:99px;padding:3px 9px;flex-shrink:0">未簽到・GC比對</span>':st==='leave'?'<span style="font-size:10px;background:#F0EAF8;color:#7B5EA7;border-radius:99px;padding:3px 9px;flex-shrink:0">請假</span>':'<span style="font-size:10px;background:var(--cream2);color:var(--brown3);border-radius:99px;padding:3px 9px;flex-shrink:0">待簽到</span>';
   el.innerHTML=`
   ${leaveTeachers.length?`<div style="background:#FFF0F0;border:0.5px solid #F7C1C1;border-radius:11px;padding:9px 13px;margin-bottom:10px;font-size:12px;color:var(--red)">🚫 今日請假老師：${leaveTeachers.map(hEsc).join('、')}</div>`:''}
   <div style="font-size:11px;font-weight:500;color:var(--brown3);letter-spacing:.5px;margin-bottom:8px">今日課程・點學員進入課卡簽到</div>
@@ -4043,7 +4043,9 @@ function renderDailyList(ds){
     ${items.sort((a,b)=>{const ta=a.type==='regular'?a.r.time:a.type==='trial'?a.tr.time:'';const tb=b.type==='regular'?b.r.time:b.type==='trial'?b.tr.time:'';return(ta||'').localeCompare(tb||'')}).map(item=>{
       if(item.type==='regular'){
         const{s,r}=item;const fee=getRecFee(r,s);const adj=isAdj(r);const confirmed=r.confirmed;
-        const chip=r.isUpgraded?'<span class="chip chip-up">＋1人｜'+r.upgradedTo+'</span>':r.isSub?'<span class="chip chip-sub">代課</span>':'<span class="chip chip-done">已簽到</span>';
+        // gcBackfilled：日曆比對到但學員沒有實際簽到，不能顯示「已簽到」誤導店長以為有人簽名，
+        // 要清楚標示這只是日曆比對出來的、還沒人真的簽到
+        const chip=r.isUpgraded?'<span class="chip chip-up">＋1人｜'+r.upgradedTo+'</span>':r.isSub?'<span class="chip chip-sub">代課</span>':r.gcBackfilled?'<span class="chip" style="background:var(--gold4);color:var(--orange);border:1px solid var(--gold2)">未簽到・GC比對</span>':'<span class="chip chip-done">已簽到</span>';
         return`<div class="cr" style="background:${confirmed?'var(--white)':'#FFFDF0'}">
           <div class="cr-time">${r.time||'—'}</div>
           <div class="cr-info"><div class="cr-name">${s.name}</div><div class="cr-course">${s.course}${r.manualNote?` (${r.manualNote})`:''} <span onclick="gcPickTeacher('${jsQ(r.id)}','regular')" style="cursor:pointer;color:var(--ink3);text-decoration:underline dotted;white-space:nowrap">✏️改老師</span></div></div>
@@ -7862,7 +7864,7 @@ async function gcMatchDay(ds,opts){
         if(backfillR&&!R.some(r=>r.sid===stu.id&&r.date===ds)&&(stu.used||0)<(stu.total||0)){
           const isSub=teacher!==(stu.teacher||'');
           stu.used=(stu.used||0)+1;
-          R.push({id:'r'+Date.now()+Math.random().toString(36).slice(2,6),sid:stu.id,date:ds,time,session:stu.used,sig:null,isSub,subTeacher:isSub?teacher:'',isUpgraded:false,upgradedTo:'',upgradeDiff:0,actualFee:getDefaultFee(stu.teacher,stu.course),manualFee:null,manualNote:'GC比對，未簽到',confirmed:false,upgPayMethod:'',feeCollected:false,isRetro:true});
+          R.push({id:'r'+Date.now()+Math.random().toString(36).slice(2,6),sid:stu.id,date:ds,time,session:stu.used,sig:null,isSub,subTeacher:isSub?teacher:'',isUpgraded:false,upgradedTo:'',upgradeDiff:0,actualFee:getDefaultFee(stu.teacher,stu.course),manualFee:null,manualNote:'GC比對，未簽到',confirmed:false,upgPayMethod:'',feeCollected:false,isRetro:true,gcBackfilled:true});
           rBackfilled++;
         }
         continue;
@@ -8350,7 +8352,9 @@ function dayScheduleItems(dateObj){
   items.forEach(it=>{
     const rec=R.find(r=>r.sid===it.sid&&r.date===td);
     const lv=L.find(l=>l.sid===it.sid&&l.date===td);
-    it.status=rec?'signed':lv?'leave':'pending';
+    // gcBackfilled 是日曆比對出來的，學員本人並沒有實際簽到，不能算「signed」，
+    // 不然首頁會顯示「已簽到 ✓」誤導店長以為有人簽名
+    it.status=rec?(rec.gcBackfilled?'gcmatched':'signed'):lv?'leave':'pending';
     if(rec)it.rid=rec.id;
   });
   T.forEach(t=>{if(t.date===td)items.push({sid:'',tid:t.id,name:t.name,teacher:t.teacher,time:t.time||'',trial:true,evType:'trial',status:(t.sig||t.noSigNeeded)?'signed':'pending'});});
