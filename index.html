@@ -900,6 +900,8 @@ const db={
     <input type="text" id="trialName" placeholder="例：陳小明">
     <label>電話（選填，下次搜尋用）</label>
     <input type="text" id="trialPhone" placeholder="0912-000-000" style="margin-bottom:10px">
+    <label>上課日期</label>
+    <input type="date" id="trialDate" style="margin-bottom:10px">
     <label>課程類型</label>
     <div class="trial-plan-tags" id="trialPlanTags">
       <div class="tpt" onclick="pickTrialPlan(this,&#39;器械皮拉提斯&#39;)">器械皮拉提斯</div>
@@ -3259,6 +3261,9 @@ function openTrialModal(){
   trialPlan='';trialRatio='';
   document.getElementById('trialName').value='';
   const tp=document.getElementById('trialPhone');if(tp)tp.value='';
+  // 預設今天，但沒設 min——體驗課常常是日曆漏抓、事後補登，需要能選過去的日期
+  const td=document.getElementById('trialDate');
+  if(td){const t=new Date();const pad=n=>String(n).padStart(2,'0');td.max=t.getFullYear()+'-'+pad(t.getMonth()+1)+'-'+pad(t.getDate());td.value=td.max;}
   document.getElementById('trialSearchInp').value='';
   document.getElementById('trialSearchResults').style.display='none';
   document.getElementById('trialSelectedInfo').style.display='none';
@@ -3391,14 +3396,20 @@ function addTrialStudent(){
   if(!name){showToast('請填寫體驗同學姓名','r');return}
   if(!trialPlan||!trialRatio){showToast('請選擇課程類型與比例','r');return}
   if(!teacher){showToast('請選擇授課老師','r');return}
-  const td=todayStr();
+  const dateInput=document.getElementById('trialDate')?.value;
+  const td=dateInput?dateInput.replace(/-/g,'/'):todayStr();
+  if(td>todayStr()){showToast('上課日期不能是未來','r');return;}
+  const isToday=td===todayStr();
   // 防止重複：同名、同老師、同日期的體驗只能有一筆
   const dup=T.find(t=>t.name===name&&t.teacher===teacher&&t.date===td);
-  if(dup){showToast('⚠ 今日已有 '+name+' 的體驗課記錄','r');return;}
-  const newTrial={id:'t'+Date.now(),name,phone,course:trialPlan,ratio:trialRatio,teacher,date:td,time:nowTime(),fee:price,teacherFee:fee,sig:null,manualFee:null,manualNote:''};
+  if(dup){showToast('⚠ '+td+' 已有 '+name+' 的體驗課記錄','r');return;}
+  // noSigNeeded：補登過去日期的體驗課不會有簽名（人已經走了），核對課堂頁要照樣顯示出來讓店長確認消課，
+  // 不能用「有沒有簽名」判斷這筆課有沒有發生過——只有今天現場走這個按鈕的流程才需要真的簽名
+  const newTrial={id:'t'+Date.now(),name,phone,course:trialPlan,ratio:trialRatio,teacher,date:td,time:isToday?nowTime():'',fee:price,teacherFee:fee,sig:null,noSigNeeded:!isToday,manualFee:null,manualNote:isToday?'':'補登'};
   T.push(newTrial);save();
   closeTrialOv();renderStuList();renderTeachers();
   showToast('✓ '+name+' 體驗課已加入');
+  if(!isToday){renderDaily();return;} // 補登過去日期：不是今天發生的事，不用跳簽到畫面
   // 直接跳到體驗課簽到
   curTrialId=newTrial.id;curIsTrialStu=true;
   cardBackTarget='sc-teachers'; // 從首頁「新增體驗」快速操作進來，返回要回首頁
@@ -3971,7 +3982,7 @@ function renderDaily(){
 // 但不能整個 renderDaily() 重來一次（會再觸發一次 renderGcSettle，變成無窮迴圈）
 function renderDailyList(ds){
   const recs=R.filter(r=>r.date===ds);
-  const trialRecs=T.filter(t=>t.date===ds&&t.sig);
+  const trialRecs=T.filter(t=>t.date===ds&&(t.sig||t.noSigNeeded));
   const leaveRecs=L.filter(l=>l.date===ds);
   const el=document.getElementById('dailyContent');
   if(!recs.length&&!trialRecs.length&&!leaveRecs.length){
@@ -4604,7 +4615,7 @@ function confirmAllToday(ds){
     if(dupG){skipped++;return;}
     r.confirmed=true;
   });
-  T.filter(t=>t.date===ds&&t.sig&&!t.confirmed).forEach(t=>t.confirmed=true);
+  T.filter(t=>t.date===ds&&(t.sig||t.noSigNeeded)&&!t.confirmed).forEach(t=>t.confirmed=true);
   save();renderDaily();
   if(document.getElementById('ap-wage').classList.contains('active'))renderWage();
   showToast(skipped?`✓ 已確認消課（${skipped} 堂疑似跟 Google 核銷重複，已跳過，請個別確認）`:'✓ 今日所有課堂已確認消課');
@@ -7869,7 +7880,8 @@ async function gcMatchDay(ds,opts){
           const dup=T.find(t=>t.name===parsed.name&&t.teacher===teacher&&t.date===ds);
           if(!dup){
             const teacherFee=getDefaultFee(teacher,trialCourse+' '+ratio);
-            T.push({id:'t'+Date.now()+Math.random().toString(36).slice(2,6),name:parsed.name,phone:parsed.phone,course:trialCourse,ratio,teacher,date:ds,time,fee:price,teacherFee,sig:null,manualFee:null,manualNote:''});
+            // noSigNeeded：日曆比對自動建立的體驗紀錄不會有現場簽名，核對課堂頁要照樣顯示出來
+            T.push({id:'t'+Date.now()+Math.random().toString(36).slice(2,6),name:parsed.name,phone:parsed.phone,course:trialCourse,ratio,teacher,date:ds,time,fee:price,teacherFee,sig:null,noSigNeeded:true,manualFee:null,manualNote:'GC比對，未簽到'});
             trialAdded++;
             trialsAdded.push({teacher,name:parsed.name,course:trialCourse,ratio,time});
           }
@@ -8339,7 +8351,7 @@ function dayScheduleItems(dateObj){
     it.status=rec?'signed':lv?'leave':'pending';
     if(rec)it.rid=rec.id;
   });
-  T.forEach(t=>{if(t.date===td)items.push({sid:'',tid:t.id,name:t.name,teacher:t.teacher,time:t.time||'',trial:true,evType:'trial',status:t.sig?'signed':'pending'});});
+  T.forEach(t=>{if(t.date===td)items.push({sid:'',tid:t.id,name:t.name,teacher:t.teacher,time:t.time||'',trial:true,evType:'trial',status:(t.sig||t.noSigNeeded)?'signed':'pending'});});
   items.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   return items;
 }
@@ -8512,7 +8524,7 @@ function renderHelper(){
   // 45 天內未確認消課
   const cutoff=fmt(new Date(nowT.getTime()-45*864e5));
   const unconfR=R.filter(r=>r.confirmed===false&&r.date>=cutoff&&r.date<td);
-  const unconfT=T.filter(t=>t.confirmed!==true&&t.date&&t.date>=cutoff&&t.date<td&&t.sig);
+  const unconfT=T.filter(t=>t.confirmed!==true&&t.date&&t.date>=cutoff&&t.date<td&&(t.sig||t.noSigNeeded));
   if(unconfR.length+unconfT.length>0)todos.push({icon:'📝',ttl:`${unconfR.length+unconfT.length} 堂課待確認消課`,sub:'確認後才會計入師資費',jump:'wage-daily',btnLbl:'前往確認 →'});
   const stChip=s=>s==='signed'?'<span style="font-size:10px;background:var(--gold4);color:var(--gold);border-radius:99px;padding:2px 8px">已簽到</span>':s==='leave'?'<span style="font-size:10px;background:var(--purple2,#F0EAF8);color:var(--purple,#7B5EA7);border-radius:99px;padding:2px 8px">請假</span>':'<span style="font-size:10px;background:var(--bg);color:var(--ink3);border-radius:99px;padding:2px 8px">待簽到</span>';
   const card=(ttl,body,extra)=>`<div style="background:var(--white);border:1px solid var(--border);border-radius:13px;padding:14px 16px;margin-bottom:12px">${ttl?`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px"><div style="font-size:13px;font-weight:600;color:var(--ink2);letter-spacing:1px;white-space:nowrap">${ttl}</div>${extra||''}</div>`:''}${body}</div>`;
