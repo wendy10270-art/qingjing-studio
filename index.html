@@ -2220,6 +2220,8 @@ function renderTeachers(){
         <div style="font-size:11px;color:var(--brown3);margin-top:2px">${hEsc(it.teacher||'')} 老師</div>
       </div>
       ${chip(it.status)}
+      ${it.trial&&!trialFeeLogged(it.tid)?`<span onclick="event.stopPropagation();homeTrialFeeTap('${it.tid}')" style="font-size:10px;color:var(--teal);background:var(--teal2);border:1px solid var(--teal3);border-radius:99px;padding:3px 9px;flex-shrink:0;cursor:pointer" title="登記今日收到的體驗課費">💰 收費</span>`:''}
+      ${it.trial&&trialFeeLogged(it.tid)?`<span style="font-size:10px;color:var(--ink3);opacity:.7;flex-shrink:0" title="體驗課費已記入流水帳">$ 已收</span>`:''}
       ${it.status==='signed'&&!it.trial&&it.rid?`<span onclick="event.stopPropagation();openResendLineMsg('${it.rid}')" style="font-size:15px;cursor:pointer;opacity:.6;padding:2px 4px;flex-shrink:0" title="補發 LINE 課後訊息">📨</span>`:''}
       ${it.status==='pending'?`<span onclick="event.stopPropagation();homeRemoveItem('${it.trial?it.tid:it.sid}','${jsQ(it.teacher||'')}','${it.evType}')" style="font-size:15px;color:var(--brown3);opacity:.5;padding:2px 4px;flex-shrink:0" title="這堂排錯了，移除">✕</span>`:''}
     </div>`).join('')}
@@ -2321,6 +2323,48 @@ function homeTrialTap(tid){
   cardBackTarget='sc-teachers'; // 同上
   document.getElementById('cardTitle').textContent=t.name+' (體驗)';
   renderTrialCard(tid);goScreen('sc-card');
+}
+// 這筆體驗課是否已經記入流水帳：優先用 trialId 精準比對（新記錄都會存），
+// 舊資料（後台「登記體驗課費」手動輸入、沒有 trialId）退而用姓名＋日期比對
+function trialFeeLogged(tid){
+  const t=T.find(x=>x.id===tid);if(!t)return false;
+  return LEDGER.some(l=>l.type==='trial'&&(l.trialId===tid||(!l.trialId&&l.name===t.name&&l.payDate===t.date)));
+}
+// 首頁「今日課程」體驗課項目直接登記今日收到的體驗課費，不用跳去後台流水帳找人
+function homeTrialFeeTap(tid){
+  const t=T.find(x=>x.id===tid);if(!t)return;
+  document.getElementById('homeTrialFeeOv')?.remove();
+  const ov=document.createElement('div');
+  ov.id='homeTrialFeeOv';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;display:flex;align-items:flex-end;justify-content:center';
+  ov.onclick=e=>{if(e.target===ov)ov.remove()};
+  ov.innerHTML=`<div style="background:#fff;border-radius:22px 22px 0 0;padding:24px 20px 40px;width:100%;max-width:440px" onclick="event.stopPropagation()">
+    <div style="font-size:17px;font-weight:500;color:var(--brown);margin-bottom:4px">登記體驗課費</div>
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:18px">${hEsc(t.name)}・${hEsc(t.course)} ${hEsc(t.ratio)}・${hEsc(t.teacher||'')}老師</div>
+    <label style="font-size:13px;color:var(--ink2);font-weight:500;display:block;margin-bottom:6px">今天收到的金額</label>
+    <input type="number" id="htfAmount" value="${t.fee||''}" placeholder="例：1200" style="width:100%;margin-bottom:16px;padding:11px 14px;border:1px solid var(--border);border-radius:10px;font-size:15px;font-family:'Noto Sans TC',sans-serif;box-sizing:border-box">
+    <label style="font-size:13px;color:var(--ink2);font-weight:500;display:block;margin-bottom:6px">付款方式</label>
+    <select id="htfPay" style="width:100%;margin-bottom:18px;padding:11px 14px;border:1px solid var(--border);border-radius:10px;font-size:15px;font-family:'Noto Sans TC',sans-serif;box-sizing:border-box;background:#fff">
+      <option value="cash">付現金</option><option value="transfer_fubon">匯款聯邦</option><option value="transfer_cathay">匯款國泰</option><option value="card">刷卡</option>
+    </select>
+    <div style="display:flex;gap:10px">
+      <button onclick="document.getElementById('homeTrialFeeOv').remove()" style="flex:1;padding:13px;background:#f5f5f5;border:none;border-radius:11px;font-size:14px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">取消</button>
+      <button onclick="homeSaveTrialFee('${tid}')" style="flex:2;padding:13px;background:var(--teal);color:#fff;border:none;border-radius:11px;font-size:14px;font-weight:500;cursor:pointer;font-family:'Noto Sans TC',sans-serif">確認收費，記入流水帳</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  setTimeout(()=>document.getElementById('htfAmount')?.focus(),50);
+}
+function homeSaveTrialFee(tid){
+  const t=T.find(x=>x.id===tid);if(!t)return;
+  const amount=parseInt(document.getElementById('htfAmount').value)||0;
+  if(amount<=0){showToast('請輸入金額','r');return;}
+  const payMethod=document.getElementById('htfPay').value;
+  addLedgerEntry({type:'trial',name:t.name,teacher:t.teacher,course:t.course+' '+t.ratio,total:1,price:amount,actualPayment:amount,payMethod,payDate:t.date,bonus:0,bonusPaid:true,bonusNote:'',note:'',trialId:tid});
+  document.getElementById('homeTrialFeeOv')?.remove();
+  showToast('✓ 已記入流水帳 $'+amount.toLocaleString());
+  renderTeachers();
+  if(document.getElementById('ledgerContent'))renderLedger();
 }
 // 首頁「未建檔」→ 開購課登記並帶入姓名電話（建檔＝登記購課）
 function homeGcCreate(i){
@@ -3920,6 +3964,12 @@ function renderDaily(){
   const d=getAdminDate();const ds=fmt(d);
   document.getElementById('aDayTtl').textContent=`${d.getMonth()+1}月${d.getDate()}日（${WD[d.getDay()]}）`;
   document.getElementById('aDayShort').textContent=`${d.getMonth()+1}/${d.getDate()}`;
+  renderDailyList(ds);
+  renderGcSettle(ds);
+}
+// 抽成獨立函式：renderGcSettle 比對完日曆、可能自動補一筆簽到紀錄之後，需要重畫這塊清單，
+// 但不能整個 renderDaily() 重來一次（會再觸發一次 renderGcSettle，變成無窮迴圈）
+function renderDailyList(ds){
   const recs=R.filter(r=>r.date===ds);
   const trialRecs=T.filter(t=>t.date===ds&&t.sig);
   const leaveRecs=L.filter(l=>l.date===ds);
@@ -3927,7 +3977,6 @@ function renderDaily(){
   if(!recs.length&&!trialRecs.length&&!leaveRecs.length){
     // 沒有簽到紀錄仍顯示 GC 核銷區（學員未建檔也能從日曆核銷）
     el.innerHTML='<div class="empty" style="padding:16px 0">今日無簽到紀錄</div><div id="gcSettleArea"></div>';
-    renderGcSettle(ds);
     return;
   }
 
@@ -4020,7 +4069,6 @@ function renderDaily(){
       return'';
     }).join('')}</div>`;
   }).join('')}<div id="gcSettleArea"></div>`;
-  renderGcSettle(ds);
 }
 
 // ── Google 日曆核銷（學員不需建檔、不需簽到，直接以日曆為準核銷師資費；與前台簽到完全脫鉤）──
@@ -4067,52 +4115,45 @@ async function renderGcSettle(ds){
     return;
   }
   el.innerHTML=`<div style="text-align:center;font-size:12px;color:var(--ink3);padding:12px 0"><span style="animation:spin 1s linear infinite;display:inline-block">⟳</span> 正在讀取 Google 日曆課程…</div>`;
-  const d=parseDate(ds);
-  const tMin=encodeURIComponent(new Date(d.getFullYear(),d.getMonth(),d.getDate()).toISOString());
-  const tMax=encodeURIComponent(new Date(d.getFullYear(),d.getMonth(),d.getDate()+1).toISOString());
-  const evs=[];
-  await Promise.all(Object.entries(calMap).map(async([teacher,calId])=>{
-    if(!calId)return;
-    try{
-      const data=await GC.api(`/calendars/${encodeURIComponent(calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=50`);
-      (data.items||[]).forEach(ev=>{if(ev.status!=='cancelled')evs.push({teacher,ev});});
-    }catch(e){console.warn('GC settle read err:',teacher,e);}
-  }));
+  // 日曆比對只做這一次：比對到學員的課，交給 gcMatchDay 自動補一筆待確認簽到（backfillR），
+  // 這張卡片只處理真的比對不到學員的 unmatched 事件——不再自己重新比對一次
+  const{matched,unmatched,rentEvents,rBackfilled,trialAdded}=await gcMatchDay(ds,{writeSch:false,backfillR:true});
   // 該日課表若已換日期重繪，放棄本次結果
   if(fmt(getAdminDate())!==ds)return;
+  // 有補簽紀錄或自動建立的體驗紀錄，都要重畫一次上方「簽到/確認消課」清單（含這個容器本身）
+  // 才會顯示出來；renderDailyList 不會再呼叫 renderGcSettle，所以不會無窮迴圈
+  if(rBackfilled>0||trialAdded>0){save();renderDailyList(ds);}
   const cur=document.getElementById('gcSettleArea');if(!cur)return;
   _gcPend={};
   const rows=[];
-  const rentEvents=[];
-  evs.forEach(({teacher,ev})=>{
-    const parsed=GC.parseTitle(ev.summary||'');if(!parsed)return;
-    const key=ev.iCalUID||ev.id;
-    const time=GC.getTime(ev);
-    if(gcIsRent(parsed.type)){
-      rentEvents.push({key,teacher,time,label:gcRentLabel(parsed.type),note:(parsed.notes||[]).join('・')});
-      return;
-    }
-    const name=cleanGcName(parsed.name);
+  unmatched.forEach(n=>{
+    const key=n.key;
+    const name=cleanGcName(n.name);
     const settled=GW.find(g=>g.gcKey===key);
-    const blocked=!settled&&gcAlreadyPaidElsewhere(name,parsed.phone,ds);
-    let displayTeacher=teacher;
+    // 已比對不到系統學員，理論上不可能又被簽到領過錢，但姓名／電話萬一巧合對到
+    // 別的手動建立的簽到紀錄，這層防呆還是留著，不用它就直接核銷
+    const blocked=!settled&&gcAlreadyPaidElsewhere(name,n.phone,ds);
+    let displayTeacher=n.teacher;
     if(settled){
       displayTeacher=settled.teacher;
     }else if(!blocked){
       const ov=_gcOverride[key]||{};
-      const effTeacher=ov.teacher||teacher;
-      const g=gcGuessFee(effTeacher,parsed.type);
+      const effTeacher=ov.teacher||n.teacher;
+      const g=gcGuessFee(effTeacher,n.calType);
       const fee=(ov.fee!=null)?ov.fee:g.fee;
-      _gcPend[key]={date:ds,time,teacher:effTeacher,name,course:g.course,ratio:g.ratio,fee,gcKey:key,type:parsed.type};
+      _gcPend[key]={date:ds,time:n.time,teacher:effTeacher,name,course:g.course,ratio:g.ratio,fee,gcKey:key,type:n.calType};
       displayTeacher=effTeacher;
     }
-    rows.push({key,teacher:displayTeacher,time,name,type:parsed.type,settled,blocked});
+    rows.push({key,teacher:displayTeacher,time:n.time,name,type:n.calType,settled,blocked});
   });
-  const orphanGW=dayGW.filter(g=>!evs.some(({ev})=>(ev.iCalUID||ev.id)===g.gcKey));
+  // orphanGW：這筆 GW 核銷紀錄原本對應的日曆事件，今天已經不在「比對到」或「沒比對到」
+  // 任何一邊裡了（可能是事件被刪除，也可能是比對邏輯變準了、現在能配對到學員）
+  const evKeys=new Set([...matched.map(m=>m.key),...unmatched.map(n=>n.key)]);
+  const orphanGW=dayGW.filter(g=>!evKeys.has(g.gcKey));
   _rentEvents=rentEvents;
   const rentHTML=_buildRentCardHTML(ds,rentEvents);
   if(!rows.length&&!orphanGW.length){
-    cur.innerHTML=`<div id="gcUnsettledReminder" style="padding:0 0 8px"></div><div style="text-align:center;font-size:12px;color:var(--ink3);padding:12px 0">📅 Google 日曆這天沒有課程</div>`+rentHTML;
+    cur.innerHTML=`<div id="gcUnsettledReminder" style="padding:0 0 8px"></div><div style="text-align:center;font-size:12px;color:var(--ink3);padding:12px 0">📅 今日日曆課程都已比對到學員，不需要另外核銷</div>`+rentHTML;
     renderUnsettledReminder();
     return;
   }
@@ -4120,7 +4161,7 @@ async function renderGcSettle(ds){
   cur.innerHTML=`<div class="daily-tc" style="border:1.5px dashed var(--gold2)">
     <div id="gcUnsettledReminder" style="padding:0 14px 10px"></div>
     <div class="daily-tc-hd">
-      <div><div class="daily-tc-name">📅 Google 日曆核銷</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">日曆 ${rows.length} 堂${pendKeys.length?' ・ 可核銷 '+pendKeys.length+' 堂':''}</div></div>
+      <div><div class="daily-tc-name">📅 Google 日曆核銷</div><div style="font-size:11px;color:var(--ink3);margin-top:2px">未比對學員 ${rows.length} 堂${pendKeys.length?' ・ 可核銷 '+pendKeys.length+' 堂':''}</div></div>
       ${pendKeys.length?`<button onclick="gcSettleAll()" style="background:var(--gold);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;font-weight:500;font-family:'Noto Sans TC',sans-serif">全部核銷</button>`:''}
     </div>
     ${rows.sort((a,b)=>(a.time||'').localeCompare(b.time||'')).map(r=>{
@@ -7341,6 +7382,15 @@ const GC={
     const data=await this.api(`/calendars/${encodeURIComponent(calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=100`);
     return(data.items||[]).filter(ev=>ev.status!=='cancelled');
   },
+  // 跟 todayEvents 同一套邏輯，但抓的是任意日期（ds 格式 YYYY/MM/DD）——
+  // 給 gcMatchDay() 用，讓「核對課堂」翻到歷史日期也能重新比對
+  async dayEvents(calId,ds){
+    const d=parseDate(ds);
+    const tMin=encodeURIComponent(new Date(d.getFullYear(),d.getMonth(),d.getDate()).toISOString());
+    const tMax=encodeURIComponent(new Date(d.getFullYear(),d.getMonth(),d.getDate()+1).toISOString());
+    const data=await this.api(`/calendars/${encodeURIComponent(calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=100`);
+    return(data.items||[]).filter(ev=>ev.status!=='cancelled');
+  },
   async tomorrowEvents(calId){
     const now=new Date(),y=now.getFullYear(),mo=now.getMonth(),d=now.getDate()+1;
     const tMin=encodeURIComponent(new Date(y,mo,d).toISOString());
@@ -7676,127 +7726,193 @@ function deleteHourlyStaff(name){
   showToast('已刪除 '+name);
 }
 
+// 日曆標題裡的體驗課關鍵字可能中英文夾雜（老師常直接打「Pilates體驗1on2」），
+// 對應到 PLANS 的課程名稱才能查到體驗定價、自動建立體驗紀錄（見 gcMatchDay 的體驗判斷）
+function guessTrialCourse(type){
+  const t=type||'';
+  if(/皮拉提斯|pilates/i.test(t))return'器械皮拉提斯';
+  if(/重訓|strength|trx/i.test(t))return'重訓課程';
+  if(/瑜珈|yoga/i.test(t))return'瑜珈課程';
+  return null;
+}
+// 單一事件比對學員：多層比對策略（電話→姓名→去電話姓名→包含比對→共用課卡別名）。
+// 無副作用的純函式，gcMatchDay() 用它逐一比對日曆事件，避免「同步課表」跟「日曆核銷」
+// 各自重新比對一次、比對結果還可能不一致（這正是核銷會重複算錢的根因）。
+function gcMatchStudent(parsed,teacher){
+  const cleanParsedName=(parsed.name||'').replace(/\d+/g,'').replace(/[^一-龥a-zA-Z\s]/g,'').trim();
+  const parsedPhone=(parsed.phone||'').replace(/[\s\-]/g,'');
+  // 先從「此老師」找，找不到再從「所有老師」找（應對空中Amanda等別名情況）
+  let stu=null;
+  for(const scope of[true,false]){
+    const candidates=S.filter(s=>{
+      if(scope&&s.teacher!==teacher)return false;
+      const sp=(s.phone||'').replace(/[\s\-]/g,'');
+      // 1. 電話完整比對
+      if(parsedPhone&&sp&&(sp===parsedPhone||sp.slice(-8)===parsedPhone.slice(-8)))return true;
+      // 2. 完整姓名比對
+      if(s.name&&s.name===parsed.name)return true;
+      // 3. 去除電話後的姓名比對
+      if(cleanParsedName&&s.name&&s.name===cleanParsedName)return true;
+      // 4. 包含比對（日曆名包含系統名，或系統名包含日曆名）
+      // 限制姓名至少 2 個字才能用「包含」比對——單字姓名（如「花」）用包含比對
+      // 幾乎任何日曆標題只要出現那個字就會誤中，曾經把別的老師「芬&花」共用課的
+      // 皮拉提斯出席，誤配到 Amanda 底下單獨一位叫「花」的瑜珈學員身上、扣錯課卡
+      if(s.name&&s.name.length>=2&&parsed.name&&parsed.name.includes(s.name))return true;
+      if(s.name&&s.name.length>=2&&cleanParsedName&&cleanParsedName.includes(s.name))return true;
+      // 5. 共用方案別名比對：系統姓名用「｜」分隔多個人名（如「楊文玉｜怡潔媽｜衣彤」），
+      // 只要其中一個別名跟日曆解析出的姓名相符，就算同一個共用課卡
+      if(s.name&&s.name.includes('｜')){
+        const aliases=s.name.split('｜').map(a=>a.trim()).filter(Boolean);
+        if(aliases.some(a=>a===parsed.name||a===cleanParsedName||(a.length>=2&&parsed.name&&parsed.name.includes(a))||(a.length>=2&&cleanParsedName&&cleanParsedName.includes(a))))return true;
+      }
+      return false;
+    });
+    // 同一人可能同時持有不同課種／不同人數方案的課卡（例如同時買了瑜珈跟皮拉提斯，
+    // 或同時買了 1on1 跟 1on2），電話姓名都比對得上時：
+    // 1. 先試跟日曆標題（parsed.type，如「器械皮拉提斯 1on1」）完全對上課種＋方案的那張
+    // 2. 對不上就先用課種分類（皮拉提斯／重訓／瑜珈，見 getCT()）篩掉課種不符的候選，
+    //    避免像瑜珈跟皮拉提斯課卡同時存在時，因為方案格式對不上就 fallback 到錯的課種
+    // 3. 篩過課種後再試用人數方案（1on1/1on2/1on3）進一步比對
+    // 4. 真的都比對不出來，才退回候選清單第一張（跟以前一樣的保底邏輯）
+    // 例外：日曆標題常常只寫「1on1｜姓名電話」，完全沒提到課種——這種情況下
+    // getCT(parsed.type) 會因為找不到關鍵字而預設猜成瑜珈，若候選課卡橫跨多種課種
+    // 就會系統性地猜錯（例如同時有瑜珈卡跟皮拉提斯卡，永遠猜成瑜珈）。
+    // 這種真的無從判斷課種的情況，寧可交給下方「未能匹配系統學員」讓人工指定，
+    // 也不要用猜的（用猜的等於一直靜默記錯課，本人跟老師都不會發現）。
+    if(candidates.length){
+      // 瑜珈沒有專屬關鍵字（getCT 找不到「皮拉提斯」「重訓」時就預設猜成瑜珈），
+      // 導致日曆標題明明寫著「瑜珈」，這裡卻判定成「沒寫課種、無從判斷」，
+      // 跨課種候選時直接丟進未建檔——即使該學員明明有對應課卡（2026-07-27 查出）。
+      const hasCTKeyword=/皮拉提斯|重訓|瑜珈/.test(parsed.type||'');
+      const distinctCTs=new Set(candidates.map(s=>getCT(s.course||'')));
+      if(!hasCTKeyword&&distinctCTs.size>1){
+        stu=null;
+      }else{
+        const parsedCT=getCT(parsed.type||'');
+        const sameSubject=candidates.filter(s=>s.course&&getCT(s.course)===parsedCT);
+        const pool=sameSubject.length?sameSubject:candidates;
+        const ratioM=(parsed.type||'').match(/1on[123]/);
+        const ratio=ratioM?ratioM[0]:'';
+        // pool 裡如果剩不只一人（例如兩個學員剛好完全同名），且課程內容／人數方案
+        // 都分辨不出是哪一個，以前會無差別 fallback 選 pool[0]，等於用猜的把課扣到
+        // 「候選清單裡排第一個」身上——真的撞到同名時，扣錯課卡本人跟老師都不會發現。
+        // 跟上面 CT 歧義同一個設計哲學：分辨不出來就交給人工指定，不要用猜的
+        // （只有 pool 只剩一人時，選 pool[0] 才是唯一解，不是用猜的）。
+        stu=pool.find(s=>parsed.type&&s.course&&s.course.includes(parsed.type))
+          ||(ratio?pool.find(s=>s.course&&s.course.includes(ratio)):null)
+          ||(pool.length===1?pool[0]:null);
+      }
+    }
+    if(stu)break;
+  }
+  return stu;
+}
+// 統一日曆比對入口：任一天（ds）的日曆事件只在這裡比對一次，「同步課表」跟「日曆核銷」
+// 都改吃這裡的結果，不再各自重新掃一次日曆——徹底避免同一堂課在兩邊都能被領錢的問題。
+// writeSch：比對成功要不要順便寫進 SCH（只有「今天」的即時同步需要）
+// backfillR：比對成功但當天還沒有簽到紀錄時，要不要自動補一筆「待確認」簽到（核對課堂頁用）
+async function gcMatchDay(ds,opts){
+  const writeSch=!!(opts&&opts.writeSch);
+  const backfillR=!!(opts&&opts.backfillR);
+  const calMap=GC.calMap||{};
+  const teachers=Object.keys(calMap);
+  const matched=[],unmatched=[],rentEvents=[],trialsAdded=[];
+  let schAdded=0,rBackfilled=0,trialAdded=0;
+  for(const teacher of teachers){
+    const calId=calMap[teacher];if(!calId)continue;
+    let evs=[];
+    try{evs=await GC.dayEvents(calId,ds);}catch(e){console.warn('GC match day read err:',teacher,e);continue;}
+    for(const ev of evs){
+      const parsed=GC.parseTitle(ev.summary||'');
+      if(!parsed)continue;
+      const key=ev.iCalUID||ev.id;
+      const time=GC.getTime(ev);
+      if(gcIsRent(parsed.type)){
+        rentEvents.push({key,teacher,time,label:gcRentLabel(parsed.type),note:(parsed.notes||[]).join('・')});
+        continue;
+      }
+      const stu=gcMatchStudent(parsed,teacher);
+      if(stu){
+        matched.push({key,teacher,time,stu,parsed});
+        if(writeSch){
+          if(!SCH[ds])SCH[ds]={};
+          if(!SCH[ds][teacher])SCH[ds][teacher]=[];
+          // 歸到「實際開課的日曆老師」名下（代課時顯示代課老師，而非學員原本的老師）
+          if(!SCH[ds][teacher].find(sl=>sl.sid===stu.id)){
+            SCH[ds][teacher].push({sid:stu.id,time,attendeeName:parsed.name||''});
+            schAdded++;
+          }
+        }
+        // 已經有這天的簽到紀錄（不論是否確認）就不用補；課卡堂數用完的異常情況
+        // 靜默跳過（跟前台簽到 confirmSig 用完就擋下的行為一致），不硬塞一筆會透支的紀錄
+        if(backfillR&&!R.some(r=>r.sid===stu.id&&r.date===ds)&&(stu.used||0)<(stu.total||0)){
+          const isSub=teacher!==(stu.teacher||'');
+          stu.used=(stu.used||0)+1;
+          R.push({id:'r'+Date.now()+Math.random().toString(36).slice(2,6),sid:stu.id,date:ds,time,session:stu.used,sig:null,isSub,subTeacher:isSub?teacher:'',isUpgraded:false,upgradedTo:'',upgradeDiff:0,actualFee:getDefaultFee(stu.teacher,stu.course),manualFee:null,manualNote:'GC比對，未簽到',confirmed:false,upgPayMethod:'',feeCollected:false,isRetro:true});
+          rBackfilled++;
+        }
+        continue;
+      }
+      // 標題有「體驗」但比對不到系統學員：正常現象（體驗學員本來就還沒建檔），
+      // 以前一律丟進「未能匹配系統學員」清單，得靠人工點「＋新增」才會出現在今日課表——
+      // 那個按鈕其實是走「購課登記」流程，跟體驗課完全是兩回事，等於今日課表永遠撈不到體驗課
+      // （2026-08-03 查出：週日「Pilates體驗1on2｜陳品妡」就是這樣漏接的）。
+      // 這裡直接依標題判斷課程／比例，能查到體驗定價就自動建一筆體驗紀錄，首頁今日課表就抓得到；
+      // 真的判斷不出課程／比例（PLANS 裡沒有該課程對應人數的體驗定價）才退回未比對清單讓人工處理。
+      if(/體驗/.test(parsed.type)){
+        const trialCourse=guessTrialCourse(parsed.type);
+        const ratioM=(parsed.type||'').match(/1on[123]/i);
+        const ratio=ratioM?ratioM[0].toLowerCase():'1on1';
+        const price=trialCourse&&PLANS[trialCourse]?.trial?.[ratio];
+        if(trialCourse&&price&&parsed.name){
+          const dup=T.find(t=>t.name===parsed.name&&t.teacher===teacher&&t.date===ds);
+          if(!dup){
+            const teacherFee=getDefaultFee(teacher,trialCourse+' '+ratio);
+            T.push({id:'t'+Date.now()+Math.random().toString(36).slice(2,6),name:parsed.name,phone:parsed.phone,course:trialCourse,ratio,teacher,date:ds,time,fee:price,teacherFee,sig:null,manualFee:null,manualNote:''});
+            trialAdded++;
+            trialsAdded.push({teacher,name:parsed.name,course:trialCourse,ratio,time});
+          }
+          continue;
+        }
+      }
+      unmatched.push({key,teacher,name:parsed.name,phone:parsed.phone,calType:parsed.type,time,raw:parsed.raw});
+    }
+  }
+  return{matched,unmatched,rentEvents,schAdded,rBackfilled,trialAdded,trialsAdded};
+}
 async function gcSyncToday(ev,opts){
   const silent=!!(opts&&opts.silent);
   const btn=ev&&ev.target&&typeof ev.target.closest==='function'?ev.target.closest('button'):null;
   const resEl=document.getElementById('gcSyncResult');
   if(resEl&&!silent)resEl.innerHTML='<div style="color:var(--ink3);font-size:13px;padding:8px 0">同步中…</div>';
   if(btn){btn.disabled=true;btn.textContent='同步中…';}
-  const calMap=GC.calMap;
-  const teachers=Object.keys(calMap);
+  const teachers=Object.keys(GC.calMap||{});
   if(!teachers.length){
     if(!silent)showToast('請先設定老師日曆對照','r');
     if(btn){btn.disabled=false;btn.textContent='📥 從 Google 日曆匯入今日課表';}
     return;
   }
   const td=todayStr();
-  let added=0,skipped=0,notFound=[];const log=[];
   try{
-    for(const teacher of teachers){
-      const calId=calMap[teacher];if(!calId)continue;
-      let evs=[];
-      try{evs=await GC.todayEvents(calId);}catch(e){log.push(`⚠ ${teacher} 日曆讀取失敗：${e.message}`);continue;}
-      for(const ev of evs){
-        const parsed=GC.parseTitle(ev.summary||'');
-        if(!parsed)continue;
-        if(gcIsRent(parsed.type))continue; // 場租不是學員課程，交給「薪資結算→核對課堂」的場租區塊處理
-        const time=GC.getTime(ev);
-        // 尋找學員：多層比對策略
-        const cleanParsedName=(parsed.name||'').replace(/\d+/g,'').replace(/[^一-龥a-zA-Z\s]/g,'').trim();
-        const parsedPhone=(parsed.phone||'').replace(/[\s\-]/g,'');
-        // 先從「此老師」找，找不到再從「所有老師」找（應對空中Amanda等別名情況）
-        let stu=null;
-        for(const scope of[true,false]){
-          const candidates=S.filter(s=>{
-            if(scope&&s.teacher!==teacher)return false;
-            const sp=(s.phone||'').replace(/[\s\-]/g,'');
-            // 1. 電話完整比對
-            if(parsedPhone&&sp&&(sp===parsedPhone||sp.slice(-8)===parsedPhone.slice(-8)))return true;
-            // 2. 完整姓名比對
-            if(s.name&&s.name===parsed.name)return true;
-            // 3. 去除電話後的姓名比對
-            if(cleanParsedName&&s.name&&s.name===cleanParsedName)return true;
-            // 4. 包含比對（日曆名包含系統名，或系統名包含日曆名）
-            // 限制姓名至少 2 個字才能用「包含」比對——單字姓名（如「花」）用包含比對
-            // 幾乎任何日曆標題只要出現那個字就會誤中，曾經把別的老師「芬&花」共用課的
-            // 皮拉提斯出席，誤配到 Amanda 底下單獨一位叫「花」的瑜珈學員身上、扣錯課卡
-            if(s.name&&s.name.length>=2&&parsed.name&&parsed.name.includes(s.name))return true;
-            if(s.name&&s.name.length>=2&&cleanParsedName&&cleanParsedName.includes(s.name))return true;
-            // 5. 共用方案別名比對：系統姓名用「｜」分隔多個人名（如「楊文玉｜怡潔媽｜衣彤」），
-            // 只要其中一個別名跟日曆解析出的姓名相符，就算同一個共用課卡
-            if(s.name&&s.name.includes('｜')){
-              const aliases=s.name.split('｜').map(a=>a.trim()).filter(Boolean);
-              if(aliases.some(a=>a===parsed.name||a===cleanParsedName||(a.length>=2&&parsed.name&&parsed.name.includes(a))||(a.length>=2&&cleanParsedName&&cleanParsedName.includes(a))))return true;
-            }
-            return false;
-          });
-          // 同一人可能同時持有不同課種／不同人數方案的課卡（例如同時買了瑜珈跟皮拉提斯，
-          // 或同時買了 1on1 跟 1on2），電話姓名都比對得上時：
-          // 1. 先試跟日曆標題（parsed.type，如「器械皮拉提斯 1on1」）完全對上課種＋方案的那張
-          // 2. 對不上就先用課種分類（皮拉提斯／重訓／瑜珈，見 getCT()）篩掉課種不符的候選，
-          //    避免像瑜珈跟皮拉提斯課卡同時存在時，因為方案格式對不上就 fallback 到錯的課種
-          // 3. 篩過課種後再試用人數方案（1on1/1on2/1on3）進一步比對
-          // 4. 真的都比對不出來，才退回候選清單第一張（跟以前一樣的保底邏輯）
-          // 例外：日曆標題常常只寫「1on1｜姓名電話」，完全沒提到課種——這種情況下
-          // getCT(parsed.type) 會因為找不到關鍵字而預設猜成瑜珈，若候選課卡橫跨多種課種
-          // 就會系統性地猜錯（例如同時有瑜珈卡跟皮拉提斯卡，永遠猜成瑜珈）。
-          // 這種真的無從判斷課種的情況，寧可交給下方「未能匹配系統學員」讓人工指定，
-          // 也不要用猜的（用猜的等於一直靜默記錯課，本人跟老師都不會發現）。
-          if(candidates.length){
-            // 瑜珈沒有專屬關鍵字（getCT 找不到「皮拉提斯」「重訓」時就預設猜成瑜珈），
-            // 導致日曆標題明明寫著「瑜珈」，這裡卻判定成「沒寫課種、無從判斷」，
-            // 跨課種候選時直接丟進未建檔——即使該學員明明有對應課卡（2026-07-27 查出）。
-            const hasCTKeyword=/皮拉提斯|重訓|瑜珈/.test(parsed.type||'');
-            const distinctCTs=new Set(candidates.map(s=>getCT(s.course||'')));
-            if(!hasCTKeyword&&distinctCTs.size>1){
-              stu=null;
-            }else{
-              const parsedCT=getCT(parsed.type||'');
-              const sameSubject=candidates.filter(s=>s.course&&getCT(s.course)===parsedCT);
-              const pool=sameSubject.length?sameSubject:candidates;
-              const ratioM=(parsed.type||'').match(/1on[123]/);
-              const ratio=ratioM?ratioM[0]:'';
-              // pool 裡如果剩不只一人（例如兩個學員剛好完全同名），且課程內容／人數方案
-              // 都分辨不出是哪一個，以前會無差別 fallback 選 pool[0]，等於用猜的把課扣到
-              // 「候選清單裡排第一個」身上——真的撞到同名時，扣錯課卡本人跟老師都不會發現。
-              // 跟上面 CT 歧義同一個設計哲學：分辨不出來就交給人工指定，不要用猜的
-              // （只有 pool 只剩一人時，選 pool[0] 才是唯一解，不是用猜的）。
-              stu=pool.find(s=>parsed.type&&s.course&&s.course.includes(parsed.type))
-                ||(ratio?pool.find(s=>s.course&&s.course.includes(ratio)):null)
-                ||(pool.length===1?pool[0]:null);
-            }
-          }
-          if(stu)break;
-        }
-        if(stu){
-          // 歸到「實際開課的日曆老師」名下（代課時顯示代課老師，而非學員原本的老師）
-          const actualTeacher=teacher;
-          if(!SCH[td])SCH[td]={};
-          if(!SCH[td][actualTeacher])SCH[td][actualTeacher]=[];
-          if(!SCH[td][actualTeacher].find(sl=>sl.sid===stu.id)){
-            // attendeeName：記錄這堂課日曆上實際解析出的姓名（共用課卡時，用來判斷提醒要發給誰）
-            SCH[td][actualTeacher].push({sid:stu.id,time,attendeeName:parsed.name||''});
-            added++;
-            log.push(`✓ ${actualTeacher}・${stu.name}・${time}`);
-          }else{skipped++;}
-        }else{
-          notFound.push({teacher,name:parsed.name,phone:parsed.phone,calType:parsed.type,time,raw:parsed.raw});
-          log.push(`⚠ 未找到學員：${teacher}・${parsed.name}${parsed.phone?' ('+parsed.phone+')':''}・${time}`);
-        }
-      }
-    }
-    if(added>0){markSchChanged();save();renderSchEditor();}
+    const{matched,unmatched,schAdded,rBackfilled,trialAdded,trialsAdded}=await gcMatchDay(td,{writeSch:true,backfillR:true});
+    if(schAdded>0)markSchChanged();
+    if(schAdded>0||rBackfilled>0||trialAdded>0)save();
+    renderSchEditor();
+    const added=schAdded+trialAdded,skipped=matched.length-schAdded;
+    const log=matched.map(m=>`✓ ${m.teacher}・${m.stu.name}・${m.time}`)
+      .concat(trialsAdded.map(t=>`✓ ${t.teacher}・${t.name}・${t.time}（體驗 ${t.course} ${t.ratio}）`))
+      .concat(unmatched.map(n=>`⚠ 未找到學員：${n.teacher}・${n.name}${n.phone?' ('+n.phone+')':''}・${n.time}`));
     let html=`<div style="background:#E8F7EF;border:1px solid #90D4B0;border-radius:9px;padding:12px 14px;font-size:13px;color:var(--green)">
       <div style="font-weight:500;margin-bottom:6px">✓ 匯入完成：新增 ${added} 堂、略過重複 ${skipped} 筆</div>
       <div style="font-size:12px;color:var(--ink2);line-height:2">${log.map(l=>`${l}`).join('<br>')}</div>
     </div>`;
     // 存到全局：後台手動對應用，也讓首頁列出「未建檔」學員
-    window._gcNotFound=notFound;
+    window._gcNotFound=unmatched;
     window._gcNotFoundDate=td;
-    if(notFound.length){
+    if(unmatched.length){
       html+=`<div style="margin-top:10px;background:#FFF4EE;border:1px solid #F5C4A1;border-radius:9px;padding:12px 14px;font-size:12px;color:#C05A20">
         <div style="font-weight:500;margin-bottom:8px">⚠ 以下課程未能匹配系統學員</div>
-        ${notFound.map((n,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F5D4B0">
+        ${unmatched.map((n,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F5D4B0">
           <div style="flex:1;font-size:11px">・${n.teacher} / ${n.calType} / ${n.name}${n.phone?' '+n.phone:''} / ${n.time}</div>
           <div style="display:flex;gap:5px;flex-shrink:0;margin-left:8px">
             <button onclick="gcManualMatch(${i},'${td}')" style="padding:4px 10px;background:#E87D3E;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">指定學員</button>
@@ -7807,7 +7923,7 @@ async function gcSyncToday(ev,opts){
     }
     if(resEl&&!silent)resEl.innerHTML=html;
     if(!silent)showToast('✓ 今日課表同步完成');
-    else if(added>0){try{renderTeachers();}catch(e){}showToast('🔄 課表已更新（新增 '+added+' 堂）');}
+    else if(added>0||rBackfilled>0){try{renderTeachers();}catch(e){}showToast('🔄 課表已更新（新增 '+added+' 堂）');}
   }catch(e){
     if(resEl&&!silent)resEl.innerHTML=`<div style="color:var(--red);font-size:13px;padding:8px 0">同步失敗：${e.message}</div>`;
     if(!silent)showToast('同步失敗：'+e.message,'r');
