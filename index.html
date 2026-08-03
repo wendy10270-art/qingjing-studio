@@ -4260,8 +4260,38 @@ function gcRentSavePrepaid(key){
   RENT.push({id:'rent'+Date.now(),date:ds,time:e.time||'',teacher:e.teacher,label:e.label,fee:0,mode:'prepaid',gcKey:key,createdAt:todayStr(),remainingAfter:cfg.remaining});
   saveRent();
   showToast('✓ 已扣1堂，'+e.teacher+'老師剩餘'+cfg.remaining+'堂');
-  pushTeacherLineMessage(e.teacher,e.teacher+'老師您好，\n今天已扣1堂場租，目前剩餘 '+cfg.remaining+' 堂'+(cfg.remaining<=3?'，堂數快用完囉，記得跟店長確認加購～':'')+'。\n\n輕境運動工作室');
+  sendRentPrepaidSummary(e.teacher,ds,e.time,cfg.remaining,cfg.total).catch(err=>console.warn('rent summary push failed:',err));
   renderDaily();
+}
+// 場租扣堂通知：老師反映「不清楚是扣哪一堂」，所以除了寫明這堂的確切日期時間，
+// 還把已扣紀錄（每次使用的日期）、原本購買的總堂數、未來已在日曆排定的場租一併列出，一則訊息看清全貌
+async function sendRentPrepaidSummary(teacher,ds,time,remaining,total){
+  const wd=WD[parseDate(ds).getDay()];
+  const history=RENT.filter(r=>r.teacher===teacher&&r.mode==='prepaid').sort((a,b)=>a.date.localeCompare(b.date)).map(r=>r.date.slice(5)+(r.time?' '+r.time:''));
+  let future=[];
+  try{
+    if(typeof GC!=='undefined'&&GC.ok()){
+      const calId=(GC.calMap||{})[teacher];
+      if(calId){
+        const now=new Date();
+        const tMin=encodeURIComponent(now.toISOString());
+        const tMax=encodeURIComponent(new Date(now.getTime()+210*864e5).toISOString());
+        const data=await GC.api(`/calendars/${encodeURIComponent(calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=250`);
+        (data.items||[]).forEach(ev=>{
+          if(ev.status==='cancelled')return;
+          const parsed=GC.parseTitle(ev.summary||'');if(!parsed||!gcIsRent(parsed.type))return;
+          const startStr=ev.start&&(ev.start.dateTime||ev.start.date);if(!startStr)return;
+          future.push(fmt(new Date(startStr)).slice(5)+(ev.start.dateTime?' '+GC.getTime(ev):''));
+        });
+      }
+    }
+  }catch(err){console.warn('rent summary future fetch err:',err);}
+  let msg=teacher+'老師您好，\n'+ds+'（星期'+wd+'）'+(time?time+' ':'')+'這堂已扣1堂場租。\n\n';
+  if(total)msg+='🎫 原購買方案：共'+total+'堂\n\n';
+  msg+='📋 已扣紀錄（共'+history.length+'堂）：\n'+(history.join('、')||'無')+'\n\n';
+  if(future.length)msg+='📅 未來已排場租（'+future.length+'堂）：\n'+future.join('、')+'\n\n';
+  msg+='目前剩餘 '+remaining+' 堂'+(total?'／'+total+'堂':'')+(remaining<=3?'，堂數快用完囉，記得跟店長確認加購～':'')+'。\n\n輕境運動工作室';
+  await pushTeacherLineMessage(teacher,msg);
 }
 // 通用老師端 LINE 推播（老師需已用手機號碼＋LINE綁定；沒綁定就靜默略過，不影響呼叫端的主要動作）
 // 回傳是否真的推播成功（fetch 本身不會因為 HTTP 錯誤狀態 throw，一定要自己檢查 res.ok／回傳的 ok 欄位，
