@@ -515,11 +515,10 @@ input:focus,select:focus{border-color:var(--gold2)}
   #sc-success #successActions{grid-column:1/-1;max-width:320px;margin:24px auto 0}
 }
 </style>
-<!-- Firebase App Check：證明讀寫資料庫的請求真的來自這個網站，不是任何人拿著公開 API Key
-     亂打的。只載入 app-compat / app-check-compat 這兩支，不用整包 Firebase SDK，資料庫
-     本身還是用下面的裸 REST API（db.ref...），只是每次 fetch 會附上 App Check 核發的權杖。 -->
+<!-- Firebase 匿名登入：證明讀寫資料庫的請求真的來自這個網站，不是任何人拿著公開 API Key
+     亂打的。只載入 app-compat / auth-compat 這兩支，不用整包 Firebase SDK，資料庫本身
+     還是用下面的裸 REST API（db.ref...），只是每次 fetch 會附上登入權杖（?auth=）。 -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script>
 // Firebase REST API（不需外部 SDK，任何瀏覽器都能跑）
@@ -552,11 +551,8 @@ function fbCheck(r){
   });
 }
 
-// ── Firebase App Check：啟用後每次 db.ref(...) 讀寫都會帶上這個權杖 ──
-// 整段包 try/catch，是因為 App Check 依賴外部載入 reCAPTCHA、可能因網路/瀏覽器擴充功能/CSP
-// 等各種環境因素失敗——這支功能只是「多一層驗證」，絕對不能因為它掛掉就連累 db 沒被定義，
-// 導致整個 App 連最基本的讀寫資料庫都做不到（親眼測到過這個失敗模式，才加這層防護）。
-let _appCheck=null;
+// 整段包 try/catch，避免任何初始化例外連累 db 沒被定義，導致整個 App 連最基本的
+// 讀寫資料庫都做不到（親眼測到過這個失敗模式，才加這層防護）。
 try{
   firebase.initializeApp({
     apiKey:'AIzaSyBg3_toi-Kqyi9iw2IbW9C5HhkbgJappxI',
@@ -570,11 +566,9 @@ try{
 }catch(e){
   console.warn('firebase.initializeApp 失敗：',e);
 }
-// ── 匿名登入：真正用來鎖資料庫的機制（2026-08-05 換掉 App Check + reCAPTCHA）──
-// App Check 那條路查了三次都卡在 Google reCAPTCHA 服務跟這版 SDK 兜不起來，改用 Firebase
-// 內建的匿名登入：使用者完全無感（不用輸入帳密），登入後資料庫規則只要求 auth != null，
-// 比依賴第三方 reCAPTCHA 服務單純、穩定很多。_authReady 讓 db.ref(...) 的呼叫都能等到
-// 登入完成再送出，避免第一批請求因為還沒登入而被規則擋下來。
+// ── 匿名登入：用來鎖資料庫的機制（2026-08-05 換掉 App Check + reCAPTCHA，原因見 git log）──
+// 使用者完全無感（不用輸入帳密），登入後資料庫規則只要求 auth != null。_authReady 讓
+// db.ref(...) 的呼叫都能等到登入完成再送出，避免第一批請求因為還沒登入而被規則擋下來。
 let _authReady=null;
 try{
   _authReady=firebase.auth().signInAnonymously()
@@ -593,39 +587,6 @@ async function _authToken(){
     return null;
   }
 }
-// activate() 內部（reCAPTCHA v3 provider）會 document.body.appendChild(...)，這支 script
-// 卻是放在 <head> 裡先執行、此時 <body> 還不存在，會直接丟例外——所以延到 DOMContentLoaded
-// 之後才真的啟用，之前這段時間 _appCheck 保持 null，_appCheckHeaders() 就不附權杖，一樣安全。
-function _activateAppCheck(){
-  try{
-    _appCheck=firebase.appCheck();
-    // 舊 key（6Lf0vVkt...）是掛在 Google Cloud reCAPTCHA Enterprise 底下的怪狀態，不管用
-    // classic 或 Enterprise provider 都打不通（2026-07-27 查了一整輪還是 400，放棄），
-    // 改用全新申請的 classic v3 key。
-    // 2026-08-05 查出這把 key 從申請那天起就打錯一個字元（...Ak7IQB35T2D 的 I 應該是小寫 l），
-    // 導致 Google 完全不認得這把「不存在」的 key，一直報 recaptcha-error——網域、金鑰類型
-    // 都是對的，就差這一個字元。直接從 reCAPTCHA 後台複製貼上校正，不要再手動謄打。
-    _appCheck.activate('6LdV3mctAAAAACksvxq73xZQ6lyXlAk7lQB35T2D',true); // true = 權杖快過期時自動換新
-  }catch(e){
-    console.warn('Firebase App Check 啟用失敗，改用不附權杖的方式繼續運作：',e);
-    _appCheck=null;
-  }
-}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',_activateAppCheck);
-else _activateAppCheck();
-// 目前資料庫規則還沒開始強制驗證 App Check（先確認權杖真的能正常核發、不會誤擋店長自己），
-// 所以這裡拿不到權杖時安靜地不附標頭即可，不影響原本的讀寫流程
-async function _appCheckHeaders(){
-  if(!_appCheck)return{};
-  try{
-    const {token}=await _appCheck.getToken();
-    return {'X-Firebase-AppCheck':token};
-  }catch(e){
-    console.warn('App Check token 取得失敗:',e);
-    return {};
-  }
-}
-
 // 資料庫規則收緊後，REST API 要求每個請求都帶登入權杖，用 ?auth= 帶最相容（比自訂
 // Authorization header 更少踩到瀏覽器/快取的邊角案例，Realtime Database REST API 原生支援）
 async function _authQuery(){
@@ -636,25 +597,22 @@ const db={
   ref: function(path){
     return {
       set: async function(data){
-        const headers=Object.assign({'Content-Type':'application/json'},await _appCheckHeaders());
         return fetch(FB_URL+'/'+path+'.json'+await _authQuery(),{
           method:'PUT',
-          headers,
+          headers:{'Content-Type':'application/json'},
           body:JSON.stringify(data)
         }).then(fbCheck);
       },
       // PATCH = 部分更新，不覆蓋未提供的欄位（用於簽到等不改課表的操作）
       patch: async function(data){
-        const headers=Object.assign({'Content-Type':'application/json'},await _appCheckHeaders());
         return fetch(FB_URL+'/'+path+'.json'+await _authQuery(),{
           method:'PATCH',
-          headers,
+          headers:{'Content-Type':'application/json'},
           body:JSON.stringify(data)
         }).then(fbCheck);
       },
       once: async function(event){
-        const headers=await _appCheckHeaders();
-        return fetch(FB_URL+'/'+path+'.json'+await _authQuery(),{headers})
+        return fetch(FB_URL+'/'+path+'.json'+await _authQuery())
           .then(fbCheck)
           .then(data=>({val:()=>data}));
       }
