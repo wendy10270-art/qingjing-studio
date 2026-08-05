@@ -178,6 +178,32 @@ body{background:var(--bg);color:var(--ink);font-size:15px;display:flex;flex-dire
 .cell.memo-empty{cursor:pointer}
 .cell-note{font-size:7px;color:var(--gold);padding:1px 5px 3px;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;margin:0 2px;word-break:break-all;flex:1}
 .cell.has-note .cell-num{color:var(--gold2)}
+
+/* 課程進度：直向清單（像紙本簽到簿一行一堂，取代原本的格子牆，2026-08-05 改版） */
+.prow-wrap{display:flex;flex-direction:column;gap:6px;padding:6px 15px 15px}
+.prow{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;border:1px solid var(--border);background:var(--white);cursor:pointer}
+.prow-num{flex-shrink:0;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;background:var(--bg);color:var(--ink3)}
+.prow-body{flex:1;min-width:0}
+.prow-main{font-size:13.5px;color:var(--ink);font-weight:500}
+.prow-tags{display:flex;gap:5px;margin-top:4px}
+.prow-tag{font-size:10px;padding:2px 8px;border-radius:99px;background:var(--bg2);color:var(--ink3)}
+.prow-side{flex-shrink:0;display:flex;align-items:center;gap:6px}
+.prow-sig{width:46px;height:28px;object-fit:contain;border-radius:5px;background:var(--bg)}
+.prow-note-badge{font-size:11px;line-height:1;background:var(--gold);color:#fff;border-radius:99px;width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.prow.signed{background:var(--gold4);border-color:var(--gold2)}
+.prow.signed .prow-num{background:var(--gold2);color:#fff}
+.prow.paper{background:var(--bg2);border-style:dashed}
+.prow.paper .prow-num{background:var(--ink3);color:#fff}
+.prow.retro{background:#EDE8FF;border-color:#C4B0F0}
+.prow.retro .prow-num{background:#6B3FA0;color:#fff}
+.prow.sub{background:var(--blue2);border-color:var(--blue3)}
+.prow.sub .prow-num{background:var(--blue);color:#fff}
+.prow.upgraded{background:var(--orange2);border-color:var(--orange3)}
+.prow.upgraded .prow-num{background:var(--orange);color:#fff}
+.prow.next{border:2px solid var(--gold);box-shadow:0 0 0 3px var(--gold3);background:var(--gold4);animation:pulse 2s infinite}
+.prow.next .prow-num{background:var(--gold);color:#fff}
+.prow.next .prow-main{color:var(--gold);font-weight:700}
+.prow.future .prow-main{color:var(--ink3);font-weight:400}
 .grid-legend{display:flex;gap:13px;font-size:11px;color:var(--ink3);margin-top:9px;flex-wrap:wrap}
 .leg-dot{width:11px;height:11px;border-radius:2px;display:inline-block;margin-right:3px;vertical-align:middle}
 
@@ -2808,29 +2834,39 @@ function renderCard(sid){
     </div>
     <div class="course-type-row"><div class="course-type-name">${parts[0]||''}</div><div class="course-ratio">${parts[1]||''}</div><div style="flex:1"></div><div style="font-size:12px;color:var(--ink3)">${s.used}／${s.total} 堂（${pct}%）</div></div>
   </div>`;
-  // 格子
+  // 課程進度：直向清單，一行一堂，像紙本簽到簿由上往下排，「本次」那一行金框放大凸顯
+  // （2026-08-05 從格子牆改版：學員視角測試發現格子牆看不出「現在第幾堂」，備注塞在小格子裡也看不清楚）
   let cells='';
-  for(let i=1;i<=30;i++){
-    if(i>s.total){cells+=`<div class="cell beyond"><div class="cell-num" style="color:var(--border)">${i}</div></div>`;continue}
+  for(let i=1;i<=s.total;i++){
     const rec=recs.find(r=>r.session===i);const isNext=!rec&&i===s.used+1;
+    const cn=s.cellNotes?.[i]||'';
+    const noteBadge=cn?`<span class="prow-note-badge" title="${hEsc(cn)}">📝</span>`:'';
     if(rec){
       const isPaper=rec.note==='紙本簽到';
       const isRetro=!!rec.isRetro;
-      let cls='cell '+(isPaper?'paper-signed':isRetro?'retro-signed':rec.isUpgraded?'upgraded':rec.isSub?'sub-signed':'signed');
-      const iconColor=isPaper?'var(--ink3)':isRetro?'#6B3FA0':rec.isUpgraded?'var(--orange)':rec.isSub?'var(--blue)':'var(--gold2)';
-      const cn=s.cellNotes?.[i]||'';
-      cells+=`<div class="${cls}" onclick="editCellNote(${i})" style="cursor:pointer"><div class="cell-num">${i}</div>
-        <div class="cell-date">${isPaper?'紙本簽到':isRetro?'補簽：'+fmtFullDate(rec.date):fmtFullDate(rec.date)+'<br>'+rec.time}</div>
-        <div class="cell-img">${rec.sig?`<img src="${rec.sig}">`:`<span style="font-size:16px;color:${iconColor}">✓</span>`}</div>
-        ${isPaper?`<div class="cell-paper-tag">紙本</div>`:isRetro?`<div class="cell-paper-tag" style="background:#EDE8FF;color:#6B3FA0;border-color:#C4B0F0">補簽</div>`:rec.isUpgraded?`<div class="cell-up-tag">↑${rec.upgradedTo}</div>`:rec.isSub?`<div class="cell-sub-tag">代課</div>`:''}
-        ${cn?`<span class="cell-note-badge">📝</span>`:''}</div>`;
+      const cls='prow '+(isPaper?'paper':isRetro?'retro':rec.isUpgraded?'upgraded':rec.isSub?'sub':'signed');
+      const mainTxt=isPaper?'紙本簽到':isRetro?'補簽：'+fmtFullDate(rec.date):fmtFullDate(rec.date)+(rec.time?'　'+rec.time:'');
+      const tags=[rec.isUpgraded?`↑升級 ${rec.upgradedTo}`:'',rec.isSub?'代課':''].filter(Boolean);
+      cells+=`<div class="${cls}" onclick="editCellNote(${i})">
+        <div class="prow-num">${i}</div>
+        <div class="prow-body">
+          <div class="prow-main">${mainTxt}</div>
+          ${tags.length?`<div class="prow-tags">${tags.map(t=>`<span class="prow-tag">${t}</span>`).join('')}</div>`:''}
+        </div>
+        <div class="prow-side">${rec.sig?`<img class="prow-sig" src="${rec.sig}">`:'<span style="color:var(--gold2);font-size:16px">✓</span>'}${noteBadge}</div>
+      </div>`;
     } else if(isNext){
-      const cn=s.cellNotes?.[i]||'';
-      cells+=`<div class="cell next-up" onclick="editCellNote(${i})"><div class="cell-num">${i}</div><div class="cell-img" style="padding-top:7px"><svg width="24" height="13" viewBox="0 0 38 20"><path d="M3 10 Q11 3 19 10 Q27 17 35 10" stroke="#C4973A" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg></div><div class="cell-tap">本次</div>${cn?`<span class="cell-note-badge">📝</span>`:''}</div>`;
+      cells+=`<div class="prow next" onclick="editCellNote(${i})">
+        <div class="prow-num">${i}</div>
+        <div class="prow-body"><div class="prow-main">👉 本次上課，準備簽到</div></div>
+        <div class="prow-side">${noteBadge}</div>
+      </div>`;
     } else {
-      const cn=s.cellNotes?.[i]||'';
-      if(cn){cells+=`<div class="cell has-note" onclick="editCellNote(${i})"><div class="cell-num">${i}</div><span class="cell-note-badge">📝</span></div>`;}
-      else{cells+=`<div class="cell memo-empty" onclick="editCellNote(${i})"><div class="cell-num">${i}</div></div>`;}
+      cells+=`<div class="prow future" onclick="editCellNote(${i})">
+        <div class="prow-num">${i}</div>
+        <div class="prow-body"><div class="prow-main">尚未簽到</div></div>
+        <div class="prow-side">${noteBadge}</div>
+      </div>`;
     }
   }
   // 備注一覽：格子太小塞不下完整文字，這裡列出所有有備注的堂數，字看得清楚、點了直接編輯
@@ -2841,7 +2877,7 @@ function renderCard(sid){
       <div style="font-size:13px;color:var(--ink2);white-space:pre-wrap;flex:1">${v.replace(/</g,'&lt;')}</div>
     </div>`).join('')}
   </div></div>`:'';
-  document.getElementById('gridCard').innerHTML=`<div class="card"><div class="card-hd">課程進度</div><div class="grid-wrap"><div class="grid">${cells}</div><div class="grid-legend" style="margin-top:9px"><span><span class="leg-dot" style="background:var(--gold4);border:1px solid var(--gold2)"></span>已完成</span><span><span class="leg-dot" style="background:var(--blue2);border:1px solid var(--blue3)"></span>代課</span><span><span class="leg-dot" style="background:var(--orange2);border:1px solid var(--orange3)"></span>升級</span><span><span class="leg-dot" style="border:2px solid var(--gold)"></span>本次</span></div></div></div>${notesList}`;
+  document.getElementById('gridCard').innerHTML=`<div class="card"><div class="card-hd">課程進度・第 ${Math.min(s.used+1,s.total)}／${s.total} 堂</div><div class="prow-wrap">${cells}</div></div>${notesList}`;
   // 接下來的課程日期表（在 signArea 之前渲染，避免 early return 漏掉）
   renderUpcomingArea(sid,'cardUpcomingArea');
 
