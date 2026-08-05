@@ -523,7 +523,10 @@ input:focus,select:focus{border-color:var(--gold2)}
   #sc-card #cardTop{grid-area:top}
   #sc-card #gridCard{grid-area:grid}
   #sc-card #cardUpcomingArea{grid-area:upcoming;margin:14px 0 0!important} /* 接下來的課程跟簽名放同一欄，簽名下方 */
-  #sc-card #signArea{grid-area:sign}
+  /* 課程進度改直向清單後，堂數多的課卡（例如買20堂）左欄會拉得比簽名區高很多，
+     簽名區不 sticky 的話會固定在最上面，右邊留下一大塊空白，捲動時也要往上滑才找得到
+     簽名區——改成貼齊螢幕頂端，捲動課程清單時簽名區隨時都在，不會出現這塊空白 */
+  #sc-card #signArea{grid-area:sign;position:sticky;top:18px}
 
   #sc-success .sc-pad{max-width:960px;margin:0 auto}
   #sc-success .success-wrap{
