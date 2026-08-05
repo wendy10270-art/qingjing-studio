@@ -1,0 +1,18 @@
+name: 每日補齊漏簽的日曆比對紀錄
+# 紙本簽到跟 App 並行，店員常忘記在 App 也點簽到——這支排程在每天結束前直接查
+# Google 日曆，把「日曆比對到但 App 裡沒有簽到紀錄」的學員補一筆待確認紀錄，
+# 保證不管當天有沒有人開過 App 都會執行一次。補進去的一律待確認，不會直接算錢，
+# 需要店長到「核對課堂」手動確認才會計入師資費。詳見 scripts/gc_backfill.py 開頭說明。
+on:
+  schedule:
+    - cron: '30 15 * * *'   # UTC 15:30 = 台北 23:30，等當天課都上完才跑
+  workflow_dispatch: {}
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 補齊今日漏簽紀錄
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python3 scripts/gc_backfill.py
