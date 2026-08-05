@@ -196,6 +196,9 @@ body{background:var(--bg);color:var(--ink);font-size:15px;display:flex;flex-dire
 .prow.paper .prow-num{background:var(--ink3);color:#fff}
 .prow.retro{background:#EDE8FF;border-color:#C4B0F0}
 .prow.retro .prow-num{background:#6B3FA0;color:#fff}
+.prow.gcauto{background:var(--orange2);border-color:var(--orange3);border-style:dashed}
+.prow.gcauto .prow-num{background:var(--orange);color:#fff}
+.prow.gcauto .prow-main{color:var(--orange)}
 .prow.sub{background:var(--blue2);border-color:var(--blue3)}
 .prow.sub .prow-num{background:var(--blue);color:#fff}
 .prow.upgraded{background:var(--orange2);border-color:var(--orange3)}
@@ -2846,9 +2849,13 @@ function renderCard(sid){
     const noteBadge=cn?`<span class="prow-note-badge" title="${hEsc(cn)}">📝</span>`:'';
     if(rec){
       const isPaper=rec.note==='紙本簽到';
-      const isRetro=!!rec.isRetro;
-      const cls='prow '+(isPaper?'paper':isRetro?'retro':rec.isUpgraded?'upgraded':rec.isSub?'sub':'signed');
-      const mainTxt=isPaper?'紙本簽到':isRetro?'補簽：'+fmtFullDate(rec.date):fmtFullDate(rec.date)+(rec.time?'　'+rec.time:'');
+      // gcBackfilled：系統自己比對 Google 日曆補上的，本人並沒有親自簽名，
+      // 跟店員手動「補登過去某堂課」（isRetro 但不是 gcBackfilled）要分開標示，
+      // 不然店長看不出這堂到底是誰簽的、什麼時候簽的（2026-08-05 店長要求）
+      const isGcAuto=!!rec.gcBackfilled;
+      const isRetro=!!rec.isRetro&&!isGcAuto;
+      const cls='prow '+(isPaper?'paper':isGcAuto?'gcauto':isRetro?'retro':rec.isUpgraded?'upgraded':rec.isSub?'sub':'signed');
+      const mainTxt=isPaper?'紙本簽到':isGcAuto?'🤖 系統已簽到（日曆比對，非本人簽名）':isRetro?'補簽：'+fmtFullDate(rec.date):fmtFullDate(rec.date)+(rec.time?'　'+rec.time:'');
       const tags=[rec.isUpgraded?`↑升級 ${rec.upgradedTo}`:'',rec.isSub?'代課':''].filter(Boolean);
       cells+=`<div class="${cls}" onclick="editCellNote(${i})">
         <div class="prow-num">${i}</div>
@@ -2856,7 +2863,7 @@ function renderCard(sid){
           <div class="prow-main">${mainTxt}</div>
           ${tags.length?`<div class="prow-tags">${tags.map(t=>`<span class="prow-tag">${t}</span>`).join('')}</div>`:''}
         </div>
-        <div class="prow-side">${rec.sig?`<img class="prow-sig" src="${rec.sig}">`:'<span style="color:var(--gold2);font-size:16px">✓</span>'}${noteBadge}</div>
+        <div class="prow-side">${rec.sig?`<img class="prow-sig" src="${rec.sig}">`:isGcAuto?'<span style="color:var(--orange);font-size:16px">🤖</span>':'<span style="color:var(--gold2);font-size:16px">✓</span>'}${noteBadge}</div>
       </div>`;
     } else if(isNext){
       cells+=`<div class="prow next" onclick="editCellNote(${i})">
@@ -2890,7 +2897,13 @@ function renderCard(sid){
   const alreadyLeave=L.find(l=>l.sid===sid&&l.date===todayStr());
   const retroBtn=remain>0?`<button onclick="showRetroModal('${sid}')" style="margin-top:14px;background:transparent;border:1px dashed #9C6FD6;color:#6B3FA0;border-radius:10px;padding:9px 22px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">補登過去某堂課</button>`:'';
   if(already){
-    sa.innerHTML=`<div style="text-align:center;padding:22px 0"><div style="font-size:30px;margin-bottom:9px">✓</div><div style="font-size:16px;letter-spacing:2px;color:var(--green)">今日已完成簽到</div><div style="font-size:13px;color:var(--ink3);margin-top:5px">${already.date} ${already.time}${already.isUpgraded?' ・升級'+already.upgradedTo:''}${already.isSub?' ・代課：'+already.subTeacher:''}</div>${retroBtn}</div>`;return;
+    // gcBackfilled：系統比對 Google 日曆自動補的，不是本人親自簽名，顯示上要跟真人簽到分開，
+    // 不然店長看到「今日已完成簽到」會誤以為學員本人已經簽過名了
+    const isGcAuto=!!already.gcBackfilled;
+    sa.innerHTML=isGcAuto?
+      `<div style="text-align:center;padding:22px 0"><div style="font-size:30px;margin-bottom:9px">🤖</div><div style="font-size:16px;letter-spacing:2px;color:var(--orange)">系統已簽到</div><div style="font-size:12px;color:var(--ink3);margin-top:5px;line-height:1.6">日曆比對自動產生，並非本人親自簽名<br>${already.date} ${already.time}</div>${retroBtn}</div>`
+      :`<div style="text-align:center;padding:22px 0"><div style="font-size:30px;margin-bottom:9px">✓</div><div style="font-size:16px;letter-spacing:2px;color:var(--green)">今日已完成簽到</div><div style="font-size:13px;color:var(--ink3);margin-top:5px">${already.date} ${already.time}${already.isUpgraded?' ・升級'+already.upgradedTo:''}${already.isSub?' ・代課：'+already.subTeacher:''}</div>${retroBtn}</div>`;
+    return;
   }
   if(alreadyLeave){
     const lvTypeLabel=alreadyLeave.type==='same_day'?'臨時請假':'事先請假';
@@ -7934,7 +7947,10 @@ async function gcMatchDay(ds,opts){
         // 上，學員本人根本還沒到、還沒簽名，課卡就顯示「今日已完成簽到」，還會擋掉他真的要
         // 簽到時該跳出來的簽名板。改成只有「這堂課的結束時間已經過了」才補，不再搶在本人
         // 簽到前面。全天事件（沒有 dateTime，理論上不會發生在正課上）保守當作已結束不擋。
-        const classEnded=!ev.end?.dateTime||new Date(ev.end.dateTime)<=new Date();
+        // 2026-08-05 店長要求再延後一點才自動補：下課後 2 小時內學員都還可能自己來 App 簽到，
+        // 太早補的話反而會擋到本人真正簽到。
+        const BACKFILL_DELAY_MS=2*3600000;
+        const classEnded=!ev.end?.dateTime||new Date(ev.end.dateTime).getTime()+BACKFILL_DELAY_MS<=Date.now();
         if(backfillR&&classEnded&&!R.some(r=>r.sid===stu.id&&r.date===ds)&&(stu.used||0)<(stu.total||0)){
           const isSub=teacher!==(stu.teacher||'');
           stu.used=(stu.used||0)+1;
