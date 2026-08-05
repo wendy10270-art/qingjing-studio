@@ -7928,7 +7928,14 @@ async function gcMatchDay(ds,opts){
         }
         // 已經有這天的簽到紀錄（不論是否確認）就不用補；課卡堂數用完的異常情況
         // 靜默跳過（跟前台簽到 confirmSig 用完就擋下的行為一致），不硬塞一筆會透支的紀錄
-        if(backfillR&&!R.some(r=>r.sid===stu.id&&r.date===ds)&&(stu.used||0)<(stu.total||0)){
+        // 2026-08-05 查出：這支函式當天也會被每 5 分鐘一次的背景同步呼叫（silentGcSync→
+        // gcSyncToday 一律帶 backfillR:true），完全沒判斷這堂課到底上完了沒——只要日曆上
+        // 出現今天的課、App 裡還沒有簽到紀錄，馬上就補一筆「未簽到」的補簽紀錄，課都還沒開始
+        // 上，學員本人根本還沒到、還沒簽名，課卡就顯示「今日已完成簽到」，還會擋掉他真的要
+        // 簽到時該跳出來的簽名板。改成只有「這堂課的結束時間已經過了」才補，不再搶在本人
+        // 簽到前面。全天事件（沒有 dateTime，理論上不會發生在正課上）保守當作已結束不擋。
+        const classEnded=!ev.end?.dateTime||new Date(ev.end.dateTime)<=new Date();
+        if(backfillR&&classEnded&&!R.some(r=>r.sid===stu.id&&r.date===ds)&&(stu.used||0)<(stu.total||0)){
           const isSub=teacher!==(stu.teacher||'');
           stu.used=(stu.used||0)+1;
           R.push({id:'r'+Date.now()+Math.random().toString(36).slice(2,6),sid:stu.id,date:ds,time,session:stu.used,sig:null,isSub,subTeacher:isSub?teacher:'',isUpgraded:false,upgradedTo:'',upgradeDiff:0,actualFee:getDefaultFee(stu.teacher,stu.course),manualFee:null,manualNote:'GC比對，未簽到',confirmed:false,upgPayMethod:'',feeCollected:false,isRetro:true,gcBackfilled:true});
