@@ -520,6 +520,7 @@ input:focus,select:focus{border-color:var(--gold2)}
      本身還是用下面的裸 REST API（db.ref...），只是每次 fetch 會附上 App Check 核發的權杖。 -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script>
 // Firebase REST API（不需外部 SDK，任何瀏覽器都能跑）
 const FB_URL='https://qingjing-studio-default-rtdb.firebaseio.com';
@@ -569,6 +570,29 @@ try{
 }catch(e){
   console.warn('firebase.initializeApp 失敗：',e);
 }
+// ── 匿名登入：真正用來鎖資料庫的機制（2026-08-05 換掉 App Check + reCAPTCHA）──
+// App Check 那條路查了三次都卡在 Google reCAPTCHA 服務跟這版 SDK 兜不起來，改用 Firebase
+// 內建的匿名登入：使用者完全無感（不用輸入帳密），登入後資料庫規則只要求 auth != null，
+// 比依賴第三方 reCAPTCHA 服務單純、穩定很多。_authReady 讓 db.ref(...) 的呼叫都能等到
+// 登入完成再送出，避免第一批請求因為還沒登入而被規則擋下來。
+let _authReady=null;
+try{
+  _authReady=firebase.auth().signInAnonymously()
+    .then(()=>firebase.auth().currentUser)
+    .catch(e=>{console.warn('匿名登入失敗，改用不附權杖的方式繼續運作：',e);return null;});
+}catch(e){
+  console.warn('firebase.auth() 初始化失敗：',e);
+  _authReady=Promise.resolve(null);
+}
+async function _authToken(){
+  try{
+    const user=await _authReady;
+    return user?await user.getIdToken():null;
+  }catch(e){
+    console.warn('取得登入權杖失敗:',e);
+    return null;
+  }
+}
 // activate() 內部（reCAPTCHA v3 provider）會 document.body.appendChild(...)，這支 script
 // 卻是放在 <head> 裡先執行、此時 <body> 還不存在，會直接丟例外——所以延到 DOMContentLoaded
 // 之後才真的啟用，之前這段時間 _appCheck 保持 null，_appCheckHeaders() 就不附權杖，一樣安全。
@@ -602,12 +626,18 @@ async function _appCheckHeaders(){
   }
 }
 
+// 資料庫規則收緊後，REST API 要求每個請求都帶登入權杖，用 ?auth= 帶最相容（比自訂
+// Authorization header 更少踩到瀏覽器/快取的邊角案例，Realtime Database REST API 原生支援）
+async function _authQuery(){
+  const token=await _authToken();
+  return token?'?auth='+encodeURIComponent(token):'';
+}
 const db={
   ref: function(path){
     return {
       set: async function(data){
         const headers=Object.assign({'Content-Type':'application/json'},await _appCheckHeaders());
-        return fetch(FB_URL+'/'+path+'.json',{
+        return fetch(FB_URL+'/'+path+'.json'+await _authQuery(),{
           method:'PUT',
           headers,
           body:JSON.stringify(data)
@@ -616,7 +646,7 @@ const db={
       // PATCH = 部分更新，不覆蓋未提供的欄位（用於簽到等不改課表的操作）
       patch: async function(data){
         const headers=Object.assign({'Content-Type':'application/json'},await _appCheckHeaders());
-        return fetch(FB_URL+'/'+path+'.json',{
+        return fetch(FB_URL+'/'+path+'.json'+await _authQuery(),{
           method:'PATCH',
           headers,
           body:JSON.stringify(data)
@@ -624,7 +654,7 @@ const db={
       },
       once: async function(event){
         const headers=await _appCheckHeaders();
-        return fetch(FB_URL+'/'+path+'.json',{headers})
+        return fetch(FB_URL+'/'+path+'.json'+await _authQuery(),{headers})
           .then(fbCheck)
           .then(data=>({val:()=>data}));
       }
@@ -1874,10 +1904,11 @@ function applyRemoteData(data){
   if(document.getElementById('ap-mgr')?.classList.contains('active'))renderMgrList();
   showToast('🔄 資料已從其他裝置同步');
 }
-function startFbListener(){
+async function startFbListener(){
   try{
     if(_fbEs){_fbEs.close();_fbEs=null;}
-    _fbEs=new EventSource(FB_URL+'/qingjing.json');
+    // EventSource 不能自訂 header，資料庫規則收緊後改用 ?auth= 帶登入權杖（REST API 原生支援）
+    _fbEs=new EventSource(FB_URL+'/qingjing.json'+await _authQuery());
     let initDone=false;
     _fbEs.addEventListener('put',e=>{
       try{
@@ -5803,8 +5834,7 @@ async function renderLineMsgActions(sid, phone, s, isUpgraded, upgradedTo, upgra
   try{
     const key=(phone||'').replace(/\D/g,'').slice(-8);
     if(key.length===8){
-      const res=await fetch(FB_URL+'/qingjing_line_bindings/'+key+'.json');
-      const data=await res.json();
+      const data=(await db.ref('qingjing_line_bindings/'+key).once('value')).val();
       bound=!!(data&&(data.userId||data.groupId||data.roomId));
       lang=(data&&data.lang==='en')?'en':'zh';
     }
@@ -5920,8 +5950,7 @@ async function renderResendLineMsgActions(sid, phone, s, isUpgraded, upgradedTo,
   try{
     const key=(phone||'').replace(/\D/g,'').slice(-8);
     if(key.length===8){
-      const res=await fetch(FB_URL+'/qingjing_line_bindings/'+key+'.json');
-      const data=await res.json();
+      const data=(await db.ref('qingjing_line_bindings/'+key).once('value')).val();
       bound=!!(data&&(data.userId||data.groupId||data.roomId));
       lang=(data&&data.lang==='en')?'en':'zh';
     }
@@ -8229,8 +8258,7 @@ async function tomorrowCheckBound(phone){
   try{
     const key=(phone||'').replace(/\D/g,'').slice(-8);
     if(key.length!==8)return false;
-    const res=await fetch(FB_URL+'/qingjing_line_bindings/'+key+'.json');
-    const data=await res.json();
+    const data=(await db.ref('qingjing_line_bindings/'+key).once('value')).val();
     return !!(data&&(data.userId||data.groupId||data.roomId));
   }catch(e){return false;}
 }
