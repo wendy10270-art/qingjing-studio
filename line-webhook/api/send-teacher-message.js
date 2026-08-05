@@ -81,6 +81,12 @@ module.exports = async (req, res) => {
     res.status(400).json({ ok: false, error: '缺少 phone 或 message' });
     return;
   }
+  // 跟 send-checkin-message.js 同樣理由：金鑰在前端是公開的，這裡加長度上限跟簡單頻率限制
+  // 降低金鑰外洩後被拿去大量/長文轟炸老師的規模。
+  if (message.length > 1000) {
+    res.status(400).json({ ok: false, error: '訊息過長' });
+    return;
+  }
 
   let binding;
   try {
@@ -93,6 +99,17 @@ module.exports = async (req, res) => {
   if (!to) {
     res.status(200).json({ ok: false, error: 'notBound' });
     return;
+  }
+  try {
+    const lastSent = await fb(`/qingjing_teacher_push_ratelimit/${key}`, { method: 'GET' });
+    const now = Date.now();
+    if (lastSent && now - lastSent < 10000) {
+      res.status(429).json({ ok: false, error: '發送太頻繁，請稍候再試' });
+      return;
+    }
+    await fb(`/qingjing_teacher_push_ratelimit/${key}`, { method: 'PUT', body: JSON.stringify(now) });
+  } catch (e) {
+    console.warn('rate limit check failed:', e.message);
   }
 
   try {

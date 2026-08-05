@@ -83,6 +83,15 @@ module.exports = async (req, res) => {
     res.status(400).json({ ok: false, error: '缺少 phone 或 message' });
     return;
   }
+  // CHECKIN_PUSH_SECRET 是嵌在前端原始碼裡的（GitHub Pages 全公開，任何人都看得到這把鑰匙），
+  // 拿到鑰匙的人目前能自訂 message 內容、冒充工作室發任意文字給任何已綁定的學員。
+  // 這裡加兩層淺層防護：訊息長度上限（擋大量灌水/釣魚長文），跟每個學員的簡單發送頻率限制
+  // （擋同一支電話短時間被連續轟炸）。不是完整解法（真正解法是把 Database 規則收緊、
+  // 讓瀏覽器端改走 App Check 驗證），但能大幅降低鑰匙外洩後的濫用規模。
+  if (message && message.length > 1000) {
+    res.status(400).json({ ok: false, error: '訊息過長' });
+    return;
+  }
 
   let binding;
   try {
@@ -90,6 +99,20 @@ module.exports = async (req, res) => {
   } catch (e) {
     res.status(500).json({ ok: false, error: '查詢綁定失敗：' + e.message });
     return;
+  }
+  if (!previewAllAlongImages) {
+    try {
+      const lastSent = await fb(`/qingjing_checkin_push_ratelimit/${key}`, { method: 'GET' });
+      const now = Date.now();
+      if (lastSent && now - lastSent < 10000) {
+        res.status(429).json({ ok: false, error: '發送太頻繁，請稍候再試' });
+        return;
+      }
+      await fb(`/qingjing_checkin_push_ratelimit/${key}`, { method: 'PUT', body: JSON.stringify(now) });
+    } catch (e) {
+      // 頻率限制檢查失敗不該擋住正常簽到訊息發送，記錄下來繼續走正常流程
+      console.warn('rate limit check failed:', e.message);
+    }
   }
   const to = binding && bindingTarget(binding);
   if (!to) {

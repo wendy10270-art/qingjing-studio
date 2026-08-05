@@ -1,0 +1,6 @@
+scripts/ig_config.json
+scripts/ig_state.json
+scripts/ig_drafts/
+scripts/ig_ads_drafts/
+.env
+.env.*
