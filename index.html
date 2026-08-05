@@ -578,7 +578,10 @@ function _activateAppCheck(){
     // 舊 key（6Lf0vVkt...）是掛在 Google Cloud reCAPTCHA Enterprise 底下的怪狀態，不管用
     // classic 或 Enterprise provider 都打不通（2026-07-27 查了一整輪還是 400，放棄），
     // 改用全新申請的 classic v3 key。
-    _appCheck.activate('6LdV3mctAAAAACksvxq73xZQ6lyXlAk7IQB35T2D',true); // true = 權杖快過期時自動換新
+    // 2026-08-05 查出這把 key 從申請那天起就打錯一個字元（...Ak7IQB35T2D 的 I 應該是小寫 l），
+    // 導致 Google 完全不認得這把「不存在」的 key，一直報 recaptcha-error——網域、金鑰類型
+    // 都是對的，就差這一個字元。直接從 reCAPTCHA 後台複製貼上校正，不要再手動謄打。
+    _appCheck.activate('6LdV3mctAAAAACksvxq73xZQ6lyXlAk7lQB35T2D',true); // true = 權杖快過期時自動換新
   }catch(e){
     console.warn('Firebase App Check 啟用失敗，改用不附權杖的方式繼續運作：',e);
     _appCheck=null;
