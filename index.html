@@ -8340,7 +8340,20 @@ async function renderTomorrowNotify(){
         // 拿去查綁定就會查不到，明明已經綁定卻被誤判成未綁定（2026-08-03 查出：許伊雯就是
         // 這樣，本人確實綁定過，只是日曆標題的電話跟建檔電話對不上）。
         // 只有系統裡完全找不到這個人（真的沒建檔的走查/代排）才退而用日曆標題上的電話。
-        const stu=S.find(x=>x.name===parsed.name||(x.name||'').split('｜').includes(parsed.name));
+        // 2026-08-05 查出：共用課卡（系統姓名用「｜」分隔多個別名，如「楊文玉｜怡潔媽｜衣彤」）
+        // 如果日曆標題也寫了兩個別名（如「楊文玉｜怡潔媽」），parseTitle 只切一刀，parsed.name
+        // 會變成整段「楊文玉｜怡潔媽」，跟系統別名陣列 ["楊文玉","怡潔媽","衣彤"] 逐一比對
+        // 永遠對不上（不是陣列裡的任何一個單一元素），導致明明綁定過卻查不到、一鍵發送不會出現。
+        // 改成跟 gcMatchStudent() 同樣邏輯：別名之間用「包含」比對，不要求整段字串完全相等。
+        const stu=S.find(x=>{
+          if(!x.name)return false;
+          if(x.name===parsed.name)return true;
+          if(x.name.includes('｜')){
+            const aliases=x.name.split('｜').map(a=>a.trim()).filter(Boolean);
+            return aliases.some(a=>a===parsed.name||(a.length>=2&&parsed.name.includes(a)));
+          }
+          return x.name.length>=2&&parsed.name.includes(x.name);
+        });
         const phone=(stu&&stu.phone)?stu.phone:parsed.phone;
         allItems.push({name:parsed.name,time:GC.getTime(ev),teacher,courseType:parsed.type,phone});
       }
