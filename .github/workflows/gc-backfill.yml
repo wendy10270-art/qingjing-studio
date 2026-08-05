@@ -15,4 +15,5 @@ jobs:
       - name: 補齊今日漏簽紀錄
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          GC_BACKFILL_DB_SECRET: ${{ secrets.GC_BACKFILL_DB_SECRET }}
         run: python3 scripts/gc_backfill.py

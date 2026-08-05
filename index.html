@@ -2037,7 +2037,10 @@ function silentGcSync(){
   if(typeof GC==='undefined'||!GC.ok())return;
   gcSyncHourlyShifts().catch(e=>console.warn('Hourly shift sync failed:',e));
   if(!Object.keys(GC.calMap||{}).length)return;
-  gcSyncToday(undefined,{silent:true}).catch(e=>console.warn('Silent GC sync failed:',e));
+  // backfillR:false——背景靜默同步只負責即時更新今日課表，不自動幫學員補簽到，
+  // 避免在營業中搶在本人簽到前面誤判（2026-08-05，見 gc_backfill.py 開頭說明）。
+  // 自動補簽只交給打烊後的 gc_backfill.py 排程，或店員自己按「同步課表」。
+  gcSyncToday(undefined,{silent:true,backfillR:false}).catch(e=>console.warn('Silent GC sync failed:',e));
   syncFutureRentBookings().catch(e=>console.warn('Future rent booking scan failed:',e));
 }
 // 工讀生時薪同步：各自獨立 Google 日曆，日曆上每個事件＝一個班次（不用像正課事件解析標題），
@@ -7989,6 +7992,10 @@ async function gcMatchDay(ds,opts){
 }
 async function gcSyncToday(ev,opts){
   const silent=!!(opts&&opts.silent);
+  // 2026-08-05：背景每 5 分鐘一次的靜默同步不再自動補簽到（見 silentGcSync 呼叫處），
+  // 只留「同步課表」按鈕本人點擊時才會補——店員按下去看得到同步結果、能立刻發現不對勁；
+  // 真正保證每天都會執行一次的自動補簽，交給打烊後才跑的 gc_backfill.py 排程。
+  const backfillR=(opts&&'backfillR'in opts)?!!opts.backfillR:true;
   const btn=ev&&ev.target&&typeof ev.target.closest==='function'?ev.target.closest('button'):null;
   const resEl=document.getElementById('gcSyncResult');
   if(resEl&&!silent)resEl.innerHTML='<div style="color:var(--ink3);font-size:13px;padding:8px 0">同步中…</div>';
@@ -8001,7 +8008,7 @@ async function gcSyncToday(ev,opts){
   }
   const td=todayStr();
   try{
-    const{matched,unmatched,schAdded,rBackfilled,trialAdded,trialsAdded}=await gcMatchDay(td,{writeSch:true,backfillR:true});
+    const{matched,unmatched,schAdded,rBackfilled,trialAdded,trialsAdded}=await gcMatchDay(td,{writeSch:true,backfillR});
     if(schAdded>0)markSchChanged();
     if(schAdded>0||rBackfilled>0||trialAdded>0)save();
     renderSchEditor();

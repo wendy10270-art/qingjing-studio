@@ -3,13 +3,20 @@
 # 背景：紙本簽到跟 App 並行，店員常常忘記在 App 也點一次簽到，導致 App 裡的
 # 學員堂數跟實際到課狀況兜不起來。App 瀏覽器端本來就有日曆比對邏輯
 # （index.html 的 gcMatchDay/gcMatchStudent）會自動補一筆「待確認」紀錄，
-# 但只有瀏覽器開著時才會跑（每 5 分鐘一次）。這支腳本是同一套比對邏輯的
-# 伺服器端版本，保證每天結束前一定會執行一次，不管當天有沒有人開過 App。
+# 但只有瀏覽器開著時才會跑。這支腳本是同一套比對邏輯的伺服器端版本，保證
+# 每天結束前一定會執行一次，不管當天有沒有人開過 App——2026-08-05 之後這支
+# 排程改成「唯一」的自動補簽來源：瀏覽器端的背景同步已經拿掉自動補簽這件事
+# （只留即時更新今日課表），避免打烊前就搶著誤判學員出席。
 #
 # 補進去的紀錄一律是「待確認」（confirmed=False），不會直接算錢，需要店長
 # 到「核對課堂」手動確認過才會計入師資費——跟瀏覽器端行為完全一致。
 #
 # 只處理正課（S/R，一般學員課卡），不處理體驗課（T，資料結構不同，範圍不同）。
+#
+# 2026-08-05：資料庫規則收緊成「只有登入過的人能讀寫」之後，原本直接用公開
+# apiKey 當 ?auth= 打 REST API 的做法失效了（apiKey 不是登入權杖）。這支腳本
+# 沒有瀏覽器環境跑不了匿名登入，改成呼叫 line-webhook 的 gc-backfill-db.js
+# ——用 Admin SDK 代為讀寫、金鑰在前面把關，跟 gc-token.js 同一套模式。
 import json
 import os
 import re
@@ -18,12 +25,12 @@ from datetime import datetime, timedelta
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
-FB = 'https://qingjing-studio-default-rtdb.firebaseio.com'
-FB_API_KEY = 'AIzaSyBg3_toi-Kqyi9iw2IbW9C5HhkbgJappxI'
 LINE_WEBHOOK_BASE = 'https://line-webhook-gules.vercel.app'
-# 跟 index.html／teacher_reminder.py 用同一組常數——本來就寫死在公開的 index.html 裡，
-# 不是真正機密，不用另外走 GitHub Actions secrets。
+# 跟 index.html／teacher_reminder.py 用同一組常數風格——這把也是只有這支腳本會用到，
+# 不是真正機密外洩就整組資料庫失守的等級，不用另外走 GitHub Actions secrets 也還好，
+# 但既然新加的 endpoint 本來就要設一把新金鑰，直接走 GitHub Actions secrets 存放。
 GC_TOKEN_SECRET = '170ebdb59d2a9a4317fe35c1f1021aba69159bfb0dcd2513'
+GC_BACKFILL_DB_SECRET = os.environ.get('GC_BACKFILL_DB_SECRET', '').strip()
 NTFY_TOPIC = os.environ.get('NTFY_TOPIC', '').strip()
 
 
@@ -32,13 +39,26 @@ def fetch(url):
         return json.load(r)
 
 
+# path 不帶開頭斜線（如 'qingjing/s'），要在 gc-backfill-db.js 的白名單裡才會通過
+def db_get(path):
+    url = f'{LINE_WEBHOOK_BASE}/api/gc-backfill-db?key={quote(GC_BACKFILL_DB_SECRET)}&path={quote(path)}'
+    resp = fetch(url)
+    if not resp.get('ok'):
+        raise RuntimeError(resp.get('error') or 'db_get failed')
+    return resp.get('data')
+
+
+# data 是要 PATCH 進去的物件（例如 {'s': S, 'r': R}），跟原本 fb_patch 用法一致，
+# 只是底層改成呼叫 line-webhook 的 Admin SDK 代理，不再直接打 Firebase REST API
 def fb_patch(path, data):
+    p = path.lstrip('/')
+    url = f'{LINE_WEBHOOK_BASE}/api/gc-backfill-db?key={quote(GC_BACKFILL_DB_SECRET)}&path={quote(p)}'
     body = json.dumps(data).encode()
-    req = urllib.request.Request(
-        f'{FB}{path}.json?auth={FB_API_KEY}', data=body,
-        headers={'Content-Type': 'application/json'}, method='PATCH',
-    )
-    urllib.request.urlopen(req, timeout=20)
+    req = urllib.request.Request(url, data=body, headers={'Content-Type': 'application/json'}, method='PATCH')
+    with urllib.request.urlopen(req, timeout=20) as r:
+        resp = json.load(r)
+    if not resp.get('ok'):
+        raise RuntimeError(resp.get('error') or 'fb_patch failed')
 
 
 def send_ntfy(title, message, tags='herb'):
@@ -191,9 +211,9 @@ def main():
     td = now.strftime('%Y/%m/%d')
 
     try:
-        S = fetch(FB + '/qingjing/s.json') or []
-        R = fetch(FB + '/qingjing/r.json') or []
-        cal_map = fetch(FB + '/qingjing_teacher_calmap.json') or {}
+        S = db_get('qingjing/s') or []
+        R = db_get('qingjing/r') or []
+        cal_map = db_get('qingjing_teacher_calmap') or {}
     except Exception as e:
         send_ntfy('輕境小幫手', f'⚠️ 每日補簽讀取雲端資料失敗（{e}）', 'warning')
         return
