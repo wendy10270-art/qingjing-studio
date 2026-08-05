@@ -151,7 +151,8 @@ body{background:var(--bg);color:var(--ink);font-size:15px;display:flex;flex-dire
 /* 格子 */
 .grid-wrap{padding:11px 15px 15px}
 .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
-.cell{border-radius:8px;border:1px solid var(--border);background:var(--white);min-height:78px;display:flex;flex-direction:column;overflow:hidden}
+.cell{border-radius:8px;border:1px solid var(--border);background:var(--white);min-height:78px;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.cell-note-badge{position:absolute;top:3px;right:3px;font-size:11px;line-height:1;background:var(--gold);color:#fff;border-radius:99px;width:16px;height:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,.25);z-index:1}
 .cell.signed{background:var(--gold4);border-color:var(--gold2)}.cell.paper-signed{background:var(--bg2);border-color:var(--border);border-style:dashed}
 .cell.retro-signed{background:#EDE8FF;border-color:#C4B0F0;border-style:dashed}
 .cell.retro-signed .cell-num{color:#6B3FA0}
@@ -2768,7 +2769,8 @@ function renderCard(sid){
   const lowSessAlert=(remain<=2&&remain>0)?
     `<div style="background:var(--orange2);border:2px solid var(--orange3);border-radius:12px;padding:12px 16px;margin-bottom:13px;text-align:center">
       <div style="font-size:14px;font-weight:500;color:var(--orange);margin-bottom:4px">⚠️ 課程堂數即將用完</div>
-      <div style="font-size:12px;color:#8B4000">剩餘 ${remain} 堂，請提醒學員盡快續購！</div>
+      <div style="font-size:12px;color:#8B4000;margin-bottom:8px">剩餘 ${remain} 堂，請提醒學員盡快續購！</div>
+      <button onclick="copyText(generateRenewMsg('${jsQ(s.name)}',${remain},'${jsQ(parts[0]||'')}'),'✓ 已複製續購提醒訊息')" style="background:#fff;color:var(--orange);border:1px solid var(--orange3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">💬 複製續購提醒訊息</button>
     </div>`
     :'';
   // Health notes alert
@@ -2785,10 +2787,20 @@ function renderCard(sid){
     if(diff>=0&&diff<=14){
       expiryAlert=`<div style="background:#FFF4EE;border:2px solid #F5C4A1;border-radius:12px;padding:12px 16px;margin-bottom:13px;text-align:center">
         <div style="font-size:14px;font-weight:500;color:#C05A20;margin-bottom:4px">📅 課程即將到期</div>
-        <div style="font-size:12px;color:#7A3A10">到期日：${s.expiryDate}（剩 ${diff} 天）</div>
+        <div style="font-size:12px;color:#7A3A10;margin-bottom:8px">到期日：${s.expiryDate}（剩 ${diff} 天）</div>
+        <button onclick="copyText(generateExpiryMsg('${jsQ(s.name)}','${jsQ(s.expiryDate)}',${remain}),'✓ 已複製到期提醒訊息')" style="background:#fff;color:#C05A20;border:1px solid #F5C4A1;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">💬 複製到期提醒訊息</button>
       </div>`;
     }
   }
+  // Installment due alert
+  const installDue=s.installment&&s.installEvery&&s.used>0&&s.used%s.installEvery===0&&s.used<s.total;
+  const installAlert=installDue?
+    `<div style="background:var(--teal2);border:2px solid var(--teal3);border-radius:12px;padding:12px 16px;margin-bottom:13px;text-align:center">
+      <div style="font-size:14px;font-weight:500;color:var(--teal);margin-bottom:4px">💰 分期繳費時間到</div>
+      <div style="font-size:12px;color:var(--teal);margin-bottom:8px">已完成第 ${s.used} 堂，請收下一期費用</div>
+      <button onclick="copyText(generateInstallMsg('${jsQ(s.name)}',${s.used}),'✓ 已複製分期繳費提醒訊息')" style="background:#fff;color:var(--teal);border:1px solid var(--teal3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">💬 複製分期繳費提醒訊息</button>
+    </div>`
+    :'';
   // General note (備註)：點下去可以直接編輯，沒有備註時顯示一個小按鈕可以新增
   const noteAlert=s.note?
     `<div onclick="openStuNoteEdit('${s.id}')" style="background:var(--gold4);border:2px solid var(--gold2);border-radius:12px;padding:12px 16px;margin-bottom:13px;cursor:pointer">
@@ -2796,7 +2808,7 @@ function renderCard(sid){
       <div style="font-size:12px;color:var(--ink2);white-space:pre-wrap">${s.note}</div>
     </div>`
     :`<div onclick="openStuNoteEdit('${s.id}')" style="display:inline-block;margin-bottom:13px;padding:6px 12px;border:1px dashed var(--border);border-radius:20px;font-size:12px;color:var(--ink3);cursor:pointer">＋ 新增備註</div>`;
-  document.getElementById('cardTop').innerHTML=leaveAlertToday+leaveAlertUpcoming+lowSessAlert+healthAlert+expiryAlert+noteAlert+`<div class="stu-top">
+  document.getElementById('cardTop').innerHTML=leaveAlertToday+leaveAlertUpcoming+lowSessAlert+installAlert+healthAlert+expiryAlert+noteAlert+`<div class="stu-top">
     <div class="${ci.stripe} stripe"></div>
     <div class="stu-top-row">
       <div><div class="stu-name-big">${s.name}</div><div class="stu-meta">${s.phone}<br>指導老師：${s.teacher||'—'}　</div></div>
@@ -2819,17 +2831,25 @@ function renderCard(sid){
         <div class="cell-date">${isPaper?'紙本簽到':isRetro?'補簽：'+fmtFullDate(rec.date):fmtFullDate(rec.date)+'<br>'+rec.time}</div>
         <div class="cell-img">${rec.sig?`<img src="${rec.sig}">`:`<span style="font-size:16px;color:${iconColor}">✓</span>`}</div>
         ${isPaper?`<div class="cell-paper-tag">紙本</div>`:isRetro?`<div class="cell-paper-tag" style="background:#EDE8FF;color:#6B3FA0;border-color:#C4B0F0">補簽</div>`:rec.isUpgraded?`<div class="cell-up-tag">↑${rec.upgradedTo}</div>`:rec.isSub?`<div class="cell-sub-tag">代課</div>`:''}
-        ${cn?`<div class="cell-note" style="color:var(--ink2)">${cn.replace(/</g,'&lt;')}</div>`:''}</div>`;
+        ${cn?`<span class="cell-note-badge">📝</span>`:''}</div>`;
     } else if(isNext){
       const cn=s.cellNotes?.[i]||'';
-      cells+=`<div class="cell next-up" onclick="editCellNote(${i})"><div class="cell-num">${i}</div><div class="cell-img" style="padding-top:7px"><svg width="24" height="13" viewBox="0 0 38 20"><path d="M3 10 Q11 3 19 10 Q27 17 35 10" stroke="#C4973A" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg></div><div class="cell-tap">本次</div>${cn?`<div class="cell-note" style="color:var(--ink2)">${cn.replace(/</g,'&lt;')}</div>`:''}</div>`;
+      cells+=`<div class="cell next-up" onclick="editCellNote(${i})"><div class="cell-num">${i}</div><div class="cell-img" style="padding-top:7px"><svg width="24" height="13" viewBox="0 0 38 20"><path d="M3 10 Q11 3 19 10 Q27 17 35 10" stroke="#C4973A" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg></div><div class="cell-tap">本次</div>${cn?`<span class="cell-note-badge">📝</span>`:''}</div>`;
     } else {
       const cn=s.cellNotes?.[i]||'';
-      if(cn){cells+=`<div class="cell has-note" onclick="editCellNote(${i})"><div class="cell-num">${i}</div><div class="cell-note">${cn.replace(/</g,'&lt;')}</div></div>`;}
+      if(cn){cells+=`<div class="cell has-note" onclick="editCellNote(${i})"><div class="cell-num">${i}</div><span class="cell-note-badge">📝</span></div>`;}
       else{cells+=`<div class="cell memo-empty" onclick="editCellNote(${i})"><div class="cell-num">${i}</div></div>`;}
     }
   }
-  document.getElementById('gridCard').innerHTML=`<div class="card"><div class="card-hd">課程進度</div><div class="grid-wrap"><div class="grid">${cells}</div><div class="grid-legend" style="margin-top:9px"><span><span class="leg-dot" style="background:var(--gold4);border:1px solid var(--gold2)"></span>已完成</span><span><span class="leg-dot" style="background:var(--blue2);border:1px solid var(--blue3)"></span>代課</span><span><span class="leg-dot" style="background:var(--orange2);border:1px solid var(--orange3)"></span>升級</span><span><span class="leg-dot" style="border:2px solid var(--gold)"></span>本次</span></div></div></div>`;
+  // 備注一覽：格子太小塞不下完整文字，這裡列出所有有備注的堂數，字看得清楚、點了直接編輯
+  const noteEntries=Object.entries(s.cellNotes||{}).map(([k,v])=>[parseInt(k),v]).filter(([k,v])=>v&&k<=s.total).sort((a,b)=>a[0]-b[0]);
+  const notesList=noteEntries.length?`<div class="card" style="margin-top:10px"><div class="card-hd">📝 備注一覽（${noteEntries.length}）</div><div style="padding:4px 15px 13px">
+    ${noteEntries.map(([i,v])=>`<div onclick="editCellNote(${i})" style="display:flex;gap:9px;padding:8px 0;border-bottom:1px solid var(--bg2);cursor:pointer">
+      <div style="flex-shrink:0;font-size:12px;font-weight:600;color:var(--gold);background:var(--gold4);border-radius:6px;padding:2px 8px;height:fit-content">第${i}堂</div>
+      <div style="font-size:13px;color:var(--ink2);white-space:pre-wrap;flex:1">${v.replace(/</g,'&lt;')}</div>
+    </div>`).join('')}
+  </div></div>`:'';
+  document.getElementById('gridCard').innerHTML=`<div class="card"><div class="card-hd">課程進度</div><div class="grid-wrap"><div class="grid">${cells}</div><div class="grid-legend" style="margin-top:9px"><span><span class="leg-dot" style="background:var(--gold4);border:1px solid var(--gold2)"></span>已完成</span><span><span class="leg-dot" style="background:var(--blue2);border:1px solid var(--blue3)"></span>代課</span><span><span class="leg-dot" style="background:var(--orange2);border:1px solid var(--orange3)"></span>升級</span><span><span class="leg-dot" style="border:2px solid var(--gold)"></span>本次</span></div></div></div>${notesList}`;
   // 接下來的課程日期表（在 signArea 之前渲染，避免 early return 漏掉）
   renderUpcomingArea(sid,'cardUpcomingArea');
 
@@ -3177,10 +3197,10 @@ function confirmSig(){
     alertEl.innerHTML='<div class="supplement-alert"><div class="supplement-alert-title">💰 請向學員收取本堂補費</div><div class="supplement-amount">$'+curUpgradeDiff.toLocaleString()+'</div><div class="supplement-body">本堂升級為 '+parts[0]+' '+curUpgradeRatio+'</div></div>';
   } else { alertEl.innerHTML=''; }
   const installmentAlert=s.installment&&s.installEvery&&s.used>0&&s.used%s.installEvery===0?
-    '<div style="background:var(--orange2);border:2px solid var(--orange3);border-radius:13px;padding:14px 17px;margin-bottom:16px;text-align:center"><div style="font-size:15px;color:var(--orange);letter-spacing:1px;margin-bottom:5px">💰 分期付款提醒</div><div style="font-size:13px;color:#8B4000">已完成第 '+s.used+' 堂<br>請提醒學員繳納下一期費用</div></div>'
+    '<div style="background:var(--orange2);border:2px solid var(--orange3);border-radius:13px;padding:14px 17px;margin-bottom:16px;text-align:center"><div style="font-size:15px;color:var(--orange);letter-spacing:1px;margin-bottom:5px">💰 分期付款提醒</div><div style="font-size:13px;color:#8B4000;margin-bottom:8px">已完成第 '+s.used+' 堂<br>請提醒學員繳納下一期費用</div><button onclick="copyText(generateInstallMsg(\''+jsQ(s.name)+'\','+s.used+'),\'✓ 已複製分期繳費提醒訊息\')" style="background:#fff;color:var(--orange);border:1px solid var(--orange3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-family:\'Noto Sans TC\',sans-serif">💬 複製提醒訊息</button></div>'
     :'';
   const lowSessAlertHtml=(remain<=2&&remain>0)?
-    '<div style="background:var(--orange2);border:2px solid var(--orange3);border-radius:13px;padding:14px 17px;margin-bottom:16px;text-align:center"><div style="font-size:15px;color:var(--orange);letter-spacing:1px;margin-bottom:5px">⚠️ 課程堂數即將用完</div><div style="font-size:13px;color:#8B4000">剩餘 '+remain+' 堂，請提醒學員盡快續購！</div></div>'
+    '<div style="background:var(--orange2);border:2px solid var(--orange3);border-radius:13px;padding:14px 17px;margin-bottom:16px;text-align:center"><div style="font-size:15px;color:var(--orange);letter-spacing:1px;margin-bottom:5px">⚠️ 課程堂數即將用完</div><div style="font-size:13px;color:#8B4000;margin-bottom:8px">剩餘 '+remain+' 堂，請提醒學員盡快續購！</div><button onclick="copyText(generateRenewMsg(\''+jsQ(s.name)+'\','+remain+',\''+jsQ(parts[0]||'')+'\'),\'✓ 已複製續購提醒訊息\')" style="background:#fff;color:var(--orange);border:1px solid var(--orange3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-family:\'Noto Sans TC\',sans-serif">💬 複製提醒訊息</button></div>'
     :'';
   document.getElementById('supplementAlert').innerHTML=(document.getElementById('supplementAlert').innerHTML||'')+installmentAlert+lowSessAlertHtml;
   document.getElementById('successSub').textContent='第 '+s.used+' 堂完成簽到\n'+todayStr()+' '+nowTime()+(isUpgraded?'\n＋1人｜'+parts[1]+'→'+curUpgradeRatio:'')+(isSub?'\n代課老師：'+subTeacher:'');
@@ -5136,6 +5156,12 @@ function renderMgrList(){
     const pmCls=PAY_CLS[s.payMethod]||'';
     const pay=s.actualPayment?'$'+s.actualPayment.toLocaleString():'未記錄';
     const remColor=getCT(s.course)==='p'?'var(--gold)':getCT(s.course)==='s'?'var(--blue)':'var(--green)';
+    // 續購／到期／分期提醒：跟課卡上的判斷條件一致，這裡是給店長掃學員清單時能一鍵複製訊息
+    const mgrReminders=[];
+    if(rem<=2&&rem>0)mgrReminders.push('<button onclick="copyText(generateRenewMsg(\''+jsQ(s.name)+'\','+rem+',\''+jsQ((s.course||'').split(' ')[0])+'\'),\'✓ 已複製續購提醒訊息\')" style="padding:5px 11px;background:var(--orange2);border:1px solid var(--orange3);border-radius:7px;font-size:11px;cursor:pointer;color:var(--orange)">💬 續購提醒</button>');
+    if(s.expiryDate){const ed2=parseDate(s.expiryDate);const diff2=Math.ceil((ed2-new Date())/(864e5));if(diff2>=0&&diff2<=14)mgrReminders.push('<button onclick="copyText(generateExpiryMsg(\''+jsQ(s.name)+'\',\''+jsQ(s.expiryDate)+'\','+rem+'),\'✓ 已複製到期提醒訊息\')" style="padding:5px 11px;background:#FFF4EE;border:1px solid #F5C4A1;border-radius:7px;font-size:11px;cursor:pointer;color:#C05A20">💬 到期提醒</button>');}
+    if(s.installment&&s.installEvery&&s.used>0&&s.used%s.installEvery===0&&s.used<s.total)mgrReminders.push('<button onclick="copyText(generateInstallMsg(\''+jsQ(s.name)+'\','+s.used+'),\'✓ 已複製分期繳費提醒訊息\')" style="padding:5px 11px;background:var(--teal2);border:1px solid var(--teal3);border-radius:7px;font-size:11px;cursor:pointer;color:var(--teal)">💬 分期提醒</button>');
+    const mgrReminderRow=mgrReminders.length?'<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--bg2);display:flex;gap:6px;flex-wrap:wrap">'+mgrReminders.join('')+'</div>':'';
     return '<div class="smc">'+
       '<div class="smc-top">'+
         '<div>'+
@@ -5159,6 +5185,7 @@ function renderMgrList(){
         (s.healthNotes?'<div style="font-size:11px;color:var(--red);margin-top:5px;padding:5px 9px;background:#FFF0F0;border:1px solid #F7C1C1;border-radius:7px">🏥 '+s.healthNotes+'</div>':'')+
         (s.expiryDate?'<div style="font-size:11px;color:#C05A20;margin-top:4px">📅 到期日：'+s.expiryDate+'</div>':'')+
       '</div>'+
+      mgrReminderRow+
       (s.prevCourses&&s.prevCourses.length?'<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--bg2)"><div style="font-size:11px;color:var(--ink3);margin-bottom:5px">歷史購課記錄</div>'+s.prevCourses.map(p=>'<div style="font-size:11px;color:var(--ink3);padding:2px 0">第'+((p.period||1))+'期・'+p.course+'・'+p.total+'堂・$'+(p.actualPayment||p.price||0).toLocaleString()+'</div>').join('')+'</div>':'')+
       '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bg2);display:flex;align-items:center;justify-content:space-between">'+
         '<div style="font-size:12px;color:var(--ink3)">'+
@@ -7263,6 +7290,17 @@ function copyText(text,msg){
   if(navigator.clipboard){navigator.clipboard.writeText(text).then(()=>showToast(msg))}
   else{const t=document.createElement('textarea');t.value=text;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);showToast(msg)}
 }
+// 續購／到期／分期提醒訊息：課卡、簽到成功頁、學員管理都共用這三個產生器
+function generateRenewMsg(name,remain,course){
+  const head=remain>0?('您的'+(course||'課程')+'還剩 '+remain+' 堂囉 🌿'):('您的'+(course||'課程')+'已經上完囉 🎉');
+  return['嗨 '+name+'！',head,'','若想繼續保持運動習慣，歡迎隨時找我們續課，','也可以直接回覆這則訊息幫您安排 💪','','輕境運動工作室'].join('\n');
+}
+function generateExpiryMsg(name,expiryDate,remain){
+  return['嗨 '+name+'！','貼心提醒：您的課程將於 '+expiryDate+' 到期 📅',(remain>0?'目前還有 '+remain+' 堂課程可以使用，':'')+'記得把握時間預約上課，別讓權益睡著囉 🌿','','有任何問題都歡迎直接回覆訊息！','輕境運動工作室'].join('\n');
+}
+function generateInstallMsg(name,used){
+  return['嗨 '+name+'！','您已經完成第 '+used+' 堂課囉 🎉','','依照分期約定，下一期課程費用要麻煩您安排繳納，','繳費方式有任何問題都歡迎詢問，謝謝您 🙏','','輕境運動工作室'].join('\n');
+}
 function showToast(msg,t='g'){
   const el=document.getElementById('toast');el.textContent=msg;el.style.background=t==='r'?'#C0392B':'#2E7D52';
   el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3000);
@@ -7980,7 +8018,8 @@ function editCellNote(session){
     <div style="background:var(--white);border-radius:18px 18px 14px 14px;padding:20px;width:92%;max-width:380px">
       <div style="font-size:14px;font-weight:500;color:var(--ink);margin-bottom:3px">第 ${session} 堂　備忘</div>
       <div style="font-size:12px;color:var(--ink3);margin-bottom:12px">課程日期、請假預告、注意事項等</div>
-      <textarea id="cellNoteInp" placeholder="例：6/20 預約上課&#10;6/25 補課（老師請假）" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;color:var(--ink);outline:none;resize:none;height:88px;font-family:'Noto Sans TC',sans-serif;margin-bottom:12px;background:var(--bg)">${current}</textarea>
+      <textarea id="cellNoteInp" placeholder="例：6/20 預約上課&#10;6/25 補課（老師請假）" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();saveCellNote(${session},this.value)}" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;color:var(--ink);outline:none;resize:none;height:88px;font-family:'Noto Sans TC',sans-serif;margin-bottom:12px;background:var(--bg)">${current}</textarea>
+      <div style="font-size:10.5px;color:var(--ink3);margin:-8px 0 10px 2px">按 Enter 快速儲存，Shift+Enter 換行</div>
       <div style="display:flex;gap:8px">
         <button onclick="saveCellNote(${session},'')" style="padding:11px;flex:1;background:var(--bg2);border:none;border-radius:10px;font-size:13px;cursor:pointer;color:var(--ink3);font-family:'Noto Sans TC',sans-serif">清除</button>
         <button onclick="saveCellNote(${session},document.getElementById('cellNoteInp').value)" style="padding:11px;flex:2;background:var(--ink);color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;font-weight:500;font-family:'Noto Sans TC',sans-serif">儲存</button>
