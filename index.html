@@ -1788,7 +1788,7 @@ function loadTeacherPhonesFromFB(){
 // 老師日曆對照本來只存 localStorage（單裝置），teacher_reminder.py 排程要在伺服器端讀日曆
 // 找場租，所以跟老師電話一樣同步一份到 Firebase
 function loadTeacherCalMapFromFB(){
-  db.ref('qingjing_teacher_calmap').once('value').then(snap=>{
+  return db.ref('qingjing_teacher_calmap').once('value').then(snap=>{
     const d=snap.val();
     if(d&&typeof d==='object')GC.calMap=d;
   }).catch(e=>{});
@@ -2033,8 +2033,15 @@ function autoGcSyncOnLoad(){
 
 // 讓首頁課表持續跟 Google 日曆保持連動（小幫手沒有後台權限，不能手動點同步）
 let _periodicGcSyncTimer=null;
-function silentGcSync(){
+async function silentGcSync(){
   if(typeof GC==='undefined'||!GC.ok())return;
+  // 2026-08-06 查出：老師/日曆對照表原本只有分頁在「前景」時的 3 分鐘定期同步才會更新
+  // （見 startPeriodicSync 裡 visibilityState!=='visible' 就跳過的判斷），但這支背景 GC
+  // 同步是每 5 分鐘、不管前景背景都照跑。裝置螢幕鎖住、切到別的 App 放很久沒回來，
+  // 對照表就會停在舊的版本，這段期間如果老師的日曆被重新指派過，場租通知就會照著
+  // 舊對照表寄給錯的老師（元元老師的場租新增通知寄到許承澤老師身上就是這樣發生的）。
+  // 改成這支同步自己每次先強制刷新一次對照表，不管分頁在不在前景都用得到最新的。
+  await loadTeacherCalMapFromFB();
   gcSyncHourlyShifts().catch(e=>console.warn('Hourly shift sync failed:',e));
   if(!Object.keys(GC.calMap||{}).length)return;
   // backfillR:false——背景靜默同步只負責即時更新今日課表，不自動幫學員補簽到，
