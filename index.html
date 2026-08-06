@@ -8621,12 +8621,16 @@ function renderHelperMonth(){
       </div>
     </div>
     ${teacherLines.length?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bg2)">
-      <div style="font-size:11.5px;color:var(--ink3);margin-bottom:6px">各老師課堂數／薪資</div>
-      ${teacherLines.map(([t,x])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px"><span style="color:var(--ink)">${hEsc(t)}</span><span style="color:var(--ink2)">${x.sessions} 堂・<span style="color:var(--orange)">$${x.fee.toLocaleString()}</span></span></div>`).join('')}
+      <div style="font-size:11.5px;color:var(--ink3);margin-bottom:8px">各老師課堂數／薪資</div>
+      <div style="max-width:440px;font-variant-numeric:tabular-nums">
+        ${teacherLines.map(([t,x])=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:14px;padding:7px 0;border-bottom:1px solid var(--bg2);font-size:13px"><span style="color:var(--ink)">${hEsc(t)}</span><span style="color:var(--ink2);white-space:nowrap">${x.sessions} 堂・<span style="color:var(--orange);font-weight:600">$${x.fee.toLocaleString()}</span></span></div>`).join('')}
+      </div>
     </div>`:''}
     ${churn.length?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bg2)">
-      <div style="font-size:11.5px;color:var(--orange);margin-bottom:6px">⚠️ 可能流失學員（堂數用完未續排，跟目前選的月／週無關）</div>
-      ${churn.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px"><span style="color:var(--ink)">${hEsc(s.name)}</span><span style="color:var(--ink3)">${hEsc(s.teacher||'')}</span></div>`).join('')}
+      <div style="font-size:11.5px;color:var(--orange);margin-bottom:8px">⚠️ 可能流失學員（堂數用完未續排，跟目前選的月／週無關）</div>
+      <div style="max-width:440px">
+        ${churn.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:14px;padding:7px 0;border-bottom:1px solid var(--bg2);font-size:13px"><span style="color:var(--ink)">${hEsc(s.name)}</span><span style="color:var(--ink3);white-space:nowrap">${hEsc(s.teacher||'')}</span></div>`).join('')}
+      </div>
     </div>`:''}
     <div style="display:flex;gap:8px;margin-top:10px">
       <button onclick="copyHelperMsg('monthReport',false)" style="flex:1;background:var(--ink);color:#fff;border:none;border-radius:9px;padding:10px;font-size:13px;cursor:pointer">📋 複製報表文字</button>
