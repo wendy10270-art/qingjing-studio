@@ -11,4 +11,5 @@ jobs:
       - name: 產生並推播摘要
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          SCRIPTS_DB_SECRET: ${{ secrets.SCRIPTS_DB_SECRET }}
         run: python3 scripts/daily_digest.py

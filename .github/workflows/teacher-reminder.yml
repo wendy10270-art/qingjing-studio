@@ -13,4 +13,5 @@ jobs:
       - name: 推播老師明日課表＋場租
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          SCRIPTS_DB_SECRET: ${{ secrets.SCRIPTS_DB_SECRET }}
         run: python3 scripts/teacher_reminder.py

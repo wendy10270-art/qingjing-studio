@@ -12,4 +12,5 @@ jobs:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           CONFIRM_URL: ${{ secrets.CONFIRM_URL }}
           CONFIRM_SECRET: ${{ secrets.CONFIRM_SECRET }}
+          SCRIPTS_DB_SECRET: ${{ secrets.SCRIPTS_DB_SECRET }}
         run: python3 scripts/line_reminder.py

@@ -8,10 +8,14 @@ import json
 import os
 import urllib.request
 from datetime import datetime, timedelta
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
-FB = 'https://qingjing-studio-default-rtdb.firebaseio.com'
-FB_API_KEY = 'AIzaSyBg3_toi-Kqyi9iw2IbW9C5HhkbgJappxI'
+LINE_WEBHOOK_BASE = 'https://line-webhook-gules.vercel.app'
+# 2026-08-05 資料庫規則收緊成「只有登入過的人能讀寫」後，這支排程沒有瀏覽器環境跑不了
+# 匿名登入，原本靠公開 apiKey 當 ?auth= 的做法本來就沒用（apiKey 不是登入權杖），改成跟
+# gc_backfill.py 同樣模式：伺服器端用 Admin SDK 代為讀寫，見 line-webhook/api/scripts-db.js
+SCRIPTS_DB_SECRET = os.environ.get('SCRIPTS_DB_SECRET', '').strip()
 NTFY_TOPIC = os.environ.get('NTFY_TOPIC', '').strip()
 CONFIRM_URL = os.environ.get('CONFIRM_URL', '').strip()
 CONFIRM_SECRET = os.environ.get('CONFIRM_SECRET', '').strip()
@@ -19,18 +23,26 @@ WD = '日一二三四五六'
 WD_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 
+# path 不帶開頭斜線／.json（如 'qingjing'），要在 scripts-db.js 的白名單裡才會通過
 def fetch(path):
-    with urllib.request.urlopen(FB + path, timeout=20) as r:
-        return json.load(r)
+    key = path.strip('/').removesuffix('.json')
+    url = f'{LINE_WEBHOOK_BASE}/api/scripts-db?key={quote(SCRIPTS_DB_SECRET)}&path={quote(key)}'
+    with urllib.request.urlopen(url, timeout=20) as r:
+        resp = json.load(r)
+    if not resp.get('ok'):
+        raise RuntimeError(resp.get('error') or 'fetch failed')
+    return resp.get('data')
 
 
 def fb_put(path, data):
+    key = path.strip('/').removesuffix('.json')
     body = json.dumps(data).encode()
-    req = urllib.request.Request(
-        f'{FB}{path}.json?auth={FB_API_KEY}', data=body,
-        headers={'Content-Type': 'application/json'}, method='PUT',
-    )
-    urllib.request.urlopen(req, timeout=20)
+    url = f'{LINE_WEBHOOK_BASE}/api/scripts-db?key={quote(SCRIPTS_DB_SECRET)}&path={quote(key)}'
+    req = urllib.request.Request(url, data=body, headers={'Content-Type': 'application/json'}, method='PUT')
+    with urllib.request.urlopen(req, timeout=20) as r:
+        resp = json.load(r)
+    if not resp.get('ok'):
+        raise RuntimeError(resp.get('error') or 'fb_put failed')
 
 
 def send_ntfy(title, message, tags='herb', action_label=None, action_url=None):

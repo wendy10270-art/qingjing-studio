@@ -12,12 +12,15 @@ import urllib.request
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-FB = 'https://qingjing-studio-default-rtdb.firebaseio.com'
 LINE_WEBHOOK_BASE = 'https://line-webhook-gules.vercel.app'
 # 跟 index.html 的 GC_TOKEN_SECRET／TEACHER_PUSH_SECRET 用同一組常數——這兩把本來就寫死在
 # index.html 裡（GitHub Pages 完全公開），不是真正機密，所以不用另外走 GitHub Actions secrets。
 GC_TOKEN_SECRET = '170ebdb59d2a9a4317fe35c1f1021aba69159bfb0dcd2513'
 TEACHER_PUSH_SECRET = '571af36b802c6c269a5264649b8748cdf62774fcf74ed081'
+# 2026-08-05 資料庫規則收緊成「只有登入過的人能讀寫」後，這支排程沒有瀏覽器環境跑不了
+# 匿名登入，改成跟 gc_backfill.py 同樣模式：伺服器端用 Admin SDK 代為讀寫，見
+# line-webhook/api/scripts-db.js
+SCRIPTS_DB_SECRET = os.environ.get('SCRIPTS_DB_SECRET', '').strip()
 NTFY_TOPIC = os.environ.get('NTFY_TOPIC', '').strip()
 DRY_RUN = os.environ.get('DRY_RUN', '').strip() == '1'
 WD = '日一二三四五六'
@@ -26,6 +29,16 @@ WD = '日一二三四五六'
 def fetch(url):
     with urllib.request.urlopen(url, timeout=20) as r:
         return json.load(r)
+
+
+# path 不帶開頭斜線（如 'qingjing_teacher_phones'），要在 scripts-db.js 的白名單裡才會通過
+def db_get(path):
+    from urllib.parse import quote
+    url = f'{LINE_WEBHOOK_BASE}/api/scripts-db?key={quote(SCRIPTS_DB_SECRET)}&path={quote(path)}'
+    resp = fetch(url)
+    if not resp.get('ok'):
+        raise RuntimeError(resp.get('error') or 'db_get failed')
+    return resp.get('data')
 
 
 def send_ntfy(title, message, tags='herb'):
@@ -115,9 +128,9 @@ def main():
     wd_label = f'週{WD[dow]}'
 
     try:
-        teacher_phones = fetch(FB + '/qingjing_teacher_phones.json') or {}
-        cal_map = fetch(FB + '/qingjing_teacher_calmap.json') or {}
-        bindings = fetch(FB + '/qingjing_line_bindings_teacher.json') or {}
+        teacher_phones = db_get('qingjing_teacher_phones') or {}
+        cal_map = db_get('qingjing_teacher_calmap') or {}
+        bindings = db_get('qingjing_line_bindings_teacher') or {}
     except Exception as e:
         send_ntfy('輕境小幫手', f'⚠️ 老師明日提醒讀取雲端資料失敗（{e}）', 'warning')
         return

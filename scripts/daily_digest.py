@@ -4,16 +4,27 @@ import os
 import sys
 import urllib.request
 from datetime import datetime, timedelta
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
-FB = 'https://qingjing-studio-default-rtdb.firebaseio.com'
+LINE_WEBHOOK_BASE = 'https://line-webhook-gules.vercel.app'
 NTFY_TOPIC = os.environ.get('NTFY_TOPIC', '').strip()
+# 2026-08-05 資料庫規則收緊成「只有登入過的人能讀寫」後，這支排程沒有瀏覽器環境跑不了
+# 匿名登入，改成跟 gc_backfill.py 同樣模式：伺服器端用 Admin SDK 代為讀寫，見
+# line-webhook/api/scripts-db.js
+SCRIPTS_DB_SECRET = os.environ.get('SCRIPTS_DB_SECRET', '').strip()
 WD = '日一二三四五六'
 
 
 def fetch(path):
-    with urllib.request.urlopen(FB + path, timeout=20) as r:
-        return json.load(r)
+    # path 例如 '/qingjing.json' → 對應 scripts-db.js 白名單裡的 'qingjing'
+    key = path.strip('/').removesuffix('.json')
+    url = f'{LINE_WEBHOOK_BASE}/api/scripts-db?key={quote(SCRIPTS_DB_SECRET)}&path={quote(key)}'
+    with urllib.request.urlopen(url, timeout=20) as r:
+        resp = json.load(r)
+    if not resp.get('ok'):
+        raise RuntimeError(resp.get('error') or 'fetch failed')
+    return resp.get('data')
 
 
 def send(title, message, tags='herb'):
