@@ -7058,6 +7058,7 @@ function renderLedger(){
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         ${l.type==='trial'?'':`<button onclick="editLedgerBonus('${l.id}')" style="padding:4px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--ink2)">調整獎金</button>`}
+        <button onclick="editLedgerTeacher('${l.id}')" style="padding:4px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--ink2)">改老師</button>
         <button onclick="editLedgerDate('${l.id}')" style="padding:4px 10px;background:var(--blue2);border:1px solid var(--blue3);border-radius:6px;font-size:11px;cursor:pointer;color:var(--blue)">改日期</button>
         <button onclick="deleteLedgerEntry('${l.id}')" style="padding:4px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:6px;font-size:11px;cursor:pointer;color:var(--red)">刪除</button>
         ${l.type==='trial'?'':(l.bonusPaid?
@@ -7083,6 +7084,18 @@ function editLedgerDate(id){
   l.payDate=l.createdAt;
   saveLedger();renderLedger();
   showToast('✓ 日期已修改為 '+l.createdAt);
+}
+
+function editLedgerTeacher(id){
+  const l=LEDGER.find(x=>x.id===id);if(!l)return;
+  const input=prompt('修改這筆記錄的老師（目前：'+(l.teacher||'—')+'）\n可選：'+ALL_TEACHERS.join('、'),l.teacher||'');
+  if(!input)return;
+  const match=ALL_TEACHERS.find(t=>t===input.trim())||ALL_TEACHERS.find(t=>t.includes(input.trim())||input.trim().includes(t));
+  if(!match){alert('找不到符合的老師名稱，請輸入完整名字，例如：'+ALL_TEACHERS[0]);return;}
+  l.teacher=match;
+  saveLedger();renderLedger();
+  if(document.getElementById('ap-wage')?.classList.contains('active'))renderWage();
+  showToast('✓ 老師已改為 '+match);
 }
 
 function deleteLedgerEntry(id){
