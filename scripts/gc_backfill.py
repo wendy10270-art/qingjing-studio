@@ -250,8 +250,13 @@ def main():
             if not stu:
                 unmatched.append(f"{teacher}・{parsed['name']}{(' ' + parsed['phone']) if parsed['phone'] else ''}・{event_time(ev)}")
                 continue
-            if any(r for r in R if r.get('sid') == stu['id'] and r.get('date') == td):
-                continue  # 已經有紀錄（不論是不是這次要補的），不重複
+            # 只在「同一天、同一時段」才算重複——共用課卡的情況（例如媽媽跟女兒共用
+            # 同一張課卡分開上課）同一天會有兩堂不同時間的課，只比對日期會誤把第二堂
+            # 當成已經補過而跳過（2026-08-24 查出：小鈴姐 8/18 13:00 自己、14:00 換媽媽
+            # 上課，14:00 那堂就這樣消失）。時間相同才視為同一堂課、避免重複補登。
+            ev_time = event_time(ev)
+            if any(r for r in R if r.get('sid') == stu['id'] and r.get('date') == td and r.get('time') == ev_time):
+                continue  # 已經有這個時段的紀錄（不論是不是這次要補的），不重複
             # 課卡堂數用完：以前整筆直接跳過、只靠 ntfy 推播提醒一次，店長沒點開通知
             # 就等於這堂課從此在系統裡完全消失，之後每週同一時段都會重複無聲漏掉
             # （2026-08-24 查出：周芸巧、李柏穎、蘇湘閔都是這樣連續好幾週「被漏簽」）。

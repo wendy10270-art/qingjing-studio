@@ -7956,13 +7956,18 @@ async function gcMatchDay(ds,opts){
         if(writeSch){
           if(!SCH[ds])SCH[ds]={};
           if(!SCH[ds][teacher])SCH[ds][teacher]=[];
-          // 歸到「實際開課的日曆老師」名下（代課時顯示代課老師，而非學員原本的老師）
-          if(!SCH[ds][teacher].find(sl=>sl.sid===stu.id)){
+          // 歸到「實際開課的日曆老師」名下（代課時顯示代課老師，而非學員原本的老師）。
+          // 比對 sid+time 而非只比對 sid：共用課卡的情況（例如媽媽跟女兒共用同一張
+          // 課卡分開上課）同一天會有兩個不同時間的事件，只比對 sid 會把第二堂當成
+          // 重複而濾掉，害那堂課從今日課表／核對課堂上整個消失
+          // （2026-08-24 查出：小鈴姐 8/18 13:00 自己、14:00 換媽媽上課，14:00 那堂就這樣不見）。
+          if(!SCH[ds][teacher].find(sl=>sl.sid===stu.id&&sl.time===time)){
             SCH[ds][teacher].push({sid:stu.id,time,attendeeName:parsed.name||''});
             schAdded++;
           }
         }
-        // 已經有這天的簽到紀錄（不論是否確認）就不用補。
+        // 已經有這天「同一時段」的簽到紀錄（不論是否確認）就不用補，理由同上——
+        // 只比對日期會把共用課卡的第二堂課誤判成重複。
         // 2026-08-05 查出：這支函式當天也會被每 5 分鐘一次的背景同步呼叫（silentGcSync→
         // gcSyncToday 一律帶 backfillR:true），完全沒判斷這堂課到底上完了沒——只要日曆上
         // 出現今天的課、App 裡還沒有簽到紀錄，馬上就補一筆「未簽到」的補簽紀錄，課都還沒開始
@@ -7978,12 +7983,14 @@ async function gcMatchDay(ds,opts){
         // （2026-08-24 查出：周芸巧、李柏穎、蘇湘閔都是這樣連續好幾週消失在核對課堂畫面外）。
         // 改成照樣補一筆待確認紀錄、標記 cardExhausted，讓它留在「核對課堂」看得到，
         // 但不動 used，堂數不會透支——店長要嘛幫學員加開新課卡，要嘛個別刪除，都在畫面上處理。
-        if(backfillR&&classEnded&&!R.some(r=>r.sid===stu.id&&r.date===ds)){
+        if(backfillR&&classEnded&&!R.some(r=>r.sid===stu.id&&r.date===ds&&r.time===time)){
           const isSub=teacher!==(stu.teacher||'');
           const exhausted=(stu.used||0)>=(stu.total||0);
           if(!exhausted)stu.used=(stu.used||0)+1;
           R.push({id:'r'+Date.now()+Math.random().toString(36).slice(2,6),sid:stu.id,date:ds,time,session:stu.used||0,sig:null,isSub,subTeacher:isSub?teacher:'',isUpgraded:false,upgradedTo:'',upgradeDiff:0,actualFee:getDefaultFee(stu.teacher,stu.course),manualFee:null,manualNote:exhausted?'課卡已用完，日曆仍排課（需先幫學員加開課卡才能核銷）':'GC比對，未簽到',confirmed:false,upgPayMethod:'',feeCollected:false,isRetro:true,gcBackfilled:true,cardExhausted:exhausted});
-          if(!exhausted)rBackfilled++;
+          // exhausted 分支也要算進 rBackfilled：呼叫端只在 rBackfilled>0 時才 save() 並重畫
+          // 清單，先前只在非 exhausted 才++，害這筆新紀錄寫進記憶體後從沒存檔、白補了
+          rBackfilled++;
         }
         continue;
       }
@@ -8747,9 +8754,14 @@ async function runDataCheck(){
             if(!T.find(t=>t.name===parsed.name&&t.date===evDate))issues.push({lv:'info',msg:`${evDate}（${teacher}）「${parsed.name}」不在學員名單（可能是體驗課或尚未建檔）`});
             continue;
           }
-          const hasR=R.find(r=>r.sid===stu.id&&r.date===evDate);
+          // 比對 sid+time 而非只比對 sid+date：共用課卡（例如媽媽跟女兒共用同一張課卡
+          // 分開上課）同一天會有兩堂不同時間的課，只比對日期會把已經簽到的第一堂
+          // 誤判成「涵蓋了」第二堂，第二堂漏簽就抓不出來
+          // （2026-08-24 查出：小鈴姐 8/18 13:00 自己、14:00 換媽媽上課才發現）。
+          const evTime=GC.getTime(ev);
+          const hasR=R.find(r=>r.sid===stu.id&&r.date===evDate&&r.time===evTime);
           const hasL=L.find(l=>l.sid===stu.id&&l.date===evDate);
-          if(!hasR&&!hasL)issues.push({lv:'warn',msg:`${stu.name} ${evDate}（${teacher}）日曆有課，但沒有簽到／請假紀錄，可能漏簽 → 可到「確認消課」用補簽處理`});
+          if(!hasR&&!hasL)issues.push({lv:'warn',msg:`${stu.name} ${evDate} ${evTime}（${teacher}）日曆有課，但沒有簽到／請假紀錄，可能漏簽 → 可到「確認消課」用補簽處理`});
         }
       }catch(e){issues.push({lv:'info',msg:`讀取 ${teacher} 的日曆失敗：${e.message}`});}
     }
