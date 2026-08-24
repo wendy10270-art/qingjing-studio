@@ -252,27 +252,35 @@ def main():
                 continue
             if any(r for r in R if r.get('sid') == stu['id'] and r.get('date') == td):
                 continue  # 已經有紀錄（不論是不是這次要補的），不重複
-            if stu.get('used', 0) >= stu.get('total', 0):
+            # 課卡堂數用完：以前整筆直接跳過、只靠 ntfy 推播提醒一次，店長沒點開通知
+            # 就等於這堂課從此在系統裡完全消失，之後每週同一時段都會重複無聲漏掉
+            # （2026-08-24 查出：周芸巧、李柏穎、蘇湘閔都是這樣連續好幾週「被漏簽」）。
+            # 改成照樣補一筆待確認紀錄讓它留在「核對課堂」畫面上看得到，但不動 used，
+            # 避免堂數透支——店長要嘛幫學員加開新課卡，要嘛個別刪除，都在畫面上處理。
+            exhausted = stu.get('used', 0) >= stu.get('total', 0)
+            if exhausted:
                 skipped_exhausted.append(f"{teacher}・{stu['name']}")
-                continue
-            stu['used'] = stu.get('used', 0) + 1
+            else:
+                stu['used'] = stu.get('used', 0) + 1
             is_sub = teacher != (stu.get('teacher') or '')
             R.append({
-                'id': 'r' + str(int(now.timestamp() * 1000)) + str(len(backfilled)),
+                'id': 'r' + str(int(now.timestamp() * 1000)) + str(len(backfilled) + len(skipped_exhausted)),
                 'sid': stu['id'], 'date': td, 'time': event_time(ev),
-                'session': stu['used'], 'sig': None,
+                'session': stu.get('used', 0), 'sig': None,
                 'isSub': is_sub, 'subTeacher': teacher if is_sub else '',
                 'isUpgraded': False, 'upgradedTo': '', 'upgradeDiff': 0,
                 # actualFee 故意留 None：getRecFee() 在瀏覽器端會自動用 getDefaultFee 現算，
                 # 不用把師資費率表另外複製一份到伺服器端維護
                 'actualFee': None, 'manualFee': None,
-                'manualNote': 'GC比對，未簽到（每日排程補登）',
+                'manualNote': '課卡已用完，日曆仍排課（每日排程補登，需先幫學員加開課卡才能核銷）'
+                    if exhausted else 'GC比對，未簽到（每日排程補登）',
                 'confirmed': False, 'upgPayMethod': '', 'feeCollected': False,
-                'isRetro': True, 'gcBackfilled': True,
+                'isRetro': True, 'gcBackfilled': True, 'cardExhausted': exhausted,
             })
-            backfilled.append(f"{teacher}・{stu['name']}・{event_time(ev)}")
+            if not exhausted:
+                backfilled.append(f"{teacher}・{stu['name']}・{event_time(ev)}")
 
-    if backfilled:
+    if backfilled or skipped_exhausted:
         try:
             fb_patch('/qingjing', {'s': S, 'r': R})
         except Exception as e:
@@ -287,7 +295,7 @@ def main():
         lines.append('今天沒有需要補的紀錄。')
     if skipped_exhausted:
         lines.append('')
-        lines.append(f'⚠️ 比對到但課卡堂數已用完，未補（{len(skipped_exhausted)} 筆）：')
+        lines.append(f'⚠️ 課卡堂數已用完但日曆仍有課，已補一筆「待確認」提醒（不計堂數，需先加開課卡）（{len(skipped_exhausted)} 筆）：')
         lines.append('、'.join(skipped_exhausted))
     if unmatched:
         lines.append('')
