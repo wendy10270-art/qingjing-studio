@@ -2865,7 +2865,7 @@ function renderCard(sid){
       const isGcAuto=!!rec.gcBackfilled;
       const isRetro=!!rec.isRetro&&!isGcAuto;
       const cls='prow '+(isPaper?'paper':isGcAuto?'gcauto':isRetro?'retro':rec.isUpgraded?'upgraded':rec.isSub?'sub':'signed');
-      const mainTxt=isPaper?'紙本簽到':isGcAuto?'🤖 系統已簽到（日曆比對，非本人簽名）':isRetro?'補簽：'+fmtFullDate(rec.date):fmtFullDate(rec.date)+(rec.time?'　'+rec.time:'');
+      const mainTxt=isPaper?'紙本簽到':isGcAuto?'🤖 系統已簽到（日曆比對，非本人簽名）・'+fmtFullDate(rec.date)+(rec.time?'　'+rec.time:''):isRetro?'補簽：'+fmtFullDate(rec.date):fmtFullDate(rec.date)+(rec.time?'　'+rec.time:'');
       const tags=[rec.isUpgraded?`↑升級 ${rec.upgradedTo}`:'',rec.isSub?'代課':''].filter(Boolean);
       cells+=`<div class="${cls}" onclick="editCellNote(${i})">
         <div class="prow-num">${i}</div>
@@ -2911,7 +2911,7 @@ function renderCard(sid){
     // 不然店長看到「今日已完成簽到」會誤以為學員本人已經簽過名了
     const isGcAuto=!!already.gcBackfilled;
     sa.innerHTML=isGcAuto?
-      `<div style="text-align:center;padding:22px 0"><div style="font-size:30px;margin-bottom:9px">🤖</div><div style="font-size:16px;letter-spacing:2px;color:var(--orange)">系統已簽到</div><div style="font-size:12px;color:var(--ink3);margin-top:5px;line-height:1.6">日曆比對自動產生，並非本人親自簽名<br>${already.date} ${already.time}</div>${retroBtn}</div>`
+      `<div style="text-align:center;padding:22px 0"><div style="font-size:30px;margin-bottom:9px">🤖</div><div style="font-size:16px;letter-spacing:2px;color:var(--orange)">系統已簽到</div><div style="font-size:12px;color:var(--ink3);margin-top:5px;line-height:1.6">日曆比對自動產生，並非本人親自簽名<br>${already.date} ${already.time}</div><button onclick="openResendLineMsg('${already.id}')" style="margin-top:14px;background:#06C755;color:#fff;border:none;border-radius:10px;padding:9px 22px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">📨 通知學員下次上課資訊</button>${retroBtn}</div>`
       :`<div style="text-align:center;padding:22px 0"><div style="font-size:30px;margin-bottom:9px">✓</div><div style="font-size:16px;letter-spacing:2px;color:var(--green)">今日已完成簽到</div><div style="font-size:13px;color:var(--ink3);margin-top:5px">${already.date} ${already.time}${already.isUpgraded?' ・升級'+already.upgradedTo:''}${already.isSub?' ・代課：'+already.subTeacher:''}</div>${retroBtn}</div>`;
     return;
   }
