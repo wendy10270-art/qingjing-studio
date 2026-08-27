@@ -5594,7 +5594,7 @@ function renderUpcomingArea(sid, targetId){
         if(dt0){
           const apptDate=fmt(dt0);
           const apptTime=String(dt0.getHours()).padStart(2,'0')+':'+String(dt0.getMinutes()).padStart(2,'0');
-          updateLineMsgWithAppt(apptDate,apptTime);
+          updateLineMsgWithAppt(apptDate,apptTime,undefined,undefined,s.course);
         }
       }else{
         cur.innerHTML=_buildUpcomingFallbackHTML(s,remain,'no-events');
@@ -5962,7 +5962,7 @@ function openResendLineMsg(recId){
       const ev0=events[0];
       const dt0=ev0&&ev0.start?.dateTime?new Date(ev0.start.dateTime):null;
       if(dt0){
-        updateLineMsgWithAppt(fmt(dt0), String(dt0.getHours()).padStart(2,'0')+':'+String(dt0.getMinutes()).padStart(2,'0'), 'resendLineMsgText', 'resendLineMessageArea');
+        updateLineMsgWithAppt(fmt(dt0), String(dt0.getHours()).padStart(2,'0')+':'+String(dt0.getMinutes()).padStart(2,'0'), 'resendLineMsgText', 'resendLineMessageArea', s.course);
       }
     }).catch(e=>console.warn('resend GC search failed:',e));
   }
@@ -6800,7 +6800,8 @@ function renderNextApptArea(sid){
 
 function confirmNextAppt(sid,date,time){
   setNextBooking(sid,date,time);
-  updateLineMsgWithAppt(date,time);
+  const s=S.find(x=>x.id===sid);
+  updateLineMsgWithAppt(date,time,undefined,undefined,s?.course);
   const el=document.getElementById('apptConfirmed');
   if(el){el.style.display='block';el.textContent='✓ 已預排：'+date+' '+time+'　LINE 訊息已更新！'}
 }
@@ -6812,7 +6813,7 @@ function confirmNextApptCustom(sid){
   confirmNextAppt(sid,date,time);
 }
 
-function updateLineMsgWithAppt(date,time,msgElId,areaElId){
+function updateLineMsgWithAppt(date,time,msgElId,areaElId,courseType){
   msgElId=msgElId||'lineMsgText';areaElId=areaElId||'lineMessageArea';
   const el=document.getElementById(msgElId);
   if(!el)return;
@@ -6823,11 +6824,12 @@ function updateLineMsgWithAppt(date,time,msgElId,areaElId){
   const lang=areaElForAppt?.dataset.lang==='en'?'en':'zh';
   // 取得純文字
   let text=el.innerHTML.replace(/<br>/g,'\n').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+  const dt=parseDate(date);
   if(lang==='en'){
     // 移除舊的下次時間區塊、以及「還沒約下次上課」的提醒（找到預約了，這句話就不成立了）
-    text=text.replace(/\n\n📅 Next class\n[^\n]*/g,'');
+    text=text.replace(/\n\n📅 Next class\n[^\n]*(\n📋[^\n]*)?/g,'');
     text=text.replace(/\n\n💛 You haven't booked your next class yet[^\n]*/g,'');
-    const apptBlock='📅 Next class\n'+date+' '+time;
+    const apptBlock='📅 Next class\n'+date+' ('+WD_EN[dt.getDay()]+') '+time+(courseType?'\n📋 '+courseType:'');
     if(text.includes('See you next time~')){
       text=text.replace('See you next time~', apptBlock+'\n\nSee you next time~');
     } else {
@@ -6835,10 +6837,10 @@ function updateLineMsgWithAppt(date,time,msgElId,areaElId){
     }
   }else{
     // 移除舊的下次時間區塊、以及「還沒約下次上課」的提醒（找到預約了，這句話就不成立了）
-    text=text.replace(/\n\n📅 下次上課時間\n[^\n]*/g,'');
+    text=text.replace(/\n\n📅 下次上課時間\n[^\n]*(\n📋[^\n]*)?/g,'');
     text=text.replace(/\n\n💛 目前還沒約下次上課時間，記得跟我們約課喔～/g,'');
     // 在「我們下次見」前插入（插入點前面本來就有一個空行分隔，這裡不用再多加）
-    const apptBlock='📅 下次上課時間\n'+date+' '+time;
+    const apptBlock='📅 下次上課時間\n'+date+'（星期'+WD[dt.getDay()]+'） '+time+(courseType?'\n📋 '+courseType:'');
     if(text.includes('我們下次見～')){
       text=text.replace('我們下次見～', apptBlock+'\n\n我們下次見～');
     } else {
