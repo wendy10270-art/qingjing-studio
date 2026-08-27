@@ -1856,6 +1856,7 @@ function loadCustomTeachersFromFirebase(){
 
 
 const WD=['日','一','二','三','四','五','六'];
+const WD_EN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function tick(){
   const d=new Date();
   document.getElementById('clk').textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
@@ -5795,7 +5796,9 @@ function buildLineMsgText(s, isUpgraded, upgradedTo, upgradeDiff, lang){
     if(s.nextBooking){
       parts.push('');
       parts.push('📅 Next class');
-      parts.push(s.nextBooking.date+' '+s.nextBooking.time);
+      const dt=parseDate(s.nextBooking.date);
+      parts.push(s.nextBooking.date+' ('+WD_EN[dt.getDay()]+') '+s.nextBooking.time);
+      if(s.course)parts.push('📋 '+s.course);
     }else{
       parts.push('');
       parts.push("💛 You haven't booked your next class yet — let us know when works for you~");
@@ -5812,7 +5815,9 @@ function buildLineMsgText(s, isUpgraded, upgradedTo, upgradeDiff, lang){
     if(s.nextBooking){
       parts.push('');
       parts.push('📅 下次上課時間');
-      parts.push(s.nextBooking.date+' '+s.nextBooking.time);
+      const dt=parseDate(s.nextBooking.date);
+      parts.push(s.nextBooking.date+'（星期'+WD[dt.getDay()]+'）'+' '+s.nextBooking.time);
+      if(s.course)parts.push('📋 '+s.course);
     }else{
       parts.push('');
       parts.push('💛 目前還沒約下次上課時間，記得跟我們約課喔～');
@@ -8296,8 +8301,8 @@ ${monthNew.length?`<div class="section">
 
 
 // ── 明日通知 ──
-function generateTomorrowMsg(name, month, day, weekday, time, teacher){
-  return [name+'您好，我是阿勇店長 🐾','提醒您明天有課，好期待見到您！','','📅 '+month+'/'+day+'（星期'+weekday+'）','⏰ '+time,'👩‍🏫 '+teacher+' 老師','','今天先好好休息，明天一起加油、動次動次 💪🌿'].join('\n');
+function generateTomorrowMsg(name, month, day, weekday, time, teacher, courseType){
+  return [name+'您好，我是阿勇店長 🐾','提醒您明天有課，好期待見到您！','','📅 '+month+'/'+day+'（星期'+weekday+'）','⏰ '+time,'👩‍🏫 '+teacher+' 老師',...(courseType?['📋 '+courseType]:[]),'','今天先好好休息，明天一起加油、動次動次 💪🌿'].join('\n');
 }
 
 function copyTomorrowMsg(msgId){
@@ -8433,7 +8438,7 @@ async function renderTomorrowNotify(){
     if(boundCount)html+=`<button id="tnSendAllBtn" onclick="sendAllTomorrowMsgs()" style="background:var(--ink);color:#fff;border:none;border-radius:9px;padding:11px;width:100%;font-size:14px;cursor:pointer;margin-bottom:14px;font-weight:500">🚀 一鍵發送全部（已綁定 ${boundCount} 位）</button>`;
     allItems.forEach((item,idx)=>{
       const msgId='tnMsg_'+idx;
-      const msg=generateTomorrowMsg(item.name,tomMonth,tomDay,tomWD,item.time,item.teacher);
+      const msg=generateTomorrowMsg(item.name,tomMonth,tomDay,tomWD,item.time,item.teacher,item.courseType);
       const actionBtn=item.bound
         ?`<button id="tnSend_${idx}" onclick="sendTomorrowLineMsg(${idx})" style="background:#06C755;color:#fff;border:none;border-radius:9px;padding:10px;width:100%;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:500"><span style="font-size:18px;line-height:1">🚀</span>一鍵發送</button>`
         :`<button onclick="copyTomorrowMsg('${msgId}')" style="background:#06C755;color:#fff;border:none;border-radius:9px;padding:10px;width:100%;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:500"><span style="font-size:18px;line-height:1">💬</span>複製訊息 & 開啟 LINE</button>`;
