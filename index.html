@@ -2066,9 +2066,18 @@ async function silentGcSync(){
   gcSyncToday(undefined,{silent:true,backfillR:false}).catch(e=>console.warn('Silent GC sync failed:',e));
   syncFutureRentBookings().catch(e=>console.warn('Future rent booking scan failed:',e));
 }
-// 工讀生時薪同步：各自獨立 Google 日曆，日曆上每個事件＝一個班次（不用像正課事件解析標題），
-// 直接用起訖時間算時數 × 時薪。用 gcKey（日曆ID+事件ID）比對是否已存在，同步時順便更新時間異動、
-// 刪除已取消的班次；掃 -60~+14 天，涵蓋補登過去班表跟已排好的近期班表
+// 工讀生時薪同步：各自獨立 Google 日曆，用起訖時間算時數 × 時薪。用 gcKey（日曆ID+事件ID）
+// 比對是否已存在，同步時順便更新時間異動、刪除已取消的班次；掃 -60~+14 天。
+//
+// 只有「看起來像上班」的事件才算班次——標題要含工讀名字，或「上班／小幫手／打工／班／工讀」
+// 其中一個字（2026-08-31：蕭妹妹把私人的「弄頭髮」行程放到上班日曆，被算成 2 小時 $400）。
+// 代價是班次事件沒照格式命名就會被漏算，工讀反映少一筆時先檢查標題。
+function hsLooksLikeShift(summary,staff){
+  const s=(summary||'').trim();
+  if(!s)return false;
+  if(staff&&s.includes(staff))return true;
+  return /上班|小幫手|小幫忙|打工|排班|值班|顧店|顧櫃|工讀|班表|\bshift\b|\bwork\b/i.test(s);
+}
 async function gcSyncHourlyShifts(){
   if(typeof GC==='undefined'||!GC.ok())return false;
   const staffEntries=Object.entries(HOURLY_STAFF).filter(([,cfg])=>cfg&&cfg.calId);
@@ -2088,7 +2097,8 @@ async function gcSyncHourlyShifts(){
       (data.items||[]).forEach(ev=>{
         const gcKey=cfg.calId+'_'+(ev.iCalUID||ev.id);
         const idx=HOURLY_SHIFTS.findIndex(x=>x.gcKey===gcKey);
-        if(ev.status==='cancelled'||!ev.start?.dateTime||!ev.end?.dateTime){
+        if(ev.status==='cancelled'||!ev.start?.dateTime||!ev.end?.dateTime||!hsLooksLikeShift(ev.summary,staff)){
+          // 取消／沒時間／標題不像上班 → 不是班次；之前誤建過的一併清掉
           if(idx>=0){HOURLY_SHIFTS.splice(idx,1);changed=true;}
           return;
         }
