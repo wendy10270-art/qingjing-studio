@@ -4053,9 +4053,29 @@ function renderDaily(){
   renderDailyList(ds);
   renderGcSettle(ds);
 }
+// 一次性清掉先前 time 硬比對 bug 生出的重複補簽（2026-08-31）：同一學員同一天，
+// 已有一筆非補簽的紀錄（真人簽到／手動補登），又被 GC 多補了未簽到的補簽紀錄，
+// 且該學員當天只有這一筆非補簽紀錄（排除共用課卡一天多堂）→ 刪掉補簽那筆並回沖堂數。
+function cleanupGhostBackfill(ds){
+  const bySid={};
+  R.forEach(r=>{if(r.date===ds)(bySid[r.sid]=bySid[r.sid]||[]).push(r)});
+  let removed=0;
+  Object.values(bySid).forEach(list=>{
+    const real=list.filter(r=>!r.gcBackfilled);
+    const ghosts=list.filter(r=>r.gcBackfilled&&!r.confirmed&&!r.sig);
+    if(real.length!==1||!ghosts.length)return;
+    ghosts.forEach(g=>{
+      const idx=R.indexOf(g);if(idx<0)return;
+      if(!g.cardExhausted){const st=S.find(x=>x.id===g.sid);if(st&&(st.used||0)>0)st.used--;}
+      R.splice(idx,1);removed++;
+    });
+  });
+  if(removed>0){console.log('🗑 清掉重複 GC 補簽',removed,'筆（'+ds+'）');save();}
+}
 // 抽成獨立函式：renderGcSettle 比對完日曆、可能自動補一筆簽到紀錄之後，需要重畫這塊清單，
 // 但不能整個 renderDaily() 重來一次（會再觸發一次 renderGcSettle，變成無窮迴圈）
 function renderDailyList(ds){
+  cleanupGhostBackfill(ds);
   const recs=R.filter(r=>r.date===ds);
   // 不再要求 t.sig 才顯示：補登過去日期／日曆比對自動建立的體驗課本來就不會有現場簽名，
   // 跟 R（正課簽到）的顯示規則一樣，只看日期，不看有沒有簽名（R.filter 本來就沒有簽名限制）
@@ -7944,11 +7964,25 @@ async function gcMatchDay(ds,opts){
   const teachers=Object.keys(calMap);
   const matched=[],unmatched=[],rentEvents=[],trialsAdded=[];
   let schAdded=0,rBackfilled=0,trialAdded=0;
+  // 先把當天所有老師的日曆事件收齊，再統一處理——這樣才能先數出「同一位學員當天有幾堂課」，
+  // 供下方補簽去重判斷是不是共用課卡一天多堂的情況。
+  const _allEvs=[];
   for(const teacher of teachers){
     const calId=calMap[teacher];if(!calId)continue;
     let evs=[];
     try{evs=await GC.dayEvents(calId,ds);}catch(e){console.warn('GC match day read err:',teacher,e);continue;}
-    for(const ev of evs){
+    for(const ev of evs)_allEvs.push({ev,teacher});
+  }
+  // 每位學員當天比對到的正課堂數（場租／體驗不計入）
+  const _sidDayCount={};
+  for(const _e of _allEvs){
+    const _p=GC.parseTitle(_e.ev.summary||'');
+    if(!_p||gcIsRent(_p.type))continue;
+    const _s=gcMatchStudent(_p,_e.teacher);
+    if(_s)_sidDayCount[_s.id]=(_sidDayCount[_s.id]||0)+1;
+  }
+  {
+    for(const {ev,teacher} of _allEvs){
       const parsed=GC.parseTitle(ev.summary||'');
       if(!parsed)continue;
       const key=ev.iCalUID||ev.id;
@@ -7990,7 +8024,14 @@ async function gcMatchDay(ds,opts){
         // （2026-08-24 查出：周芸巧、李柏穎、蘇湘閔都是這樣連續好幾週消失在核對課堂畫面外）。
         // 改成照樣補一筆待確認紀錄、標記 cardExhausted，讓它留在「核對課堂」看得到，
         // 但不動 used，堂數不會透支——店長要嘛幫學員加開新課卡，要嘛個別刪除，都在畫面上處理。
-        if(backfillR&&classEnded&&!R.some(r=>r.sid===stu.id&&r.date===ds&&r.time===time)){
+        // 去重：學員實際簽到時間存的是按簽名板當下（nowTime()），跟日曆排課整點對不上
+        // （2026-08-31 查出：整天沒共用課卡，卻因為硬比對 time 而堂堂多補一筆「未簽到・GC比對」）。
+        // 只有共用課卡一天多堂（同一 sid 當天 ≥2 個日曆事件）才比對到「時段」，避免把第二堂
+        // 誤判成重複濾掉；一般一人一堂只比對 sid+日期。
+        const _dup=(_sidDayCount[stu.id]||0)>1
+          ? R.some(r=>r.sid===stu.id&&r.date===ds&&r.time===time)
+          : R.some(r=>r.sid===stu.id&&r.date===ds);
+        if(backfillR&&classEnded&&!_dup){
           const isSub=teacher!==(stu.teacher||'');
           const exhausted=(stu.used||0)>=(stu.total||0);
           if(!exhausted)stu.used=(stu.used||0)+1;

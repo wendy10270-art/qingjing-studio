@@ -232,6 +232,9 @@ def main():
     tmax = tmin + timedelta(days=1)
 
     backfilled, skipped_exhausted, unmatched, read_errors = [], [], [], []
+    # 先收齊當天所有老師的日曆事件，再統一處理——這樣才能先數出「同一位學員當天有幾堂課」，
+    # 供下方去重判斷是不是共用課卡一天多堂的情況。
+    all_evs = []
     for teacher, cal_id in cal_map.items():
         if not cal_id:
             continue
@@ -241,6 +244,20 @@ def main():
             read_errors.append(f'{teacher}（{e}）')
             continue
         for ev in evs:
+            all_evs.append((teacher, ev))
+    # 每位學員當天比對到的正課堂數（場租／體驗不計入）
+    sid_day_count = {}
+    for teacher, ev in all_evs:
+        if ev.get('status') == 'cancelled':
+            continue
+        p = parse_title(ev.get('summary') or '')
+        if not p or is_rent(p['type']) or '體驗' in p['type']:
+            continue
+        s = match_student(p, teacher, S)
+        if s:
+            sid_day_count[s['id']] = sid_day_count.get(s['id'], 0) + 1
+    if True:
+        for teacher, ev in all_evs:
             if ev.get('status') == 'cancelled':
                 continue
             parsed = parse_title(ev.get('summary') or '')
@@ -250,13 +267,17 @@ def main():
             if not stu:
                 unmatched.append(f"{teacher}・{parsed['name']}{(' ' + parsed['phone']) if parsed['phone'] else ''}・{event_time(ev)}")
                 continue
-            # 只在「同一天、同一時段」才算重複——共用課卡的情況（例如媽媽跟女兒共用
-            # 同一張課卡分開上課）同一天會有兩堂不同時間的課，只比對日期會誤把第二堂
-            # 當成已經補過而跳過（2026-08-24 查出：小鈴姐 8/18 13:00 自己、14:00 換媽媽
-            # 上課，14:00 那堂就這樣消失）。時間相同才視為同一堂課、避免重複補登。
+            # 去重：學員實際簽到時間存的是按簽名板當下（nowTime()），跟日曆排課整點對不上
+            # （2026-08-31 查出：整天沒共用課卡，卻因為硬比對 time 而堂堂多補一筆「未簽到・GC比對」）。
+            # 只有共用課卡一天多堂（同一 sid 當天 ≥2 個日曆事件）才比對到「時段」，避免把第二堂
+            # 誤判成重複濾掉（小鈴姐 8/18 13:00 自己、14:00 換媽媽）；一般一人一堂只比對 sid+日期。
             ev_time = event_time(ev)
-            if any(r for r in R if r.get('sid') == stu['id'] and r.get('date') == td and r.get('time') == ev_time):
-                continue  # 已經有這個時段的紀錄（不論是不是這次要補的），不重複
+            if (sid_day_count.get(stu['id'], 0) > 1):
+                dup = any(r for r in R if r.get('sid') == stu['id'] and r.get('date') == td and r.get('time') == ev_time)
+            else:
+                dup = any(r for r in R if r.get('sid') == stu['id'] and r.get('date') == td)
+            if dup:
+                continue  # 已經有這天的紀錄（不論真人簽到或先前補簽），不重複
             # 課卡堂數用完：以前整筆直接跳過、只靠 ntfy 推播提醒一次，店長沒點開通知
             # 就等於這堂課從此在系統裡完全消失，之後每週同一時段都會重複無聲漏掉
             # （2026-08-24 查出：周芸巧、李柏穎、蘇湘閔都是這樣連續好幾週「被漏簽」）。
