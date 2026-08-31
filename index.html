@@ -2074,12 +2074,17 @@ async function gcSyncHourlyShifts(){
   const staffEntries=Object.entries(HOURLY_STAFF).filter(([,cfg])=>cfg&&cfg.calId);
   if(!staffEntries.length)return false;
   const now=new Date();
-  const tMin=encodeURIComponent(new Date(now.getTime()-60*864e5).toISOString());
-  const tMax=encodeURIComponent(new Date(now.getTime()+14*864e5).toISOString());
+  const winMin=new Date(now.getTime()-60*864e5),winMax=new Date(now.getTime()+14*864e5);
+  const tMin=encodeURIComponent(winMin.toISOString());
+  const tMax=encodeURIComponent(winMax.toISOString());
   let changed=false;
   await Promise.all(staffEntries.map(async([staff,cfg])=>{
     try{
-      const data=await GC.api(`/calendars/${encodeURIComponent(cfg.calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=250`);
+      // showDeleted=true 一定要帶：不帶的話 API 根本不會回傳已取消／已刪除的事件，
+      // 下面「ev.status==='cancelled' 就 splice」那段就永遠不會執行，班次刪了紀錄還留著
+      // （2026-08-31：蕭妹妹把「弄頭髮」事件從日曆刪掉，8/26 那筆 $400 卻一直留在薪資結算）。
+      const data=await GC.api(`/calendars/${encodeURIComponent(cfg.calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=250&showDeleted=true`);
+      const seen=new Set();
       (data.items||[]).forEach(ev=>{
         const gcKey=cfg.calId+'_'+(ev.iCalUID||ev.id);
         const idx=HOURLY_SHIFTS.findIndex(x=>x.gcKey===gcKey);
@@ -2087,6 +2092,7 @@ async function gcSyncHourlyShifts(){
           if(idx>=0){HOURLY_SHIFTS.splice(idx,1);changed=true;}
           return;
         }
+        seen.add(gcKey);
         const start=new Date(ev.start.dateTime),end=new Date(ev.end.dateTime);
         const hours=Math.max(0,Math.round(((end-start)/3600000)*100)/100);
         const fee=Math.round(hours*(cfg.rate||0));
@@ -2103,6 +2109,15 @@ async function gcSyncHourlyShifts(){
           if(old.date!==rec.date||old.start!==rec.start||old.end!==rec.end||old.hours!==rec.hours||old.fee!==rec.fee){HOURLY_SHIFTS[idx]=rec;changed=true;}
         }else{HOURLY_SHIFTS.push(rec);changed=true;}
       });
+      // 補刀：事件被硬刪除、或整筆搬走時，API 可能連 cancelled 都不回傳（尤其跨過同步視窗邊界）。
+      // 只要這位工讀在同步視窗內、掛在這本日曆、但這輪完全沒看到對應事件的班次，一律清掉。
+      for(let i=HOURLY_SHIFTS.length-1;i>=0;i--){
+        const x=HOURLY_SHIFTS[i];
+        if(x.staff!==staff||!x.gcKey||x.gcKey.indexOf(cfg.calId+'_')!==0)continue;
+        if(seen.has(x.gcKey))continue;
+        const dt=parseDate(x.date);
+        if(dt>=winMin&&dt<=winMax){HOURLY_SHIFTS.splice(i,1);changed=true;}
+      }
     }catch(e){console.warn('Hourly shift sync err:',staff,e);}
   }));
   if(changed)saveHourlyShifts();
