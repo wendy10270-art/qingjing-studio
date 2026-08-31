@@ -1547,6 +1547,10 @@ let HOURLY_SHIFTS=JSON.parse(localStorage.getItem('qjf_hshifts')||'[]');
 let TEACHER_LINE_BOUND=new Set();
 // RENT_BOOKING_NOTIFIED：已經通知過老師「這筆場租已登記」的日曆事件 key 集合，避免每次同步都重複通知
 let RENT_BOOKING_NOTIFIED=new Set(JSON.parse(localStorage.getItem('qjf_rbn')||'[]'));
+// RENT_BOOKING_REVIEW：場租通知偵測到「事件標題寫的人 ≠ 事件所在日曆的老師」、或對到的老師沒綁 LINE，
+// 為了不重蹈「元元的場租通知寄給汭汭」覆轍，這種一律不自動寄，改記在這裡、首頁跳提醒人工處理。
+// {gcKey:{owner,name,target,date,time,reason,ts}}
+let RENT_BOOKING_REVIEW=JSON.parse(localStorage.getItem('qjf_rbr')||'{}');
 let TL=JSON.parse(localStorage.getItem('qjf_tl')||'[]');
 function save(){
   // 本地備份
@@ -1666,7 +1670,7 @@ function manualSync(){
     loadRentFromFB();
     loadRentCfgFromFB();
     loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();loadTeacherCalMapFromFB();
-    loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
+    loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();loadRentBookingReviewFromFB();
     loadExpensesFromFB();loadLedgerFromFB(()=>{
       renderTeachers();
       showSyncStatus('synced');
@@ -1841,6 +1845,17 @@ function loadRentBookingNotifiedFromFB(){
     if(Array.isArray(d)){RENT_BOOKING_NOTIFIED=new Set(d);localStorage.setItem('qjf_rbn',JSON.stringify(d));}
   }).catch(e=>{});
 }
+function saveRentBookingReview(){
+  localStorage.setItem('qjf_rbr',JSON.stringify(RENT_BOOKING_REVIEW));
+  db.ref('qingjing_rent_booking_review').set(RENT_BOOKING_REVIEW).catch(e=>console.warn('RentBookingReview sync error:',e));
+}
+function loadRentBookingReviewFromFB(){
+  db.ref('qingjing_rent_booking_review').once('value').then(snap=>{
+    const d=snap.val();
+    if(d&&typeof d==='object'&&!Array.isArray(d)){RENT_BOOKING_REVIEW=d;localStorage.setItem('qjf_rbr',JSON.stringify(d));}
+    else if(d==null){RENT_BOOKING_REVIEW={};localStorage.setItem('qjf_rbr','{}');}
+  }).catch(e=>{});
+}
 
 function loadCustomTeachersFromFirebase(){
   db.ref('qingjing_tl').once('value').then(snap=>{const d=snap.val();if(d&&Array.isArray(d)&&d.length>0){TL=d;localStorage.setItem('qjf_tl',JSON.stringify(TL));}}).catch(e=>{});
@@ -1932,7 +1947,7 @@ window.addEventListener('load', ()=>{
     loadRentFromFB();
     loadRentCfgFromFB();
     loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();loadTeacherCalMapFromFB();
-    loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
+    loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();loadRentBookingReviewFromFB();
     loadExpensesFromFB();loadLedgerFromFB(()=>{
       renderTeachers();
       showSyncStatus('synced');
@@ -1966,7 +1981,7 @@ function startPeriodicSync(){
       loadRentFromFB();
       loadRentCfgFromFB();
       loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();loadTeacherCalMapFromFB();
-      loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
+      loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();loadRentBookingReviewFromFB();
       loadExpensesFromFB();loadLedgerFromFB(()=>{
       try{renderTeachers();}catch(e){console.warn('renderTeachers error:',e);}
       try{renderDashboard();}catch(e){}
@@ -1995,7 +2010,7 @@ function startPeriodicSync(){
         loadRentFromFB();
         loadRentCfgFromFB();
         loadTeacherPhonesFromFB();loadTeacherEmailsFromFB();loadHourlyStaffFromFB();loadHourlyShiftsFromFB();loadTeacherCalMapFromFB();
-        loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();
+        loadTeacherLineBoundFromFB();loadRentBookingNotifiedFromFB();loadRentBookingReviewFromFB();
         loadExpensesFromFB();loadLedgerFromFB(()=>{
           _syncing=false;
           try{renderTeachers();}catch(e){console.warn('renderTeachers error:',e);}
@@ -2051,27 +2066,43 @@ async function silentGcSync(){
   gcSyncToday(undefined,{silent:true,backfillR:false}).catch(e=>console.warn('Silent GC sync failed:',e));
   syncFutureRentBookings().catch(e=>console.warn('Future rent booking scan failed:',e));
 }
-// 工讀生時薪同步：各自獨立 Google 日曆，日曆上每個事件＝一個班次（不用像正課事件解析標題），
-// 直接用起訖時間算時數 × 時薪。用 gcKey（日曆ID+事件ID）比對是否已存在，同步時順便更新時間異動、
-// 刪除已取消的班次；掃 -60~+14 天，涵蓋補登過去班表跟已排好的近期班表
+// 工讀生時薪同步：各自獨立 Google 日曆，用起訖時間算時數 × 時薪。用 gcKey（日曆ID+事件ID）
+// 比對是否已存在，同步時順便更新時間異動、刪除已取消的班次；掃 -60~+14 天。
+//
+// 只有「看起來像上班」的事件才算班次——標題要含工讀名字，或「上班／小幫手／打工／班／工讀」
+// 其中一個字（2026-08-31：蕭妹妹把私人的「弄頭髮」行程放到上班日曆，被算成 2 小時 $400）。
+// 代價是班次事件沒照格式命名就會被漏算，工讀反映少一筆時先檢查標題。
+function hsLooksLikeShift(summary,staff){
+  const s=(summary||'').trim();
+  if(!s)return false;
+  if(staff&&s.includes(staff))return true;
+  return /上班|小幫手|小幫忙|打工|排班|值班|顧店|顧櫃|工讀|班表|\bshift\b|\bwork\b/i.test(s);
+}
 async function gcSyncHourlyShifts(){
   if(typeof GC==='undefined'||!GC.ok())return false;
   const staffEntries=Object.entries(HOURLY_STAFF).filter(([,cfg])=>cfg&&cfg.calId);
   if(!staffEntries.length)return false;
   const now=new Date();
-  const tMin=encodeURIComponent(new Date(now.getTime()-60*864e5).toISOString());
-  const tMax=encodeURIComponent(new Date(now.getTime()+14*864e5).toISOString());
+  const winMin=new Date(now.getTime()-60*864e5),winMax=new Date(now.getTime()+14*864e5);
+  const tMin=encodeURIComponent(winMin.toISOString());
+  const tMax=encodeURIComponent(winMax.toISOString());
   let changed=false;
   await Promise.all(staffEntries.map(async([staff,cfg])=>{
     try{
-      const data=await GC.api(`/calendars/${encodeURIComponent(cfg.calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=250`);
+      // showDeleted=true 一定要帶：不帶的話 API 根本不會回傳已取消／已刪除的事件，
+      // 下面「ev.status==='cancelled' 就 splice」那段就永遠不會執行，班次刪了紀錄還留著
+      // （2026-08-31：蕭妹妹把「弄頭髮」事件從日曆刪掉，8/26 那筆 $400 卻一直留在薪資結算）。
+      const data=await GC.api(`/calendars/${encodeURIComponent(cfg.calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=250&showDeleted=true`);
+      const seen=new Set();
       (data.items||[]).forEach(ev=>{
         const gcKey=cfg.calId+'_'+(ev.iCalUID||ev.id);
         const idx=HOURLY_SHIFTS.findIndex(x=>x.gcKey===gcKey);
-        if(ev.status==='cancelled'||!ev.start?.dateTime||!ev.end?.dateTime){
+        if(ev.status==='cancelled'||!ev.start?.dateTime||!ev.end?.dateTime||!hsLooksLikeShift(ev.summary,staff)){
+          // 取消／沒時間／標題不像上班 → 不是班次；之前誤建過的一併清掉
           if(idx>=0){HOURLY_SHIFTS.splice(idx,1);changed=true;}
           return;
         }
+        seen.add(gcKey);
         const start=new Date(ev.start.dateTime),end=new Date(ev.end.dateTime);
         const hours=Math.max(0,Math.round(((end-start)/3600000)*100)/100);
         const fee=Math.round(hours*(cfg.rate||0));
@@ -2088,6 +2119,15 @@ async function gcSyncHourlyShifts(){
           if(old.date!==rec.date||old.start!==rec.start||old.end!==rec.end||old.hours!==rec.hours||old.fee!==rec.fee){HOURLY_SHIFTS[idx]=rec;changed=true;}
         }else{HOURLY_SHIFTS.push(rec);changed=true;}
       });
+      // 補刀：事件被硬刪除、或整筆搬走時，API 可能連 cancelled 都不回傳（尤其跨過同步視窗邊界）。
+      // 只要這位工讀在同步視窗內、掛在這本日曆、但這輪完全沒看到對應事件的班次，一律清掉。
+      for(let i=HOURLY_SHIFTS.length-1;i>=0;i--){
+        const x=HOURLY_SHIFTS[i];
+        if(x.staff!==staff||!x.gcKey||x.gcKey.indexOf(cfg.calId+'_')!==0)continue;
+        if(seen.has(x.gcKey))continue;
+        const dt=parseDate(x.date);
+        if(dt>=winMin&&dt<=winMax){HOURLY_SHIFTS.splice(i,1);changed=true;}
+      }
     }catch(e){console.warn('Hourly shift sync err:',staff,e);}
   }));
   if(changed)saveHourlyShifts();
@@ -2097,6 +2137,25 @@ async function gcSyncHourlyShifts(){
 // 立刻推播確認通知；已經通知過的事件（用 gcKey 記錄）不會重複發送。
 // 「立刻」的極限是這支函式的觸發頻率——目前掛在 silentGcSync（每5分鐘一次）跟首次進站時，
 // 不是 Google 日曆真正的 webhook 推播，所以最多會慢個幾分鐘，不是嚴格意義的即時。
+//
+// 場租通知的對象「以事件標題寫的人為準」，不以事件落在誰的日曆為準：
+// qingjing_teacher_calmap 對照表只要有一刻是錯的（有人在「日曆對照」頁選錯又改回、
+// 或多支同步排程互搶著刷新），下面這支就會把場租算成對照表當下指到的那位老師，
+// 用「XX老師您好」寄給錯的人，而且寫進 RENT_BOOKING_NOTIFIED 後正確的那位再也收不到
+// （2026-08-31：元元老師 9/3 的場租就這樣被當成汭汭的、寄到汭汭的 LINE）。
+// 標題裡的人名才是可靠來源，對不到人就轉 RENT_BOOKING_REVIEW 讓首頁跳提醒人工確認。
+function rentNotifyTarget(parsedName,owner){
+  const strip=s=>(s||'').replace(/老師$/,'').replace(/\s+/g,'').trim();
+  const target=strip(parsedName);
+  if(!target)return owner;                    // 標題沒寫人名 → 只能退回用日曆擁有者
+  const ostrip=strip(owner);
+  if(ostrip&&(ostrip===target||ostrip.includes(target)||target.includes(ostrip)))return owner; // 一致
+  const keys=Object.keys(GC.calMap||{});
+  const exact=keys.find(k=>strip(k)===target);
+  if(exact)return exact;                       // 標題寫的是別位老師 → 寄給那位
+  const fuzzy=keys.find(k=>{const s=strip(k);return s&&(s.includes(target)||target.includes(s))});
+  return fuzzy||null;                          // 誰都對不到 → null（不自動寄，轉人工確認）
+}
 async function syncFutureRentBookings(){
   if(typeof GC==='undefined'||!GC.ok())return;
   const calMap=GC.calMap||{};
@@ -2116,21 +2175,49 @@ async function syncFutureRentBookings(){
         const key=ev.iCalUID||ev.id;
         if(RENT_BOOKING_NOTIFIED.has(key))return;
         const startStr=ev.start&&(ev.start.dateTime||ev.start.date);if(!startStr)return;
-        found.push({key,teacher,date:fmt(new Date(startStr)),time:ev.start.dateTime?GC.getTime(ev):''});
+        found.push({key,teacher,name:(parsed.name||''),date:fmt(new Date(startStr)),time:ev.start.dateTime?GC.getTime(ev):''});
       });
     }catch(e){console.warn('future rent scan err:',teacher,e);}
   }));
   if(!found.length)return;
   // 一定要等推播真的成功才標記已通知——先標記再推播的話，萬一那次推播剛好失敗，
   // 這筆事件就會被誤判成「已經通知過」，下次同步不會再重試，訊息就這樣悄悄消失
-  let notifiedChanged=false;
+  let notifiedChanged=false,reviewChanged=false;
+  const rentMsg=(who,b,wd)=>who.replace(/老師$/,'')+'老師您好，\n您有一筆新場租已登記：\n📅 '+b.date+'（星期'+wd+'）'+(b.time?' '+b.time:'')+'\n\n輕境運動工作室';
   await Promise.all(found.map(async b=>{
     const wd=WD[parseDate(b.date).getDay()];
-    const msg=b.teacher+'老師您好，\n您有一筆新場租已登記：\n📅 '+b.date+'（星期'+wd+'）'+(b.time?' '+b.time:'')+'\n\n輕境運動工作室';
-    const sent=await pushTeacherLineMessage(b.teacher,msg);
-    if(sent){RENT_BOOKING_NOTIFIED.add(b.key);notifiedChanged=true;}
+    const target=rentNotifyTarget(b.name,b.teacher);
+    // 標題寫的人＝日曆擁有者（正常情況）：行為跟原本完全一樣，推不出去就靜靜等下次同步
+    if(target===b.teacher){
+      const sent=await pushTeacherLineMessage(b.teacher,rentMsg(b.teacher,b,wd));
+      if(sent){RENT_BOOKING_NOTIFIED.add(b.key);notifiedChanged=true;}
+      return;
+    }
+    // 到這裡代表「標題寫的人 ≠ 事件所在日曆的老師」——就是元元場租寄給汭汭那種情況。
+    // 能對到正確的老師又推得出去，就直接寄給正確的人（等於自動修正 calMap 當下出的錯）；
+    // 否則不亂寄，轉 RENT_BOOKING_REVIEW 讓首頁跳提醒人工確認。
+    if(target&&TEACHER_PHONES[target]){
+      const sent=await pushTeacherLineMessage(target,rentMsg(target,b,wd));
+      if(sent){
+        RENT_BOOKING_NOTIFIED.add(b.key);notifiedChanged=true;
+        if(RENT_BOOKING_REVIEW[b.key]){delete RENT_BOOKING_REVIEW[b.key];reviewChanged=true;}
+        return;
+      }
+    }
+    if(!RENT_BOOKING_REVIEW[b.key]){
+      RENT_BOOKING_REVIEW[b.key]={owner:b.teacher,name:b.name||'',target:target||'',date:b.date,time:b.time,reason:target?'noPhone':'nameMismatch',ts:Date.now()};
+      reviewChanged=true;
+      console.warn('場租通知轉人工確認：標題「'+b.name+'」在「'+b.teacher+'」的日曆，對不到可推播的老師',b);
+    }
   }));
   if(notifiedChanged)saveRentBookingNotified();
+  if(reviewChanged)saveRentBookingReview();
+}
+// 首頁「知道了」：把這筆待確認場租收掉，並記進已通知清單，下次同步不再跳出來
+function rentReviewDismiss(k){
+  if(RENT_BOOKING_REVIEW[k]){delete RENT_BOOKING_REVIEW[k];saveRentBookingReview();}
+  RENT_BOOKING_NOTIFIED.add(k);saveRentBookingNotified();
+  try{renderTeachers();}catch(e){}
 }
 function startPeriodicGcSync(){
   if(_periodicGcSyncTimer)clearInterval(_periodicGcSyncTimer);
@@ -2188,6 +2275,15 @@ function renderTeachers(){
   const items=dayScheduleItems(new Date());
   const nf=(window._gcNotFoundDate===td?(window._gcNotFound||[]):[]);
 
+  // 場租通知待人工確認（標題的人對不到日曆、或該老師沒綁 LINE）——順便清掉已過期的
+  let _rrPruned=false;
+  Object.keys(RENT_BOOKING_REVIEW).forEach(k=>{
+    const r=RENT_BOOKING_REVIEW[k];
+    if(!r||!r.date||r.date<td){delete RENT_BOOKING_REVIEW[k];_rrPruned=true;}
+  });
+  if(_rrPruned)saveRentBookingReview();
+  const rentReview=Object.entries(RENT_BOOKING_REVIEW);
+
   // ── Today stats ──
   const totalSigned=items.filter(i=>i.status==='signed').length;
   const totalLeave=items.filter(i=>i.status==='leave').length;
@@ -2236,9 +2332,17 @@ function renderTeachers(){
       </div>`;
   }
 
+  const rentReviewHTML=rentReview.length?`<div style="background:#FFF4E5;border:0.5px solid #F0C896;border-radius:11px;padding:10px 13px;margin-bottom:10px;font-size:12px;color:#B9770E">
+    ⚠️ 場租通知待確認（${rentReview.length}）：系統無法確定要通知哪位老師，沒有自動發送
+    ${rentReview.map(([k,r])=>`<div style="margin-top:6px;display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap">
+      <span style="flex:1;min-width:0;color:var(--brown2);line-height:1.6">${hEsc(r.date)}${r.time?' '+hEsc(r.time):''}・標題寫「${hEsc(r.name||'（未寫姓名）')}」・在「${hEsc(r.owner)}」的日曆${r.reason==='noPhone'?'・「'+hEsc(r.target||r.name||'')+'」沒設電話／未綁 LINE':''}</span>
+      <button onclick="rentReviewDismiss('${jsQ(k)}')" style="flex-shrink:0;background:#fff;border:1px solid #E8B27D;color:#B9770E;border-radius:8px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">知道了</button>
+    </div>`).join('')}
+  </div>`:'';
+
   // ── 今日課程列表（點學員直接進課卡；不再依老師分卡）──
   if(!items.length&&!nf.length){
-    el.innerHTML=`<div style="text-align:center;padding:40px 20px;color:var(--brown3)">
+    el.innerHTML=rentReviewHTML+`<div style="text-align:center;padding:40px 20px;color:var(--brown3)">
       <div style="font-size:36px;margin-bottom:12px;opacity:.4">📋</div>
       <div style="font-size:15px;letter-spacing:1px;color:var(--brown2);margin-bottom:6px">今日尚無排課</div>
       <div style="font-size:12px;line-height:1.9;opacity:.7">請點「同步課表」從 Google 日曆匯入<br>或進入後台手動設定</div>
@@ -2247,6 +2351,7 @@ function renderTeachers(){
   const leaveTeachers=ALL_TEACHERS.filter(t=>getTeacherLeavesToday(t).length>0);
   const chip=st=>st==='signed'?'<span style="font-size:10px;background:#E8F7EF;color:#1F6B4A;border:0.5px solid #9FD4BC;border-radius:99px;padding:3px 9px;flex-shrink:0">已簽到 ✓</span>':st==='gcmatched'?'<span style="font-size:10px;background:#FFF4E5;color:#B9770E;border:0.5px solid #F0C896;border-radius:99px;padding:3px 9px;flex-shrink:0">未簽到・GC比對</span>':st==='leave'?'<span style="font-size:10px;background:#F0EAF8;color:#7B5EA7;border-radius:99px;padding:3px 9px;flex-shrink:0">請假</span>':'<span style="font-size:10px;background:var(--cream2);color:var(--brown3);border-radius:99px;padding:3px 9px;flex-shrink:0">待簽到</span>';
   el.innerHTML=`
+  ${rentReviewHTML}
   ${leaveTeachers.length?`<div style="background:#FFF0F0;border:0.5px solid #F7C1C1;border-radius:11px;padding:9px 13px;margin-bottom:10px;font-size:12px;color:var(--red)">🚫 今日請假老師：${leaveTeachers.map(hEsc).join('、')}</div>`:''}
   <div style="font-size:11px;font-weight:500;color:var(--brown3);letter-spacing:.5px;margin-bottom:8px">今日課程・點學員進入課卡簽到</div>
   <div style="display:flex;flex-direction:column;gap:8px">
