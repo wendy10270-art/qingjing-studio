@@ -5716,6 +5716,16 @@ function _buildUpcomingFallbackHTML(s, remain, gcStatus){
     ${rows}
   </div>${gcHintBelow}`;
 }
+// 從日曆事件標題取出友善的課程名稱，給 LINE 課後訊息／「接下來的課程」列表用。
+// 一個人同時有兩張課卡（例：週一器械皮拉提斯、週四重訓）時，不能拿 s.course 當課程名，
+// 要看「那一堂」日曆事件本身。店長排課慣例：皮拉提斯不特別標，瑜珈寫 Yoga、重訓寫 Fitness。
+function courseLabelFromEvent(ev, fallback){
+  const raw=(((ev&&ev.summary)||'').split(/[|｜]/)[0]||'').trim();
+  if(!raw)return fallback||'';
+  const nm={y:'瑜珈課程',s:'重訓課程',p:'器械皮拉提斯'}[getCalCT(raw)];
+  const ratio=(raw.match(/1\s*on\s*[123]/i)||[''])[0].replace(/\s+/g,'').toLowerCase();
+  return ratio?nm+' '+ratio:nm;
+}
 function _buildUpcomingGCHTML(s, events){
   const WDN=['日','一','二','三','四','五','六'];
   const rows=events.map((ev,i)=>{
@@ -5727,8 +5737,7 @@ function _buildUpcomingGCHTML(s, events){
     // 是「這堂課日曆上查到的最後一筆」不等於「她總堂數的最後一堂」——
     // Google 日曆常常只排了近期幾堂，還有很多堂數之後才會排，不能只看查到的事件陣列尾端就標「最後一堂」
     const isLast=sessionNum===s.total;
-    const title=ev.summary||'';
-    const courseType=title.split('|')[0]?.trim()||'';
+    const courseType=courseLabelFromEvent(ev,s.course);
     // 從 calendarSummary（若有）取得老師名，否則從 organizer
     const calName=ev.organizer?.displayName||ev.organizer?.email||'';
     const calMap=GC.calMap||{};
@@ -5777,7 +5786,7 @@ function renderUpcomingArea(sid, targetId){
         if(dt0){
           const apptDate=fmt(dt0);
           const apptTime=String(dt0.getHours()).padStart(2,'0')+':'+String(dt0.getMinutes()).padStart(2,'0');
-          updateLineMsgWithAppt(apptDate,apptTime,undefined,undefined,s.course);
+          updateLineMsgWithAppt(apptDate,apptTime,undefined,undefined,courseLabelFromEvent(ev0,s.course));
         }
       }else{
         cur.innerHTML=_buildUpcomingFallbackHTML(s,remain,'no-events');
@@ -8701,7 +8710,7 @@ async function renderTomorrowNotify(){
           return x.name.length>=2&&parsed.name.includes(x.name);
         });
         const phone=(stu&&stu.phone)?stu.phone:parsed.phone;
-        allItems.push({name:parsed.name,time:GC.getTime(ev),teacher,courseType:parsed.type,phone});
+        allItems.push({name:parsed.name,time:GC.getTime(ev),teacher,courseType:courseLabelFromEvent(ev,stu?.course||parsed.type),phone});
       }
     }
     allItems.sort((a,b)=>a.time.localeCompare(b.time));
