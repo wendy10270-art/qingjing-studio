@@ -1931,6 +1931,7 @@ function applyRemoteData(data){
   if((document.getElementById('ap-wage')?.classList.contains('active')&&document.getElementById('wageSubDaily')?.style.display!=='none'))renderDaily();
   if(document.getElementById('ap-ledger')?.classList.contains('active'))renderLedger();
   if(document.getElementById('ap-mgr')?.classList.contains('active'))renderMgrList();
+  refreshOpenCard();
   showToast('🔄 資料已從其他裝置同步');
 }
 async function startFbListener(){
@@ -1952,7 +1953,7 @@ async function startFbListener(){
       try{
         if(Date.now()-_lastSaveMs<4000)return;
         // patch 是部分更新，重新拉完整資料
-        loadFromFirebase(()=>{renderTeachers();showToast('🔄 資料已從其他裝置同步');});
+        loadFromFirebase(()=>{renderTeachers();refreshOpenCard();showToast('🔄 資料已從其他裝置同步');});
       }catch(err){}
     });
     _fbEs.onerror=()=>{
@@ -2880,6 +2881,13 @@ function selectStu(sid){
   const s=S.find(x=>x.id===sid);
   document.getElementById('cardTitle').textContent=s.name;
   renderCard(sid);goScreen('sc-card');
+}
+// 遠端同步 / 續課 / 收款後，如果正開著某張課卡就即時重繪，避免看到舊堂數
+function refreshOpenCard(){
+  if(typeof curSid==='undefined'||!curSid)return;
+  if(!document.getElementById('sc-card')?.classList.contains('active'))return;
+  const s=S.find(x=>x.id===curSid);
+  if(s){try{renderCard(curSid);}catch(e){}}
 }
 function goBackFromCard(){
   if(cardBackTarget==='sc-teachers'){
