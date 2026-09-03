@@ -1299,8 +1299,31 @@ const db={
     </div>
     <label>入帳日期</label><input type="date" id="renewPayDate" class="native-date-inp">
     <label>備註（選填）</label><input type="text" id="renewNote" placeholder="例：第二期、折扣…">
+    <div onclick="toggleRenewUnpaid()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:9px 12px;background:var(--orange2);border-radius:9px;border:1.5px solid var(--orange3);margin:4px 0 12px">
+      <input type="checkbox" id="renewUnpaid" style="width:18px;height:18px;accent-color:var(--orange)">
+      <span style="font-size:12.5px;color:var(--orange);line-height:1.4">暫不入帳（待收款）<br><span style="font-size:11px;color:var(--ink3)">只開新課卡讓她能簽到，先不記流水帳、不算續課獎金。收到錢後在學員列表按「收款完成」補記。</span></span>
+    </div>
     <button class="btn-full bf-ink" style="background:var(--teal)" onclick="confirmRenew()">確認續課</button>
     <button class="btn-full bf-soft" style="margin-top:9px" onclick="closeOvById(&#39;renewOv&#39;)">取消</button>
+  </div>
+</div>
+
+<!-- 收款完成（補記待收款）Modal -->
+<div class="add-ov" id="collectPayOv" onclick="if(event.target===this)closeOvById(&#39;collectPayOv&#39;)">
+  <div class="add-modal">
+    <div class="modal-ttl" id="collectPayTitle">收款完成</div>
+    <div id="collectPayInfo" style="background:var(--teal2);border:1.5px solid var(--teal3);border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:var(--teal)"></div>
+    <label>繳款方式</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px" id="collectPayMethods">
+      <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white)" onclick="collectSelectPM(this,&#39;transfer_fubon&#39;)"><div style="font-size:18px;margin-bottom:4px">🏦</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">匯款聯邦</div></div>
+      <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white)" onclick="collectSelectPM(this,&#39;transfer_cathay&#39;)"><div style="font-size:18px;margin-bottom:4px">🏦</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">匯款國泰</div></div>
+      <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white)" onclick="collectSelectPM(this,&#39;card&#39;)"><div style="font-size:18px;margin-bottom:4px">💳</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">刷卡</div><div style="font-size:11px;color:var(--red);font-weight:500">+3%</div></div>
+      <div style="border:1.5px solid var(--border);border-radius:10px;padding:10px 13px;cursor:pointer;text-align:center;background:var(--white)" onclick="collectSelectPM(this,&#39;cash&#39;)"><div style="font-size:18px;margin-bottom:4px">💵</div><div style="font-size:13px;font-weight:500;color:var(--ink2)">付現金</div><div style="font-size:11px;color:var(--green);font-weight:500">現折 $1,000</div></div>
+    </div>
+    <label>實際入帳金額</label><input type="number" id="collectAmount">
+    <label>入帳日期</label><input type="date" id="collectPayDate" class="native-date-inp">
+    <button class="btn-full bf-ink" style="background:var(--teal)" onclick="confirmCollectPay()">確認收款並入帳</button>
+    <button class="btn-full bf-soft" style="margin-top:9px" onclick="closeOvById(&#39;collectPayOv&#39;)">取消</button>
   </div>
 </div>
 
@@ -5347,7 +5370,7 @@ function renderMgrList(){
         '<div>'+
           '<div style="display:flex;align-items:center;gap:8px">'+
             '<div class="smc-name">'+s.name+pill+(s.paymentStatus==="unpaid"?'<span style="display:inline-block;background:var(--orange2);color:var(--orange);border:1px solid var(--orange3);border-radius:4px;padding:1px 8px;font-size:11px;margin-left:6px;vertical-align:middle">待收款 ⚠</span>':'')+'</div>'+
-            ('<button onclick="selectStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--gold4);border:1px solid var(--gold2);border-radius:6px;font-size:11px;cursor:pointer;color:var(--gold)">課卡</button>')+('<button onclick="openEditStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--ink2);margin-left:5px">編輯</button>')+('<button onclick="openRenewStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--teal2);border:1px solid var(--teal3);border-radius:6px;font-size:11px;cursor:pointer;color:var(--teal);margin-left:5px">續課</button>')+('<button onclick="openAddPlanForStu(\'' + s.id + '\')" style="padding:3px 10px;background:#EEF0FF;border:1px solid #B8BEF0;border-radius:6px;font-size:11px;cursor:pointer;color:#3D47C4;margin-left:5px">＋方案</button>')+('<button onclick="deleteStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:6px;font-size:11px;cursor:pointer;color:var(--red);margin-left:5px">刪除</button>')+
+            ('<button onclick="selectStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--gold4);border:1px solid var(--gold2);border-radius:6px;font-size:11px;cursor:pointer;color:var(--gold)">課卡</button>')+('<button onclick="openEditStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--ink2);margin-left:5px">編輯</button>')+('<button onclick="openRenewStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--teal2);border:1px solid var(--teal3);border-radius:6px;font-size:11px;cursor:pointer;color:var(--teal);margin-left:5px">續課</button>')+(s.paymentStatus==='unpaid'?('<button onclick="openCollectPay(\'' + s.id + '\')" style="padding:3px 10px;background:var(--orange2);border:1px solid var(--orange3);border-radius:6px;font-size:11px;cursor:pointer;color:var(--orange);margin-left:5px;font-weight:600">收款完成</button>'):'')+('<button onclick="openAddPlanForStu(\'' + s.id + '\')" style="padding:3px 10px;background:#EEF0FF;border:1px solid #B8BEF0;border-radius:6px;font-size:11px;cursor:pointer;color:#3D47C4;margin-left:5px">＋方案</button>')+('<button onclick="deleteStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:6px;font-size:11px;cursor:pointer;color:var(--red);margin-left:5px">刪除</button>')+
           '</div>'+
           '<div class="smc-sub">'+s.course+'・'+s.teacher+'老師<br>師資費 $'+getDefaultFee(s.teacher,s.course)+'/堂'+(s.installment?' ・ <span style="color:var(--orange)">分期每'+s.installEvery+'堂</span>':'')+'</div>'+
         '</div>'+
@@ -5357,6 +5380,7 @@ function renderMgrList(){
         '<div class="smc-pay-row"><span>購買方案</span><span>'+s.course+'・'+s.total+'堂</span></div>'+
         '<div class="smc-pay-row"><span>課程定價</span><span>$'+(s.price||0).toLocaleString()+'</span></div>'+
         '<div class="smc-pay-row"><span>實際入帳</span><span style="font-weight:500;color:var(--green)">'+pay+'</span></div>'+
+        (s.paymentStatus==='unpaid'?'<div class="smc-pay-row"><span style="color:var(--orange)">待收金額</span><span style="font-weight:600;color:var(--orange)">$'+((s.pendingAmount||s.price||0).toLocaleString())+'</span></div>':'')+
         (s.payDate?'<div class="smc-pay-row"><span>入帳日期</span><span>'+s.payDate+'</span></div>':'')+
         '<div class="smc-pay-row" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--bg2)"><span style="color:var(--teal);font-weight:500">續課獎金</span><span style="font-weight:600;color:var(--teal)">$'+(s.bonus!=null?s.bonus:Math.round((s.price||0)*0.03)).toLocaleString()+'</span></div>'+
         (s.bonusNote?'<div style="font-size:11px;color:var(--ink3);margin-top:2px">'+s.bonusNote+'</div>':'')+
@@ -6586,6 +6610,8 @@ function openRenewStu(sid){
   document.getElementById('renewSelDisp').classList.remove('show');
   document.getElementById('renewPaySummary').style.display='none';
   document.querySelectorAll('#renewPayMethods>div').forEach(p=>{p.style.borderColor='var(--border)';p.style.background='var(--white)'});
+  const renewUP=document.getElementById('renewUnpaid');if(renewUP)renewUP.checked=false;
+  toggleRenewUnpaid();
   const renewCP=document.getElementById('renewCustomPlan');if(renewCP)renewCP.checked=false;
   const renewCPD=document.getElementById('renewCustomPlanDetail');if(renewCPD)renewCPD.style.display='none';
   ['renewCustomTotal','renewCustomPrice'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
@@ -6625,6 +6651,16 @@ function renewUpdDisp(){
   else el.classList.remove('show');
 }
 
+function toggleRenewUnpaid(){
+  const on=document.getElementById('renewUnpaid')?.checked||false;
+  const pm=document.getElementById('renewPayMethods');
+  const ps=document.getElementById('renewPaySummary');
+  const pd=document.getElementById('renewPayDate');
+  if(pm)pm.style.opacity=on?'.4':'1';
+  if(pm)pm.style.pointerEvents=on?'none':'auto';
+  if(on&&ps)ps.style.display='none';
+  if(pd)pd.disabled=on;
+}
 function toggleRenewCustomPlan(){
   const cb=document.getElementById('renewCustomPlan');
   const detail=document.getElementById('renewCustomPlanDetail');
@@ -6671,11 +6707,12 @@ function confirmRenew(){
   if(!isCustomPlan&&(!renewSelPlan||!renewSelN)){showToast('請選擇課程方案','r');return}
   if(isCustomPlan&&(!renewSelPlan||!customTotal)){showToast('請先選擇課程類型，再填自訂堂數','r');return}
   if(isCustomPlan){renewSelN=customTotal;renewSelPrice=customPrice||renewSelPrice;}
-  if(!renewPayMethod){showToast('請選擇繳款方式','r');return}
+  const isUnpaid=document.getElementById('renewUnpaid')?.checked||false;
+  if(!isUnpaid&&!renewPayMethod){showToast('請選擇繳款方式','r');return}
   const fee=parseInt(document.getElementById('renewFee').value)||getDefaultFee(s.teacher,renewSelPlan);
   const payDate=getDateSel('renewPayDate');
   const note=document.getElementById('renewNote').value.trim();
-  const pay=calcPayment(renewSelPrice,renewPayMethod);
+  const pay=isUnpaid?{amount:0}:calcPayment(renewSelPrice,renewPayMethod);
   const bonus=Math.round(renewSelPrice*0.03);
   // 保留舊資料，建立新一期
   s.prevCourses=s.prevCourses||[];
@@ -6691,18 +6728,71 @@ function confirmRenew(){
   s.used=0;
   s.price=renewSelPrice;
   s.fee=fee;
-  s.payMethod=renewPayMethod;
-  s.payDate=payDate;
-  s.actualPayment=pay.amount;
-  s.bonus=bonus;
   s.bonusNote='';
   s.note=note;
-  // 清除舊的簽到格子（新一期從頭開始）
-  // 建立流水帳記錄
-  addLedgerEntry({type:'renew',sid:s.id,name:s.name,teacher:s.teacher,course:renewSelPlan,total:renewSelN,price:renewSelPrice,actualPayment:pay.amount,payMethod:renewPayMethod,payDate,bonus:Math.round(renewSelPrice*0.03),bonusPaid:false});
+  if(isUnpaid){
+    s.payMethod='';
+    s.payDate='';
+    s.actualPayment=0;
+    s.bonus=0;
+    s.paymentStatus='unpaid';
+    s.pendingAmount=renewSelPrice;
+    s.pendingType='renew';
+  }else{
+    s.payMethod=renewPayMethod;
+    s.payDate=payDate;
+    s.actualPayment=pay.amount;
+    s.bonus=bonus;
+    s.paymentStatus='paid';
+    delete s.pendingAmount;delete s.pendingType;
+    // 清除舊的簽到格子（新一期從頭開始）
+    // 建立流水帳記錄
+    addLedgerEntry({type:'renew',sid:s.id,name:s.name,teacher:s.teacher,course:renewSelPlan,total:renewSelN,price:renewSelPrice,actualPayment:pay.amount,payMethod:renewPayMethod,payDate,bonus:Math.round(renewSelPrice*0.03),bonusPaid:false});
+  }
   save();renderMgrList();renderTeachers();
   closeOvById('renewOv');
-  showToast('✓ '+s.name+' 續課成功！新一期 '+renewSelN+' 堂');
+  showToast(isUnpaid?('✓ '+s.name+' 已開新一期（待收款）— 收到錢記得按「收款完成」'):('✓ '+s.name+' 續課成功！新一期 '+renewSelN+' 堂'));
+}
+
+// ── 收款完成：把「待收款」的學員補記進流水帳 ──
+let collectPayId='',collectPayMethod='';
+function openCollectPay(sid){
+  const s=S.find(x=>x.id===sid);if(!s)return;
+  collectPayId=sid;collectPayMethod='';
+  const planPrice=s.pendingAmount||s.price||0;
+  document.getElementById('collectPayTitle').textContent=s.name+' 收款完成';
+  document.getElementById('collectPayInfo').innerHTML='課程：'+s.course+'・'+s.total+' 堂<br>預計金額：$'+planPrice.toLocaleString();
+  document.querySelectorAll('#collectPayMethods>div').forEach(p=>{p.style.borderColor='var(--border)';p.style.background='var(--white)';});
+  document.getElementById('collectAmount').value=planPrice;
+  setDateSel('collectPayDate',todayStr());
+  document.getElementById('collectPayOv').classList.add('open');
+}
+function collectSelectPM(el,method){
+  document.querySelectorAll('#collectPayMethods>div').forEach(p=>{p.style.borderColor='var(--border)';p.style.background='var(--white)';});
+  el.style.borderColor='var(--gold)';el.style.background='var(--gold4)';
+  collectPayMethod=method;
+  const s=S.find(x=>x.id===collectPayId);
+  if(s){const pay=calcPayment(s.pendingAmount||s.price||0,method);document.getElementById('collectAmount').value=pay.amount;}
+}
+function confirmCollectPay(){
+  const s=S.find(x=>x.id===collectPayId);if(!s)return;
+  if(!collectPayMethod){showToast('請選擇繳款方式','r');return}
+  const amount=parseInt(document.getElementById('collectAmount').value)||0;
+  const payDate=getDateSel('collectPayDate');
+  const planPrice=s.pendingAmount||s.price||0;
+  const bonus=Math.round(planPrice*0.03);
+  const entryType=s.pendingType||(s.prevCourses&&s.prevCourses.length?'renew':'purchase');
+  s.payMethod=collectPayMethod;
+  s.payDate=payDate;
+  s.actualPayment=amount;
+  s.bonus=bonus;
+  s.bonusNote='';
+  s.paymentStatus='paid';
+  delete s.pendingAmount;delete s.pendingType;
+  addLedgerEntry({type:entryType,sid:s.id,name:s.name,teacher:s.teacher,course:s.course,total:s.total,price:planPrice,actualPayment:amount,payMethod:collectPayMethod,payDate,bonus,bonusPaid:false});
+  save();renderMgrList();renderTeachers();
+  closeOvById('collectPayOv');
+  showToast('✓ '+s.name+' 已入帳 $'+amount.toLocaleString());
 }
 
 
