@@ -2668,11 +2668,13 @@ function onHomeSearch(val){
     res.innerHTML='<div style="padding:14px 16px;font-size:13px;color:var(--ink3)">找不到符合的學員</div>';
     return;
   }
+  // 同一個人有多張課卡（例：瑜珈＋皮拉）時，把「還有可用堂數」的排在前面，用完的排後面並變灰
+  hits.sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')||((b.total-b.used>0)-(a.total-a.used>0)));
   res.style.display='block';
   res.innerHTML=hits.map(s=>{
     const remain=s.total-s.used;
     const rc=remain<=0?'var(--red)':remain<=3?'#B8860B':remain<=6?'var(--gold2)':'var(--gold)';
-    return`<div onclick="homeSearchSelect('${s.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--bg2);cursor:pointer;active:background:var(--bg)">
+    return`<div onclick="homeSearchSelect('${s.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--bg2);cursor:pointer;active:background:var(--bg)${remain<=0?';opacity:.5':''}">
       <div>
         <div style="font-size:14px;font-weight:500;color:var(--ink)">${s.name}</div>
         <div style="font-size:11px;color:var(--ink3);margin-top:2px">${s.course}・${s.teacher}</div>
@@ -2687,7 +2689,13 @@ function onHomeSearch(val){
 function homeSearchSelect(sid){
   document.getElementById('homeSearchInp').value='';
   document.getElementById('homeSearchResults').style.display='none';
-  const s=S.find(x=>x.id===sid);
+  let s=S.find(x=>x.id===sid);
+  // 點到已用完的課卡，但同一個人另有還沒上完的課卡 → 自動改開那張
+  if(s&&s.total-s.used<=0){
+    const sibs=S.filter(x=>x.id!==sid&&x.name===s.name&&(x.phone||'')===(s.phone||'')&&x.total-x.used>0);
+    const alt=sibs.find(x=>x.course===s.course)||sibs[0];
+    if(alt){showToast('已改開「'+alt.course+'」還有 '+(alt.total-alt.used)+' 堂的課卡');sid=alt.id;s=alt;}
+  }
   if(s){
     const td=todayStr();
     const inSch=((SCH[td]||{})[s.teacher]||[]).find(sl=>sl.sid===sid);
@@ -2799,11 +2807,13 @@ function onSearch(val){
     return;
   }
   lbl.textContent=`搜尋結果（${results.length} 位）`;
+  // 同名多張課卡：有可用堂數的排前面，用完的排後面並變灰
+  results.sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')||((b.total-b.used>0)-(a.total-a.used>0)));
   list.innerHTML=results.map(s=>{
     const rem=s.total-s.used;const st=R.find(r=>r.sid===s.id&&r.date===td);
     const rc=rem<=0?'var(--red)':rem<=3?'#B8860B':rem<=6?'var(--gold2)':'var(--gold)';
     const isOther=s.teacher!==curTeacher;
-    return`<div class="stu-btn${st?' signed':''}" style="margin-bottom:8px;border:1.5px solid var(--border);background:var(--white)" onclick="selectStu('${s.id}')">
+    return`<div class="stu-btn${st?' signed':''}" style="margin-bottom:8px;border:1.5px solid var(--border);background:var(--white)${rem<=0&&!st?';opacity:.55':''}" onclick="selectStu('${s.id}')">
       <div><div class="stu-name-md">${s.name}</div><div class="stu-course-sm">${s.course}${isOther?`<span class="other-teacher-tag">${s.teacher}</span>`:''}</div></div>
       <div style="text-align:right;flex-shrink:0">${st?`<div class="signed-chip">已簽到 ✓</div>`:`<div class="stu-remain-n" style="color:${rc}">${rem}</div><div class="stu-remain-lbl">堂可用</div>`}</div>
     </div>`;
