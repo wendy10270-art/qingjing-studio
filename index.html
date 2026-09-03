@@ -6163,7 +6163,7 @@ function openResendLineMsg(recId){
       const ev0=events[0];
       const dt0=ev0&&ev0.start?.dateTime?new Date(ev0.start.dateTime):null;
       if(dt0){
-        updateLineMsgWithAppt(fmt(dt0), String(dt0.getHours()).padStart(2,'0')+':'+String(dt0.getMinutes()).padStart(2,'0'), 'resendLineMsgText', 'resendLineMessageArea', s.course);
+        updateLineMsgWithAppt(fmt(dt0), String(dt0.getHours()).padStart(2,'0')+':'+String(dt0.getMinutes()).padStart(2,'0'), 'resendLineMsgText', 'resendLineMessageArea', courseLabelFromEvent(ev0,s.course));
       }
     }).catch(e=>console.warn('resend GC search failed:',e));
   }
