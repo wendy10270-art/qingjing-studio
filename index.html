@@ -2971,7 +2971,12 @@ function renderCard(sid){
       <div style="font-size:12px;color:var(--ink2);white-space:pre-wrap">${s.note}</div>
     </div>`
     :`<div onclick="openStuNoteEdit('${s.id}')" style="display:inline-block;margin-bottom:13px;padding:6px 12px;border:1px dashed var(--border);border-radius:20px;font-size:12px;color:var(--ink3);cursor:pointer">＋ 新增備註</div>`;
-  document.getElementById('cardTop').innerHTML=leaveAlertToday+leaveAlertUpcoming+lowSessAlert+installAlert+healthAlert+expiryAlert+noteAlert+`<div class="stu-top">
+  const _isAdmin=document.getElementById('sc-admin')?.classList.contains('active-admin');
+  const adminActions=_isAdmin?`<div style="display:flex;gap:8px;margin-bottom:13px">
+    <button onclick="openRenewStu('${s.id}')" style="flex:1;padding:10px;background:var(--teal2);border:1.5px solid var(--teal3);border-radius:10px;font-size:13px;font-weight:600;color:var(--teal);cursor:pointer;font-family:'Noto Sans TC',sans-serif">🔄 續課</button>
+    ${s.paymentStatus==='unpaid'?`<button onclick="openCollectPay('${s.id}')" style="flex:1;padding:10px;background:var(--orange2);border:1.5px solid var(--orange3);border-radius:10px;font-size:13px;font-weight:600;color:var(--orange);cursor:pointer;font-family:'Noto Sans TC',sans-serif">💰 收款完成</button>`:''}
+  </div>`:'';
+  document.getElementById('cardTop').innerHTML=leaveAlertToday+leaveAlertUpcoming+lowSessAlert+installAlert+healthAlert+expiryAlert+noteAlert+adminActions+`<div class="stu-top">
     <div class="${ci.stripe} stripe"></div>
     <div class="stu-top-row">
       <div><div class="stu-name-big">${s.name}</div><div class="stu-meta">${s.phone}<br>指導老師：${s.teacher||'—'}　</div></div>
@@ -3055,7 +3060,7 @@ function renderCard(sid){
       ${retroBtn}
     </div>`;return;
   }
-  if(remain<=0){sa.innerHTML=`<div style="text-align:center;padding:22px 0;color:var(--red)"><div style="font-size:16px">堂數已用完，請洽小幫手購課</div></div>`;return}
+  if(remain<=0){sa.innerHTML=`<div style="text-align:center;padding:22px 0;color:var(--red)"><div style="font-size:16px">堂數已用完，請洽小幫手購課</div>${document.getElementById('sc-admin')?.classList.contains('active-admin')?`<button onclick="openRenewStu('${s.id}')" style="margin-top:14px;padding:11px 22px;background:var(--teal);border:none;border-radius:10px;font-size:14px;font-weight:600;color:#fff;cursor:pointer;font-family:'Noto Sans TC',sans-serif">🔄 幫她續課</button>`:''}</div>`;return}
 
   const upgradeOpts=getUpgradeOpts(s.course, s.teacher);
   let upgradeSection='';
@@ -6750,6 +6755,7 @@ function confirmRenew(){
     addLedgerEntry({type:'renew',sid:s.id,name:s.name,teacher:s.teacher,course:renewSelPlan,total:renewSelN,price:renewSelPrice,actualPayment:pay.amount,payMethod:renewPayMethod,payDate,bonus:Math.round(renewSelPrice*0.03),bonusPaid:false});
   }
   save();renderMgrList();renderTeachers();
+  if(typeof curSid!=='undefined'&&curSid===s.id&&document.getElementById('sc-card')?.classList.contains('active'))renderCard(s.id);
   closeOvById('renewOv');
   showToast(isUnpaid?('✓ '+s.name+' 已開新一期（待收款）— 收到錢記得按「收款完成」'):('✓ '+s.name+' 續課成功！新一期 '+renewSelN+' 堂'));
 }
@@ -6791,6 +6797,7 @@ function confirmCollectPay(){
   delete s.pendingAmount;delete s.pendingType;
   addLedgerEntry({type:entryType,sid:s.id,name:s.name,teacher:s.teacher,course:s.course,total:s.total,price:planPrice,actualPayment:amount,payMethod:collectPayMethod,payDate,bonus,bonusPaid:false});
   save();renderMgrList();renderTeachers();
+  if(typeof curSid!=='undefined'&&curSid===s.id&&document.getElementById('sc-card')?.classList.contains('active'))renderCard(s.id);
   closeOvById('collectPayOv');
   showToast('✓ '+s.name+' 已入帳 $'+amount.toLocaleString());
 }
