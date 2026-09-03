@@ -2990,11 +2990,17 @@ function renderCard(sid){
     </div>`
     :`<div onclick="openStuNoteEdit('${s.id}')" style="display:inline-block;margin-bottom:13px;padding:6px 12px;border:1px dashed var(--border);border-radius:20px;font-size:12px;color:var(--ink3);cursor:pointer">＋ 新增備註</div>`;
   const _isAdmin=document.getElementById('sc-admin')?.classList.contains('active-admin');
-  const adminActions=_isAdmin?`<div style="display:flex;gap:8px;margin-bottom:13px">
-    <button onclick="openRenewStu('${s.id}')" style="flex:1;padding:10px;background:var(--teal2);border:1.5px solid var(--teal3);border-radius:10px;font-size:13px;font-weight:600;color:var(--teal);cursor:pointer;font-family:'Noto Sans TC',sans-serif">🔄 續課</button>
-    ${s.paymentStatus==='unpaid'?`<button onclick="openCollectPay('${s.id}')" style="flex:1;padding:10px;background:var(--orange2);border:1.5px solid var(--orange3);border-radius:10px;font-size:13px;font-weight:600;color:var(--orange);cursor:pointer;font-family:'Noto Sans TC',sans-serif">💰 收款完成</button>`:''}
+  const _unpaidAmt=s.pendingAmount||s.price||0;
+  const unpaidAlert=(_isAdmin&&s.paymentStatus==='unpaid')?
+    `<div style="background:var(--orange2);border:2px solid var(--orange3);border-radius:12px;padding:12px 16px;margin-bottom:13px;text-align:center">
+      <div style="font-size:14px;font-weight:600;color:var(--orange);margin-bottom:3px">💰 尚未繳費・待收款</div>
+      <div style="font-size:12px;color:#8B4000;margin-bottom:9px">此課卡先開放上課，待收 $${_unpaidAmt.toLocaleString()}　收到錢後按下方按鈕入帳</div>
+      <button onclick="openCollectPay('${s.id}')" style="background:var(--orange);color:#fff;border:none;border-radius:9px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Noto Sans TC',sans-serif">收款完成・入帳</button>
+    </div>`:'';
+  const adminActions=_isAdmin?`<div style="margin-bottom:13px">
+    <button onclick="openRenewStu('${s.id}')" style="width:100%;padding:10px;background:var(--teal2);border:1.5px solid var(--teal3);border-radius:10px;font-size:13px;font-weight:600;color:var(--teal);cursor:pointer;font-family:'Noto Sans TC',sans-serif">🔄 續課</button>
   </div>`:'';
-  document.getElementById('cardTop').innerHTML=leaveAlertToday+leaveAlertUpcoming+lowSessAlert+installAlert+healthAlert+expiryAlert+noteAlert+adminActions+`<div class="stu-top">
+  document.getElementById('cardTop').innerHTML=leaveAlertToday+leaveAlertUpcoming+unpaidAlert+lowSessAlert+installAlert+healthAlert+expiryAlert+noteAlert+adminActions+`<div class="stu-top">
     <div class="${ci.stripe} stripe"></div>
     <div class="stu-top-row">
       <div><div class="stu-name-big">${s.name}</div><div class="stu-meta">${s.phone}<br>指導老師：${s.teacher||'—'}　</div></div>
