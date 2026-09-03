@@ -9114,7 +9114,18 @@ if ('serviceWorker' in navigator) {
     });
   }).catch(e => console.warn('SW 註冊失敗：', e));
 
-  // 不做自動 reload — SW 用 network-first，下次開 app 自然就是新版
+  // SW 每次抓到新版主頁就會 postMessage SW_UPDATED。頁面可能已經開了一整天跑著舊 JS
+  // （例如櫃檯電腦），這時給一個非侵入式提示，讓使用者自己決定何時重新整理，不強制 reload。
+  navigator.serviceWorker.addEventListener('message', ev => {
+    if (ev.data && ev.data.type === 'SW_UPDATED' && !window._swUpdateShown) {
+      window._swUpdateShown = true;
+      const bar = document.createElement('div');
+      bar.onclick = () => location.reload();
+      bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:9999;background:var(--teal,#2f7d6b);color:#fff;padding:12px 16px;border-radius:12px;font-size:13px;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.25);cursor:pointer';
+      bar.textContent = '🔄 有新版本，點此重新整理';
+      document.body.appendChild(bar);
+    }
+  });
 }
 </script>
 

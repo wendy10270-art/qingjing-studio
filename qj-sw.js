@@ -1,5 +1,5 @@
 // 輕境 Service Worker — 每次開啟都從伺服器拿最新版本
-const CACHE = 'qingjing-v1';
+const CACHE = 'qingjing-v2';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -37,10 +37,23 @@ self.addEventListener('fetch', e => {
             // 非同步操作 resolve 後才 clone——那段等待期間瀏覽器可能已經開始消費 r 的
             // body 去渲染頁面，body 一旦被讀過，clone() 就會丟「body 已經被使用」的錯誤。
             const copy = r.clone();
-            caches.open(CACHE).then(c => c.put(e.request, copy));
-            // 通知所有開著的頁面可以重新整理了
-            self.clients.matchAll({type: 'window'}).then(clients => {
-              clients.forEach(client => client.postMessage({type: 'SW_UPDATED'}));
+            const copyForDiff = r.clone();
+            caches.open(CACHE).then(async c => {
+              // 只有在「這頁本來就有快取，而且內容真的變了」時才通知頁面有新版本，
+              // 避免每次載入都跳「有新版本」（SW_UPDATED 本來每次 navigate 都會發）。
+              let changed = false;
+              try {
+                const prev = await c.match(e.request);
+                if (prev) {
+                  const [a, b] = await Promise.all([prev.text(), copyForDiff.text()]);
+                  changed = a !== b;
+                }
+              } catch (err) {}
+              await c.put(e.request, copy);
+              if (changed) {
+                const clients = await self.clients.matchAll({type: 'window'});
+                clients.forEach(client => client.postMessage({type: 'SW_UPDATED'}));
+              }
             });
           }
           return r;
