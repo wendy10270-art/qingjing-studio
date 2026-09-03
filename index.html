@@ -2679,7 +2679,9 @@ function onHomeSearch(val){
   res.innerHTML=hits.map(s=>{
     const remain=s.total-s.used;
     const rc=remain<=0?'var(--red)':remain<=3?'#B8860B':remain<=6?'var(--gold2)':'var(--gold)';
-    return`<div onclick="homeSearchSelect('${s.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--bg2);cursor:pointer;active:background:var(--bg)${remain<=0?';opacity:.5':''}">
+    const _ct=getCT(s.course);
+    const _ctColor=_ct==='p'?'var(--gold)':_ct==='s'?'var(--blue)':'var(--green)';
+    return`<div onclick="homeSearchSelect('${s.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--bg2);border-left:4px solid ${_ctColor};cursor:pointer;active:background:var(--bg)${remain<=0?';opacity:.5':''}">
       <div>
         <div style="font-size:14px;font-weight:500;color:var(--ink)">${s.name}</div>
         <div style="font-size:11px;color:var(--ink3);margin-top:2px">${s.course}・${s.teacher}</div>
@@ -3005,13 +3007,16 @@ function renderCard(sid){
   const adminActions=`<div style="margin-bottom:13px">
     <button onclick="openRenewStu('${s.id}')" style="width:100%;padding:10px;background:var(--teal2);border:1.5px solid var(--teal3);border-radius:10px;font-size:13px;font-weight:600;color:var(--teal);cursor:pointer;font-family:'Noto Sans TC',sans-serif">🔄 續課</button>
   </div>`;
-  document.getElementById('cardTop').innerHTML=leaveAlertToday+leaveAlertUpcoming+unpaidAlert+lowSessAlert+installAlert+healthAlert+expiryAlert+noteAlert+adminActions+`<div class="stu-top">
+  const _ctColor=ct==='p'?'var(--gold)':ct==='s'?'var(--blue)':'var(--green)';
+  const _ctBg=ct==='p'?'var(--gold4)':ct==='s'?'var(--blue2)':'var(--green2)';
+  const _ctName=ct==='p'?'器械皮拉提斯':ct==='s'?'重訓':'瑜珈';
+  document.getElementById('cardTop').innerHTML=leaveAlertToday+leaveAlertUpcoming+unpaidAlert+lowSessAlert+installAlert+healthAlert+expiryAlert+noteAlert+adminActions+`<div class="stu-top" style="border-left:6px solid ${_ctColor}">
     <div class="${ci.stripe} stripe"></div>
     <div class="stu-top-row">
       <div><div class="stu-name-big">${s.name}</div><div class="stu-meta">${s.phone}<br>指導老師：${s.teacher||'—'}　</div></div>
       <div class="remain-badge ${ci.rem}"><div class="remain-n">${remain}</div><div class="remain-lbl">堂　可　用</div></div>
     </div>
-    <div class="course-type-row"><div class="course-type-name">${parts[0]||''}</div><div class="course-ratio">${parts[1]||''}</div><div style="flex:1"></div><div style="font-size:12px;color:var(--ink3)">${s.used}／${s.total} 堂（${pct}%）</div></div>
+    <div class="course-type-row"><span style="background:${_ctBg};color:${_ctColor};border-radius:6px;padding:2px 9px;font-size:12px;font-weight:700">${_ctName}</span><div class="course-type-name">${parts[0]||''}</div><div class="course-ratio">${parts[1]||''}</div><div style="flex:1"></div><div style="font-size:12px;color:var(--ink3)">${s.used}／${s.total} 堂（${pct}%）</div></div>
   </div>`;
   // 課程進度：直向清單，一行一堂，像紙本簽到簿由上往下排，「本次」那一行金框放大凸顯
   // （2026-08-05 從格子牆改版：學員視角測試發現格子牆看不出「現在第幾堂」，備注塞在小格子裡也看不清楚）
@@ -5392,18 +5397,22 @@ function renderMgrList(){
     const pmLabel=PAY_NAME[s.payMethod]||s.payMethod||'未記錄';
     const pmCls=PAY_CLS[s.payMethod]||'';
     const pay=s.actualPayment?'$'+s.actualPayment.toLocaleString():'未記錄';
-    const remColor=getCT(s.course)==='p'?'var(--gold)':getCT(s.course)==='s'?'var(--blue)':'var(--green)';
+    const _ct=getCT(s.course);
+    const remColor=_ct==='p'?'var(--gold)':_ct==='s'?'var(--blue)':'var(--green)';
+    const _ctBg=_ct==='p'?'var(--gold4)':_ct==='s'?'var(--blue2)':'var(--green2)';
+    const _ctName=_ct==='p'?'器械皮拉提斯':_ct==='s'?'重訓':'瑜珈';
+    const _ctChip='<span style="display:inline-block;background:'+_ctBg+';color:'+remColor+';border-radius:5px;padding:1px 7px;font-size:10px;font-weight:700;margin-right:6px;vertical-align:middle">'+_ctName+'</span>';
     // 續購／到期／分期提醒：跟課卡上的判斷條件一致，這裡是給店長掃學員清單時能一鍵複製訊息
     const mgrReminders=[];
     if(rem<=2&&rem>0)mgrReminders.push('<button onclick="copyText(generateRenewMsg(\''+jsQ(s.name)+'\','+rem+',\''+jsQ((s.course||'').split(' ')[0])+'\'),\'✓ 已複製續購提醒訊息\')" style="padding:5px 11px;background:var(--orange2);border:1px solid var(--orange3);border-radius:7px;font-size:11px;cursor:pointer;color:var(--orange)">💬 續購提醒</button>');
     if(s.expiryDate){const ed2=parseDate(s.expiryDate);const diff2=Math.ceil((ed2-new Date())/(864e5));if(diff2>=0&&diff2<=14)mgrReminders.push('<button onclick="copyText(generateExpiryMsg(\''+jsQ(s.name)+'\',\''+jsQ(s.expiryDate)+'\','+rem+'),\'✓ 已複製到期提醒訊息\')" style="padding:5px 11px;background:#FFF4EE;border:1px solid #F5C4A1;border-radius:7px;font-size:11px;cursor:pointer;color:#C05A20">💬 到期提醒</button>');}
     if(s.installment&&s.installEvery&&s.used>0&&s.used%s.installEvery===0&&s.used<s.total)mgrReminders.push('<button onclick="copyText(generateInstallMsg(\''+jsQ(s.name)+'\','+s.used+'),\'✓ 已複製分期繳費提醒訊息\')" style="padding:5px 11px;background:var(--teal2);border:1px solid var(--teal3);border-radius:7px;font-size:11px;cursor:pointer;color:var(--teal)">💬 分期提醒</button>');
     const mgrReminderRow=mgrReminders.length?'<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--bg2);display:flex;gap:6px;flex-wrap:wrap">'+mgrReminders.join('')+'</div>':'';
-    return '<div class="smc">'+
+    return '<div class="smc" style="border-left:5px solid '+remColor+'">'+
       '<div class="smc-top">'+
         '<div>'+
           '<div style="display:flex;align-items:center;gap:8px">'+
-            '<div class="smc-name">'+s.name+pill+(s.paymentStatus==="unpaid"?'<span style="display:inline-block;background:var(--orange2);color:var(--orange);border:1px solid var(--orange3);border-radius:4px;padding:1px 8px;font-size:11px;margin-left:6px;vertical-align:middle">待收款 ⚠</span>':'')+'</div>'+
+            '<div class="smc-name">'+_ctChip+s.name+pill+(s.paymentStatus==="unpaid"?'<span style="display:inline-block;background:var(--orange2);color:var(--orange);border:1px solid var(--orange3);border-radius:4px;padding:1px 8px;font-size:11px;margin-left:6px;vertical-align:middle">待收款 ⚠</span>':'')+'</div>'+
             ('<button onclick="selectStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--gold4);border:1px solid var(--gold2);border-radius:6px;font-size:11px;cursor:pointer;color:var(--gold)">課卡</button>')+('<button onclick="openEditStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--ink2);margin-left:5px">編輯</button>')+('<button onclick="openRenewStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--teal2);border:1px solid var(--teal3);border-radius:6px;font-size:11px;cursor:pointer;color:var(--teal);margin-left:5px">續課</button>')+(s.paymentStatus==='unpaid'?('<button onclick="openCollectPay(\'' + s.id + '\')" style="padding:3px 10px;background:var(--orange2);border:1px solid var(--orange3);border-radius:6px;font-size:11px;cursor:pointer;color:var(--orange);margin-left:5px;font-weight:600">收款完成</button>'):'')+('<button onclick="openAddPlanForStu(\'' + s.id + '\')" style="padding:3px 10px;background:#EEF0FF;border:1px solid #B8BEF0;border-radius:6px;font-size:11px;cursor:pointer;color:#3D47C4;margin-left:5px">＋方案</button>')+('<button onclick="deleteStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:6px;font-size:11px;cursor:pointer;color:var(--red);margin-left:5px">刪除</button>')+
           '</div>'+
           '<div class="smc-sub">'+s.course+'・'+s.teacher+'老師<br>師資費 $'+getDefaultFee(s.teacher,s.course)+'/堂'+(s.installment?' ・ <span style="color:var(--orange)">分期每'+s.installEvery+'堂</span>':'')+'</div>'+
