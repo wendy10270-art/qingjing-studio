@@ -2924,7 +2924,7 @@ function todayCalActualTeacher(sid){
 }
 function renderCard(sid){
   leaveType='advance'; // 每次打開新課卡重設請假類型
-  const s=S.find(x=>x.id===sid);const recs=R.filter(r=>r.sid===sid);
+  const s=S.find(x=>x.id===sid);const recs=R.filter(r=>r.sid===sid&&!r.archived);
   const remain=s.total-s.used;const ct=getCT(s.course);const ci=CT[ct];
   const pc=remain<=0?'var(--red)':remain<=3?'#B8860B':remain<=6?'var(--gold2)':'var(--gold)';
   const parts=(s.course||'').split(' ');const pct=Math.round(s.used/s.total*100);
@@ -6745,6 +6745,9 @@ function confirmRenew(){
     actualPayment:s.actualPayment, bonus:s.bonus, note:s.note,
     period: s.prevCourses ? s.prevCourses.length+1 : 1
   });
+  // 舊一期的簽到記錄封存（保留給薪資/歷史，但新一期課卡的進度格子不再顯示它們）
+  const _renewPeriod=s.prevCourses.length;
+  R.forEach(r=>{if(r.sid===s.id&&!r.archived){r.archived=true;r.archivedPeriod=_renewPeriod;}});
   // 更新為新一期
   s.course=renewSelPlan;
   s.total=renewSelN;
@@ -6997,6 +7000,8 @@ function confirmHomePurchase(){
     // 續課：保留舊資料
     s.prevCourses=s.prevCourses||[];
     s.prevCourses.push({course:s.course,total:s.total,used:s.used,price:s.price,fee:s.fee,payMethod:s.payMethod,payDate:s.payDate,actualPayment:s.actualPayment,bonus:s.bonus,note:s.note,period:s.prevCourses.length+1});
+    const _hpPeriod=s.prevCourses.length;
+    R.forEach(r=>{if(r.sid===s.id&&!r.archived){r.archived=true;r.archivedPeriod=_hpPeriod;}});
     s.course=_hpSelPlan;s.total=_hpSelN;s.used=0;s.price=_hpSelPrice;s.fee=fee;
     s.payMethod=_hpPayMethod;s.payDate=payDate;s.actualPayment=pay.amount;
     s.bonus=bonus;s.bonusNote='';s.note=note;s.paymentStatus='paid';
