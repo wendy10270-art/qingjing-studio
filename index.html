@@ -2991,6 +2991,9 @@ function renderCard(sid){
     :`<div onclick="openStuNoteEdit('${s.id}')" style="display:inline-block;margin-bottom:13px;padding:6px 12px;border:1px dashed var(--border);border-radius:20px;font-size:12px;color:var(--ink3);cursor:pointer">＋ 新增備註</div>`;
   const _isAdmin=document.getElementById('sc-admin')?.classList.contains('active-admin');
   const _unpaidAmt=s.pendingAmount||s.price||0;
+  // 前台也要看得到「這位還沒繳費」——但只放一個小標籤、不顯示金額（學員簽到時可能看到畫面）
+  const unpaidTag=(!_isAdmin&&s.paymentStatus==='unpaid')?
+    `<div style="background:var(--orange2);border:1.5px solid var(--orange3);border-radius:10px;padding:9px 14px;margin-bottom:13px;font-size:13px;font-weight:600;color:var(--orange);text-align:center">💰 此課卡尚未繳費・待收款</div>`:'';
   const unpaidAlert=(_isAdmin&&s.paymentStatus==='unpaid')?
     `<div style="background:var(--orange2);border:2px solid var(--orange3);border-radius:12px;padding:12px 16px;margin-bottom:13px;text-align:center">
       <div style="font-size:14px;font-weight:600;color:var(--orange);margin-bottom:3px">💰 尚未繳費・待收款</div>
@@ -3000,7 +3003,7 @@ function renderCard(sid){
   const adminActions=_isAdmin?`<div style="margin-bottom:13px">
     <button onclick="openRenewStu('${s.id}')" style="width:100%;padding:10px;background:var(--teal2);border:1.5px solid var(--teal3);border-radius:10px;font-size:13px;font-weight:600;color:var(--teal);cursor:pointer;font-family:'Noto Sans TC',sans-serif">🔄 續課</button>
   </div>`:'';
-  document.getElementById('cardTop').innerHTML=leaveAlertToday+leaveAlertUpcoming+unpaidAlert+lowSessAlert+installAlert+healthAlert+expiryAlert+noteAlert+adminActions+`<div class="stu-top">
+  document.getElementById('cardTop').innerHTML=leaveAlertToday+leaveAlertUpcoming+unpaidAlert+unpaidTag+lowSessAlert+installAlert+healthAlert+expiryAlert+noteAlert+adminActions+`<div class="stu-top">
     <div class="${ci.stripe} stripe"></div>
     <div class="stu-top-row">
       <div><div class="stu-name-big">${s.name}</div><div class="stu-meta">${s.phone}<br>指導老師：${s.teacher||'—'}　</div></div>
