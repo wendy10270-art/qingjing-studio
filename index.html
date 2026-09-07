@@ -5149,6 +5149,9 @@ function copyTeacher(teacher,mk){
   ];
   const rentDeduct=RENT.filter(r=>wageInRange(r.date,mk)&&r.teacher===teacher&&r.mode==='deduct');
   const rentTotal=rentDeduct.reduce((a,r)=>a+(r.fee||0),0);
+  // 預付扣堂／已付現金／發薪日轉帳的場租不動這次的錢，但對帳要看得到（跟薪資卡片一致）
+  const rentPrepaid=RENT.filter(r=>wageInRange(r.date,mk)&&r.teacher===teacher&&r.mode==='prepaid');
+  const rentCash=RENT.filter(r=>wageInRange(r.date,mk)&&r.teacher===teacher&&(r.mode==='cash'||r.mode==='transfer'));
   const bonusEntries=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.teacher===teacher&&(l.bonus||0)>0);
   const bonusPaidTotal=bonusEntries.filter(l=>l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
   const total=sessions.reduce((a,x)=>a+x.fee,0)-rentTotal+bonusPaidTotal;
@@ -5157,6 +5160,8 @@ function copyTeacher(teacher,mk){
   let text=`輕境運動工作室 ${period} 師資費用\n老師：${teacher}\n────────────\n`;
   Object.entries(byType).forEach(([c,d])=>{text+=`${c}：${d.count}堂 / $${d.fee.toLocaleString()}\n`});
   if(rentDeduct.length)text+=`場租扣款：${rentDeduct.length}筆 / －$${rentTotal.toLocaleString()}\n`;
+  if(rentPrepaid.length)text+=`場租（預付扣堂）：${rentPrepaid.length}筆（不列入扣款）\n`;
+  if(rentCash.length)text+=`場租（已付現金／轉帳）：${rentCash.length}筆 / $${rentCash.reduce((a,r)=>a+(r.fee||0),0).toLocaleString()}（不列入扣款）\n`;
   if(bonusPaidTotal>0)text+=`續課獎金（已撥）：${bonusEntries.filter(l=>l.bonusPaid).length}筆 / $${bonusPaidTotal.toLocaleString()}\n`;
   text+=`────────────\n合計：$${total.toLocaleString()}\n`;
   const adjRecs=sessions.filter(x=>x.type==='regular'?isAdj(x.r):x.type==='trial'?(x.tr.manualFee!=null):false);
@@ -5167,9 +5172,11 @@ function copyTeacher(teacher,mk){
     else if(x.type==='trial'){text+=`${x.tr.date.slice(5)} ${x.tr.time} ${x.tr.name} ${x.tr.course} ${x.tr.ratio} [體驗] $${x.fee.toLocaleString()}\n`}
     else{text+=`${x.g.date.slice(5)} ${x.g.time||''} ${cleanGcName(x.g.name)} ${x.g.course} ${x.g.ratio} [GC核銷] $${x.fee.toLocaleString()}\n`}
   });
-  if(rentDeduct.length){
-    text+=`\n場租扣款明細：\n`;
+  if(rentDeduct.length||rentPrepaid.length||rentCash.length){
+    text+=`\n場租明細：\n`;
     rentDeduct.sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{text+=`${r.date.slice(5)} ${r.time||''} 場租${r.label?'・'+r.label:''} －$${(r.fee||0).toLocaleString()}\n`});
+    rentPrepaid.sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{text+=`${r.date.slice(5)} ${r.time||''} 場租（預付扣堂）${r.label?'・'+r.label:''} 剩${r.remainingAfter??'?'}堂\n`});
+    rentCash.sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{text+=`${r.date.slice(5)} ${r.time||''} 場租（${r.mode==='transfer'?'發薪日轉帳':'已付現金'}）${r.label?'・'+r.label:''} $${(r.fee||0).toLocaleString()}\n`});
   }
   if(bonusEntries.length){
     text+=`\n續課獎金明細：\n`;
@@ -5251,6 +5258,8 @@ function buildPayrollEmailHtml(teacher,mk){
   ];
   const rentDeduct=RENT.filter(r=>wageInRange(r.date,mk)&&r.teacher===teacher&&r.mode==='deduct');
   const rentTotal=rentDeduct.reduce((a,r)=>a+(r.fee||0),0);
+  const rentPrepaid=RENT.filter(r=>wageInRange(r.date,mk)&&r.teacher===teacher&&r.mode==='prepaid');
+  const rentCash=RENT.filter(r=>wageInRange(r.date,mk)&&r.teacher===teacher&&(r.mode==='cash'||r.mode==='transfer'));
   const bonusEntries=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.teacher===teacher&&(l.bonus||0)>0);
   const bonusPaidEntries=bonusEntries.filter(l=>l.bonusPaid);
   const bonusPaidTotal=bonusPaidEntries.reduce((a,l)=>a+(l.bonus||0),0);
@@ -5284,6 +5293,16 @@ function buildPayrollEmailHtml(teacher,mk){
       <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;text-align:right;color:#c0392b;white-space:nowrap">－$${(r.fee||0).toLocaleString()}</td>
     </tr>`).join(''):'';
 
+  const rentInfoRows=[...rentPrepaid.map(r=>({r,d:`場租（預付扣堂）${r.label?'・'+hEsc(r.label):''}`,v:`剩${r.remainingAfter??'?'}堂`})),
+    ...rentCash.map(r=>({r,d:`場租（${r.mode==='transfer'?'發薪日轉帳':'已付現金'}）${r.label?'・'+hEsc(r.label):''}`,v:`$${(r.fee||0).toLocaleString()}`}))]
+    .sort((a,b)=>a.r.date.localeCompare(b.r.date));
+  const rentInfoHtml=rentInfoRows.length?`<tr><td colspan="3" style="padding:14px 6px 6px;font-size:13px;font-weight:600;color:#3a332a">場租（不列入扣款）</td></tr>`+
+    rentInfoRows.map(({r,d,v})=>`<tr>
+      <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;color:#8a8072;white-space:nowrap">${hEsc(r.date.slice(5))} ${hEsc(r.time||'')}</td>
+      <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;color:#3a332a">${d}</td>
+      <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;text-align:right;color:#8a8072;white-space:nowrap">${v}</td>
+    </tr>`).join(''):'';
+
   const bonusRowsHtml=bonusEntries.length?`<tr><td colspan="3" style="padding:14px 6px 6px;font-size:13px;font-weight:600;color:#3a332a">續課獎金</td></tr>`+
     bonusEntries.sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||'')).map(l=>`<tr>
       <td style="padding:9px 6px;border-bottom:1px solid #eee;font-size:13px;color:#8a8072;white-space:nowrap">${hEsc((l.createdAt||'').slice(5))}</td>
@@ -5293,6 +5312,7 @@ function buildPayrollEmailHtml(teacher,mk){
 
   const noteBits=[`${sessions.length} 堂`];
   if(rentDeduct.length)noteBits.push(`已扣場租 $${rentTotal.toLocaleString()}`);
+  if(rentPrepaid.length)noteBits.push(`場租預付扣 ${rentPrepaid.length} 堂`);
   if(bonusPendingTotal>0)noteBits.push(`獎金待撥 $${bonusPendingTotal.toLocaleString()}`);
 
   return`<div style="max-width:560px;margin:0 auto;font-family:'PingFang TC','Microsoft JhengHei',sans-serif;color:#3a332a">
@@ -5306,7 +5326,7 @@ function buildPayrollEmailHtml(teacher,mk){
         <span style="font-size:13px;color:#8a8072">本期合計</span>
         <span style="font-size:24px;font-weight:700;color:${total<0?'#c0392b':'#2f8f5b'}">${total<0?'－':''}$${Math.abs(total).toLocaleString()}</span>
       </div>
-      <table style="width:100%;border-collapse:collapse">${rowsHtml}${rentRowsHtml}${bonusRowsHtml}</table>
+      <table style="width:100%;border-collapse:collapse">${rowsHtml}${rentRowsHtml}${rentInfoHtml}${bonusRowsHtml}</table>
       <div style="font-size:12px;color:#a39a8a;margin-top:12px">${hEsc(noteBits.join('・'))}</div>
     </div>
     <div style="text-align:center;font-size:11px;color:#a39a8a;padding:14px 0 0">此為系統自動寄送，若有疑問請聯繫工作室</div>
