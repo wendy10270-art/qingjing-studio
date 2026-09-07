@@ -8227,13 +8227,18 @@ async function gcMatchDay(ds,opts){
     try{evs=await GC.dayEvents(calId,ds);}catch(e){console.warn('GC match day read err:',teacher,e);continue;}
     for(const ev of evs)_allEvs.push({ev,teacher});
   }
-  // 每位學員當天比對到的正課堂數（場租／體驗不計入）
+  // 每位學員當天比對到的正課堂數（場租／體驗不計入）。
+  // 用「人」而不是「課卡 id」當 key：同一位學員可能同時持有兩張同課種課卡（一張用完、
+  // 一張還有堂數），gcMatchStudent 可能把日曆事件配到跟本人實際簽到不同的那張，
+  // 只比對 sid 會以為是兩堂不同的課，害「一人一天一堂」的學員被補出一筆幽靈紀錄
+  // （2026-09-07：蘇昱 09:00 幽靈＋10:38 本人簽到就是這樣重複的）。
+  const _stuKey=s=>((s&&s.name||'').replace(/\s+/g,'').trim())+'|'+((s&&s.phone||'').replace(/\D/g,'').slice(-8));
   const _sidDayCount={};
   for(const _e of _allEvs){
     const _p=GC.parseTitle(_e.ev.summary||'');
     if(!_p||gcIsRent(_p.type))continue;
     const _s=gcMatchStudent(_p,_e.teacher);
-    if(_s)_sidDayCount[_s.id]=(_sidDayCount[_s.id]||0)+1;
+    if(_s)_sidDayCount[_stuKey(_s)]=(_sidDayCount[_stuKey(_s)]||0)+1;
   }
   {
     for(const {ev,teacher} of _allEvs){
@@ -8280,11 +8285,19 @@ async function gcMatchDay(ds,opts){
         // 但不動 used，堂數不會透支——店長要嘛幫學員加開新課卡，要嘛個別刪除，都在畫面上處理。
         // 去重：學員實際簽到時間存的是按簽名板當下（nowTime()），跟日曆排課整點對不上
         // （2026-08-31 查出：整天沒共用課卡，卻因為硬比對 time 而堂堂多補一筆「未簽到・GC比對」）。
-        // 只有共用課卡一天多堂（同一 sid 當天 ≥2 個日曆事件）才比對到「時段」，避免把第二堂
-        // 誤判成重複濾掉；一般一人一堂只比對 sid+日期。
-        const _dup=(_sidDayCount[stu.id]||0)>1
-          ? R.some(r=>r.sid===stu.id&&r.date===ds&&r.time===time)
-          : R.some(r=>r.sid===stu.id&&r.date===ds);
+        // 一人一天一堂（正常情況）：當天已經有這位學員的任何簽到／補簽紀錄就不再補，
+        // 不分時段、也不管掛在哪張課卡上（sid 或同一個人的姓名＋電話都算數）。
+        // 只有共用課卡真的一天多堂（同一個人當天 ≥2 個日曆事件）才退回「比對時段」，
+        // 避免把第二堂誤判成重複濾掉。
+        const _sameStu=r=>{
+          if(r.date!==ds)return false;
+          if(r.sid===stu.id)return true;
+          const rs=S.find(x=>x.id===r.sid);
+          return !!(rs&&_stuKey(rs)!=='|'&&_stuKey(rs)===_stuKey(stu));
+        };
+        const _dup=(_sidDayCount[_stuKey(stu)]||0)>1
+          ? R.some(r=>_sameStu(r)&&r.time===time)
+          : R.some(_sameStu);
         if(backfillR&&classEnded&&!_dup){
           const isSub=teacher!==(stu.teacher||'');
           const exhausted=(stu.used||0)>=(stu.total||0);
