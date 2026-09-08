@@ -1463,7 +1463,7 @@ const PLANS={
     '1on2':[{n:1,lbl:'單堂',price:3600},{n:5,lbl:'五堂',price:16500},{n:10,lbl:'十堂',price:29000}],
     '1on3':[{n:1,lbl:'單堂',price:1350},{n:4,lbl:'四堂',price:4800},{n:8,lbl:'八堂',price:8800}]
   },
-  trial:{'1on1':1200,'1on2':2000,'1on3':800}},
+  trial:{'1on1':1200,'1on2':2000,'1on3':2400}},
   '重訓課程':{type:'s',ratios:['1on1','1on2'],sessions:{
     '1on1':[{n:1,lbl:'單堂',price:2000},{n:5,lbl:'五堂',price:9250},{n:10,lbl:'十堂',price:17000}],
     '1on2':[{n:1,lbl:'單堂',price:2400},{n:8,lbl:'八堂',price:16800}]
@@ -3645,6 +3645,10 @@ function addTrialStudent(){
   // 防止重複：同名、同老師、同日期的體驗只能有一筆
   const dup=T.find(t=>t.name===name&&t.teacher===teacher&&t.date===td);
   if(dup){showToast('⚠ '+td+' 已有 '+name+' 的體驗課記錄','r');return;}
+  // 體驗費「一班一筆」：同班（同老師、同日、同課程比例）已經有人記了體驗費就提醒店長把這位設 0，別重複收
+  const slot=isToday?nowTime():'';
+  const sameClassPaid=T.find(t=>t.teacher===teacher&&t.date===td&&t.time===slot&&t.course===trialPlan&&t.ratio===trialRatio&&(t.fee||0)>0);
+  if(sameClassPaid&&price>0){showToast('提醒：'+sameClassPaid.name+' 已記了這堂體驗費（一班一筆），這位的體驗費請填 0','r');return;}
   // noSigNeeded：補登過去日期的體驗課不會有簽名（人已經走了），核對課堂頁要照樣顯示出來讓店長確認消課，
   // 不能用「有沒有簽名」判斷這筆課有沒有發生過——只有今天現場走這個按鈕的流程才需要真的簽名
   const newTrial={id:'t'+Date.now(),name,phone,course:trialPlan,ratio:trialRatio,teacher,date:td,time:isToday?nowTime():'',fee:price,teacherFee:fee,sig:null,noSigNeeded:!isToday,manualFee:null,manualNote:isToday?'':'補登'};
@@ -8344,8 +8348,13 @@ async function gcMatchDay(ds,opts){
           const dup=T.find(t=>t.name===parsed.name&&t.teacher===teacher&&t.date===ds);
           if(!dup){
             const teacherFee=getDefaultFee(teacher,trialCourse+' '+ratio);
+            // 體驗費「一班一筆」：同一堂課（同老師、同日、同時段）只在第一位同學身上記整班體驗費，
+            // 後面的同學 fee=0，避免 1on2／1on3 體驗被重複收費
+            const classHasFee=T.some(t=>t.teacher===teacher&&t.date===ds&&t.time===time&&(t.fee||0)>0);
+            const classFee=classHasFee?0:price;
+            const classNote=classHasFee?'GC比對，未簽到（體驗費一班一筆，已記在同班第一位同學）':'GC比對，未簽到';
             // noSigNeeded：日曆比對自動建立的體驗紀錄不會有現場簽名，核對課堂頁要照樣顯示出來
-            T.push({id:'t'+Date.now()+Math.random().toString(36).slice(2,6),name:parsed.name,phone:parsed.phone,course:trialCourse,ratio,teacher,date:ds,time,fee:price,teacherFee,sig:null,noSigNeeded:true,manualFee:null,manualNote:'GC比對，未簽到'});
+            T.push({id:'t'+Date.now()+Math.random().toString(36).slice(2,6),name:parsed.name,phone:parsed.phone,course:trialCourse,ratio,teacher,date:ds,time,fee:classFee,teacherFee,sig:null,noSigNeeded:true,manualFee:null,manualNote:classNote});
             trialAdded++;
             trialsAdded.push({teacher,name:parsed.name,course:trialCourse,ratio,time});
           }
