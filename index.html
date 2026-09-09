@@ -2297,6 +2297,7 @@ function closeOvOut(id,e){if(e.target===document.getElementById(id))closeOvById(
 
 // ── 首頁 ──
 function renderTeachers(){
+  sweepQueuedCards(); // 有排隊中的下一期、目前這張又上完了 → 先切換
   const td=todayStr();const sch=SCH[td]||{};
   const trialToday=T.filter(t=>t.date===td);
   const el=document.getElementById('teacherArea');
@@ -2834,6 +2835,7 @@ function clearSearch(){
 }
 
 function renderStuList(){
+  sweepQueuedCards();
   const td=todayStr();const slots=(SCH[td]||{})[curTeacher]||[];
   const trialSlots=T.filter(tr=>tr.teacher===curTeacher&&tr.date===td);
   const el=document.getElementById('stuListArea');
@@ -2931,6 +2933,7 @@ function todayCalActualTeacher(sid){
 }
 function renderCard(sid){
   leaveType='advance'; // 每次打開新課卡重設請假類型
+  { const _s0=S.find(x=>x.id===sid); if(_s0&&advanceQueuedCard(_s0))save(); } // 目前這張上完了、有排隊的下一期就先切換
   const s=S.find(x=>x.id===sid);const recs=R.filter(r=>r.sid===sid&&!r.archived);
   const remain=s.total-s.used;const ct=getCT(s.course);const ci=CT[ct];
   const pc=remain<=0?'var(--red)':remain<=3?'#B8860B':remain<=6?'var(--gold2)':'var(--gold)';
@@ -3007,10 +3010,30 @@ function renderCard(sid){
   const adminActions=`<div style="margin-bottom:13px">
     <button onclick="openRenewStu('${s.id}')" style="width:100%;padding:10px;background:var(--teal2);border:1.5px solid var(--teal3);border-radius:10px;font-size:13px;font-weight:600;color:var(--teal);cursor:pointer;font-family:'Noto Sans TC',sans-serif">🔄 續課</button>
   </div>`;
+  // 下一期排隊中
+  const queuedBanner=(s.queued&&s.queued.length)?
+    `<div style="background:#EEF0FF;border:1.5px solid #B8BEF0;border-radius:12px;padding:12px 16px;margin-bottom:13px">
+      <div style="font-size:13px;font-weight:600;color:#3D47C4;margin-bottom:4px">📦 下一期已排隊（${s.queued.length}）</div>
+      ${s.queued.map(q=>`<div style="font-size:12px;color:#3A3F8F;margin-top:2px">・${q.course}　${q.total} 堂${q.paymentStatus==='unpaid'?'（待收款 $'+(((q.pendingAmount||q.price)||0)).toLocaleString()+'）':''}</div>`).join('')}
+      <div style="font-size:11px;color:var(--ink3);margin-top:5px">目前這張剩 ${remain} 堂，上完會自動接續</div>
+    </div>`:'';
+  // 提早續課疑似按錯：上一期還沒上完、這張新卡也還沒開始用
+  const _lastPrev=(s.prevCourses&&s.prevCourses.length)?s.prevCourses[s.prevCourses.length-1]:null;
+  let _recentRenew=false;
+  if(_lastPrev&&(_lastPrev.total-_lastPrev.used>0)&&(s.used===0)){
+    if(!s.payDate)_recentRenew=true;
+    else{const d=parseDate(s.payDate);_recentRenew=!d||((Date.now()-d)/(864e5))<=21;}
+  }
+  const undoRenewBanner=_recentRenew?
+    `<div style="background:var(--orange2);border:1.5px solid var(--orange3);border-radius:12px;padding:12px 16px;margin-bottom:13px">
+      <div style="font-size:13px;font-weight:600;color:var(--orange);margin-bottom:4px">↩️ 上一期還有 ${_lastPrev.total-_lastPrev.used} 堂沒上完</div>
+      <div style="font-size:12px;color:#8B4000;margin-bottom:8px">如果這次是提早續課，可以把目前這張新卡改排到「下一期」，先把上一期 ${_lastPrev.total-_lastPrev.used} 堂上完。</div>
+      <button onclick="undoRenewToQueue('${s.id}')" style="background:#fff;color:var(--orange);border:1px solid var(--orange3);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">改成先上完上一期</button>
+    </div>`:'';
   const _ctColor=ct==='p'?'var(--gold)':ct==='s'?'var(--blue)':'var(--green)';
   const _ctBg=ct==='p'?'var(--gold4)':ct==='s'?'var(--blue2)':'var(--green2)';
   const _ctName=ct==='p'?'器械皮拉提斯':ct==='s'?'重訓':'瑜珈';
-  document.getElementById('cardTop').innerHTML=leaveAlertToday+leaveAlertUpcoming+unpaidAlert+lowSessAlert+installAlert+healthAlert+expiryAlert+noteAlert+adminActions+`<div class="stu-top" style="border-left:6px solid ${_ctColor}">
+  document.getElementById('cardTop').innerHTML=leaveAlertToday+leaveAlertUpcoming+unpaidAlert+undoRenewBanner+queuedBanner+lowSessAlert+installAlert+healthAlert+expiryAlert+noteAlert+adminActions+`<div class="stu-top" style="border-left:6px solid ${_ctColor}">
     <div class="${ci.stripe} stripe"></div>
     <div class="stu-top-row">
       <div><div class="stu-name-big">${s.name}</div><div class="stu-meta">${s.phone}<br>指導老師：${s.teacher||'—'}　</div></div>
@@ -3373,7 +3396,7 @@ function undoLastSignIn(){
   const s=S.find(x=>x.id===rec.sid);
   if(s&&rec.note!=='紙本簽到'&&s.used>0)s.used--;
   R.splice(idx,1);
-  _lastSignInRecId='';clearInterval(_undoTimer);
+  _lastSignInRecId='';_lastSignInSid='';_undoSecs=0;clearInterval(_undoTimer);
   const el=document.getElementById('undoSignInArea');if(el)el.innerHTML='';
   save();renderTeachers();
   showToast('✓ 已撤銷剛才的簽到記錄');
@@ -3397,7 +3420,7 @@ function confirmSig(){
   const actualFee=isUpgraded?curUpgradeTeacherFee:getDefaultFee(s.teacher,s.course);
   const newRecId='r'+Date.now();
   R.push({id:newRecId,sid:curSid,date:todayStr(),time:nowTime(),session:s.used,sig:document.getElementById('sigC')?.toDataURL()||null,isSub,subTeacher,isUpgraded,upgradedTo:isUpgraded?curUpgradeRatio:'',upgradeDiff:isUpgraded?curUpgradeDiff:0,actualFee,manualFee:null,manualNote:'',confirmed:false,upgPayMethod:isUpgraded?upgPayMethod:'',feeCollected:isUpgraded?feeCollected:false});
-  _lastSignInRecId=newRecId;_lastSignInSid=curSid;
+  _lastSignInRecId=newRecId;_lastSignInSid=curSid;_undoSecs=60; // 先卡住可撤銷視窗，避免 renderTeachers 的 sweep 立刻把課卡切到下一期
   // 升級加人的補費如果店長當場就打勾「已收款」，直接記進流水帳收入——
   // 不然這筆錢只會留在這堂簽到記錄的 feeCollected 欄位，沒有任何報表會讀到它，
   // 但同一堂課升級後較高的師資費卻已經算進師資費用支出了，淨利會悄悄少算
@@ -3467,9 +3490,11 @@ function confirmRetro(sid){
   if(!dateInput){showToast('請選擇補簽日期','r');return;}
   const date=dateInput.replace(/-/g,'/');
   if(date>=todayStr()){showToast('補簽日期需在今天之前','r');return;}
+  advanceQueuedCard(s); // 目前這張上完了、有下一期排隊 → 先切換再補簽
   if(s.used>=s.total){showToast('課程堂數已用完，無法補簽','r');return;}
   const note=document.getElementById('retroNote').value.trim();
   s.used++;
+  advanceQueuedCard(s);
   R.push({id:'r'+Date.now(),sid,date,time:'',session:s.used,sig:null,isSub:false,subTeacher:'',isUpgraded:false,upgradedTo:'',upgradeDiff:0,actualFee:getDefaultFee(s.teacher,s.course),manualFee:null,manualNote:note,confirmed:false,upgPayMethod:'',feeCollected:false,isRetro:true});
   document.getElementById('retroOv')?.remove();
   save();renderTeachers();renderCard(sid);
@@ -5411,6 +5436,7 @@ function exportCSV(){
 
 // ── 學員管理 ──
 function renderMgrList(){
+  sweepQueuedCards();
   const PAY_NAME={'transfer_fubon':'匯款聯邦','transfer_cathay':'匯款國泰','card':'刷卡','cash':'付現金'};
   const PAY_CLS={'transfer_fubon':'transfer','transfer_cathay':'transfer','card':'card','cash':'cash'};
   const mgrQ=(document.getElementById('mgrSearchInp')?.value||'').trim();
@@ -5436,7 +5462,7 @@ function renderMgrList(){
       '<div class="smc-top">'+
         '<div>'+
           '<div style="display:flex;align-items:center;gap:8px">'+
-            '<div class="smc-name">'+_ctChip+s.name+pill+(s.paymentStatus==="unpaid"?'<span style="display:inline-block;background:var(--orange2);color:var(--orange);border:1px solid var(--orange3);border-radius:4px;padding:1px 8px;font-size:11px;margin-left:6px;vertical-align:middle">待收款 ⚠</span>':'')+'</div>'+
+            '<div class="smc-name">'+_ctChip+s.name+pill+(s.queued&&s.queued.length?'<span style="display:inline-block;background:#EEF0FF;color:#3D47C4;border:1px solid #B8BEF0;border-radius:4px;padding:1px 8px;font-size:11px;margin-left:6px;vertical-align:middle">📦 下一期 x'+s.queued.length+'</span>':'')+(s.paymentStatus==="unpaid"?'<span style="display:inline-block;background:var(--orange2);color:var(--orange);border:1px solid var(--orange3);border-radius:4px;padding:1px 8px;font-size:11px;margin-left:6px;vertical-align:middle">待收款 ⚠</span>':'')+'</div>'+
             ('<button onclick="selectStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--gold4);border:1px solid var(--gold2);border-radius:6px;font-size:11px;cursor:pointer;color:var(--gold)">課卡</button>')+('<button onclick="openEditStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--ink2);margin-left:5px">編輯</button>')+('<button onclick="openRenewStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--teal2);border:1px solid var(--teal3);border-radius:6px;font-size:11px;cursor:pointer;color:var(--teal);margin-left:5px">續課</button>')+(s.paymentStatus==='unpaid'?('<button onclick="openCollectPay(\'' + s.id + '\')" style="padding:3px 10px;background:var(--orange2);border:1px solid var(--orange3);border-radius:6px;font-size:11px;cursor:pointer;color:var(--orange);margin-left:5px;font-weight:600">收款完成</button>'):'')+('<button onclick="openAddPlanForStu(\'' + s.id + '\')" style="padding:3px 10px;background:#EEF0FF;border:1px solid #B8BEF0;border-radius:6px;font-size:11px;cursor:pointer;color:#3D47C4;margin-left:5px">＋方案</button>')+('<button onclick="deleteStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--red2);border:1px solid #F7C1C1;border-radius:6px;font-size:11px;cursor:pointer;color:var(--red);margin-left:5px">刪除</button>')+
           '</div>'+
           '<div class="smc-sub">'+s.course+'・'+s.teacher+'老師<br>師資費 $'+getDefaultFee(s.teacher,s.course)+'/堂'+(s.installment?' ・ <span style="color:var(--orange)">分期每'+s.installEvery+'堂</span>':'')+'</div>'+
@@ -6680,7 +6706,9 @@ function openRenewStu(sid){
   const s=S.find(x=>x.id===sid);if(!s)return;
   renewStuId=sid; renewSelPlan=''; renewSelN=0; renewSelPrice=0; renewPayMethod='';
   document.getElementById('renewStuTitle').textContent=s.name+' 續課';
-  document.getElementById('renewStuInfo').innerHTML='目前課程：'+s.course+'・已上 '+s.used+' 堂／共 '+s.total+' 堂<br>指導老師：'+s.teacher;
+  document.getElementById('renewStuInfo').innerHTML='目前課程：'+s.course+'・已上 '+s.used+' 堂／共 '+s.total+' 堂<br>指導老師：'+s.teacher
+    +(s.used<s.total?'<br><span style="color:#3D47C4">⚠️ 目前這張還有 '+(s.total-s.used)+' 堂沒上完，這次續課會排到「下一期」，等目前這張上完才啟用</span>':'')
+    +(s.queued&&s.queued.length?'<br><span style="color:#3D47C4">📦 已有 '+s.queued.length+' 期排隊中</span>':'');
   document.getElementById('renewNote').value='';
   setDateSel('renewPayDate',todayStr());
   document.getElementById('renewSelDisp').classList.remove('show');
@@ -6775,6 +6803,69 @@ function renewUpdPaySummary(){
   document.getElementById('renewPsTotal').textContent='$'+pay.amount.toLocaleString();
 }
 
+// ── 課卡「排隊」機制 ──
+// 續課時如果目前這張課卡還沒上完，新方案不覆蓋、先排進 s.queued，
+// 等目前這張堂數用完後（開課卡／首頁課表／日曆比對時）自動接續啟用。
+function _archiveActivePeriod(s){
+  s.prevCourses=s.prevCourses||[];
+  s.prevCourses.push({
+    course:s.course, total:s.total, used:s.used, price:s.price,
+    fee:s.fee, payMethod:s.payMethod, payDate:s.payDate,
+    actualPayment:s.actualPayment, bonus:s.bonus, note:s.note,
+    period:s.prevCourses.length+1
+  });
+  const period=s.prevCourses.length;
+  R.forEach(r=>{if(r.sid===s.id&&!r.archived){r.archived=true;r.archivedPeriod=period;}});
+  return period;
+}
+function _applyPackageToCard(s,np){
+  s.course=np.course; s.total=np.total; s.used=np.used||0;
+  s.price=np.price; s.fee=np.fee; s.bonusNote=''; s.note=np.note||'';
+  if(np.paymentStatus==='unpaid'){
+    s.payMethod=''; s.payDate=''; s.actualPayment=0; s.bonus=0;
+    s.paymentStatus='unpaid';
+    s.pendingAmount=np.pendingAmount||np.price; s.pendingType=np.pendingType||'renew';
+  }else{
+    s.payMethod=np.payMethod||''; s.payDate=np.payDate||'';
+    s.actualPayment=np.actualPayment||0; s.bonus=np.bonus||0;
+    s.paymentStatus='paid'; delete s.pendingAmount; delete s.pendingType;
+  }
+}
+function queueRenewPackage(s,np){ s.queued=s.queued||[]; s.queued.push(np); }
+// 目前這張課卡上完了、而且有排隊中的下一期 → 封存目前這張、切換到下一期
+function advanceQueuedCard(s){
+  if(!s||!Array.isArray(s.queued)||!s.queued.length)return false;
+  if((s.used||0)<(s.total||0))return false;
+  // 剛簽到、還在可撤銷視窗內：撤銷是對同一筆 s 做 used--，先別切換
+  if(typeof _lastSignInSid!=='undefined'&&_lastSignInSid===s.id&&typeof _undoSecs!=='undefined'&&_undoSecs>0)return false;
+  _archiveActivePeriod(s);
+  _applyPackageToCard(s,s.queued.shift());
+  if(!s.queued.length)delete s.queued;
+  return true;
+}
+function sweepQueuedCards(){
+  let n=0; S.forEach(s=>{ if(advanceQueuedCard(s))n++; });
+  if(n)save();
+  return n;
+}
+// 提早續課按錯：把目前的新卡改排到下一期，還原上一期沒上完的課卡
+function undoRenewToQueue(sid){
+  const s=S.find(x=>x.id===sid);if(!s||!s.prevCourses||!s.prevCourses.length)return;
+  if(!confirm('把目前這張新課卡改排到「下一期」，先還原上一期沒上完的課卡？'))return;
+  const prev=s.prevCourses.pop();
+  const prevPeriod=prev.period||(s.prevCourses.length+1);
+  const cur={course:s.course,total:s.total,used:s.used,price:s.price,fee:s.fee,
+    payMethod:s.payMethod,payDate:s.payDate,actualPayment:s.actualPayment,bonus:s.bonus,note:s.note,
+    paymentStatus:s.paymentStatus||'paid',pendingAmount:s.pendingAmount,pendingType:s.pendingType};
+  s.queued=s.queued||[]; s.queued.unshift(cur);
+  _applyPackageToCard(s,{...prev,paymentStatus:'paid'});
+  s.used=prev.used||0;
+  R.forEach(r=>{if(r.sid===s.id&&r.archivedPeriod===prevPeriod){r.archived=false;delete r.archivedPeriod;}});
+  save();renderMgrList();renderTeachers();
+  if(document.getElementById('sc-card')?.classList.contains('active'))renderCard(s.id);
+  showToast('✓ 已還原上一期課卡，新卡改到下一期排隊');
+}
+
 function confirmRenew(){
   const s=S.find(x=>x.id===renewStuId);if(!s)return;
   const isCustomPlan=document.getElementById('renewCustomPlan')?.checked||false;
@@ -6790,48 +6881,36 @@ function confirmRenew(){
   const note=document.getElementById('renewNote').value.trim();
   const pay=isUnpaid?{amount:0}:calcPayment(renewSelPrice,renewPayMethod);
   const bonus=Math.round(renewSelPrice*0.03);
-  // 保留舊資料，建立新一期
-  s.prevCourses=s.prevCourses||[];
-  s.prevCourses.push({
-    course:s.course, total:s.total, used:s.used, price:s.price,
-    fee:s.fee, payMethod:s.payMethod, payDate:s.payDate,
-    actualPayment:s.actualPayment, bonus:s.bonus, note:s.note,
-    period: s.prevCourses ? s.prevCourses.length+1 : 1
-  });
-  // 舊一期的簽到記錄封存（保留給薪資/歷史，但新一期課卡的進度格子不再顯示它們）
-  const _renewPeriod=s.prevCourses.length;
-  R.forEach(r=>{if(r.sid===s.id&&!r.archived){r.archived=true;r.archivedPeriod=_renewPeriod;}});
-  // 更新為新一期
-  s.course=renewSelPlan;
-  s.total=renewSelN;
-  s.used=0;
-  s.price=renewSelPrice;
-  s.fee=fee;
-  s.bonusNote='';
-  s.note=note;
-  if(isUnpaid){
-    s.payMethod='';
-    s.payDate='';
-    s.actualPayment=0;
-    s.bonus=0;
-    s.paymentStatus='unpaid';
-    s.pendingAmount=renewSelPrice;
-    s.pendingType='renew';
+  const np={
+    course:renewSelPlan, total:renewSelN, used:0, price:renewSelPrice, fee, note,
+    payMethod:isUnpaid?'':renewPayMethod, payDate:isUnpaid?'':payDate,
+    actualPayment:isUnpaid?0:pay.amount, bonus:isUnpaid?0:bonus,
+    paymentStatus:isUnpaid?'unpaid':'paid',
+    pendingAmount:isUnpaid?renewSelPrice:undefined, pendingType:'renew'
+  };
+  const remainNow=(s.total||0)-(s.used||0);
+  const willQueue=remainNow>0;
+  if(willQueue){
+    // 目前這張還沒上完 → 新一期排隊，等目前這張上完自動啟用
+    queueRenewPackage(s,np);
   }else{
-    s.payMethod=renewPayMethod;
-    s.payDate=payDate;
-    s.actualPayment=pay.amount;
-    s.bonus=bonus;
-    s.paymentStatus='paid';
-    delete s.pendingAmount;delete s.pendingType;
-    // 清除舊的簽到格子（新一期從頭開始）
-    // 建立流水帳記錄
-    addLedgerEntry({type:'renew',sid:s.id,name:s.name,teacher:s.teacher,course:renewSelPlan,total:renewSelN,price:renewSelPrice,actualPayment:pay.amount,payMethod:renewPayMethod,payDate,bonus:Math.round(renewSelPrice*0.03),bonusPaid:false});
+    _archiveActivePeriod(s);
+    _applyPackageToCard(s,np);
+  }
+  // 流水帳：購課收入是「現在」發生的，不論有沒有排隊
+  if(!isUnpaid){
+    addLedgerEntry({type:'renew',sid:s.id,name:s.name,teacher:s.teacher,course:renewSelPlan,total:renewSelN,price:renewSelPrice,actualPayment:pay.amount,payMethod:renewPayMethod,payDate,bonus,bonusPaid:false});
   }
   save();renderMgrList();renderTeachers();
   if(typeof curSid!=='undefined'&&curSid===s.id&&document.getElementById('sc-card')?.classList.contains('active'))renderCard(s.id);
   closeOvById('renewOv');
-  showToast(isUnpaid?('✓ '+s.name+' 已開新一期（待收款）— 收到錢記得按「收款完成」'):('✓ '+s.name+' 續課成功！新一期 '+renewSelN+' 堂'));
+  showToast(
+    willQueue
+      ? ('✓ '+s.name+' 新一期 '+renewSelN+' 堂已排到下一期，目前這張還有 '+remainNow+' 堂，上完會自動啟用')
+      : isUnpaid
+        ? ('✓ '+s.name+' 已開新一期（待收款）— 收到錢記得按「收款完成」')
+        : ('✓ '+s.name+' 續課成功！新一期 '+renewSelN+' 堂')
+  );
 }
 
 // ── 收款完成：把「待收款」的學員補記進流水帳 ──
@@ -7020,6 +7099,7 @@ function hpUpdPaySummary(){
 }
 
 function confirmHomePurchase(){
+  let _hpWillQueue=false;
   const isCustomPlan=document.getElementById('hpCustomPlan')?.checked||false;
   const customTotal=parseInt(document.getElementById('hpCustomTotal')?.value)||0;
   const customPrice=parseInt(document.getElementById('hpCustomPrice')?.value)||0;
@@ -7050,19 +7130,19 @@ function confirmHomePurchase(){
   } else {
     const s=S.find(x=>x.id===_hpStuId);if(!s)return;
     stuName=s.name;
-    // 續課：保留舊資料
-    s.prevCourses=s.prevCourses||[];
-    s.prevCourses.push({course:s.course,total:s.total,used:s.used,price:s.price,fee:s.fee,payMethod:s.payMethod,payDate:s.payDate,actualPayment:s.actualPayment,bonus:s.bonus,note:s.note,period:s.prevCourses.length+1});
-    const _hpPeriod=s.prevCourses.length;
-    R.forEach(r=>{if(r.sid===s.id&&!r.archived){r.archived=true;r.archivedPeriod=_hpPeriod;}});
-    s.course=_hpSelPlan;s.total=_hpSelN;s.used=0;s.price=_hpSelPrice;s.fee=fee;
-    s.payMethod=_hpPayMethod;s.payDate=payDate;s.actualPayment=pay.amount;
-    s.bonus=bonus;s.bonusNote='';s.note=note;s.paymentStatus='paid';
+    // 續課：目前這張還沒上完 → 新一期排隊；上完了才直接覆蓋
+    const np={course:_hpSelPlan,total:_hpSelN,used:0,price:_hpSelPrice,fee,note,
+      payMethod:_hpPayMethod,payDate,actualPayment:pay.amount,bonus,paymentStatus:'paid'};
+    _hpWillQueue=((s.total||0)-(s.used||0))>0;
+    if(_hpWillQueue){ queueRenewPackage(s,np); }
+    else { _archiveActivePeriod(s); _applyPackageToCard(s,np); }
     addLedgerEntry({type:'renew',sid:s.id,name:s.name,teacher:s.teacher,course:_hpSelPlan,total:_hpSelN,price:_hpSelPrice,actualPayment:pay.amount,payMethod:_hpPayMethod,payDate,bonus,bonusPaid:false,note});
   }
   save();renderTeachers();
   closeOvById('purchaseOv');
-  showToast('✓ '+stuName+' 購課完成！'+_hpSelN+'堂 $'+pay.amount.toLocaleString());
+  showToast(_hpWillQueue
+    ? ('✓ '+stuName+' 購課完成！'+_hpSelN+'堂已排到下一期，目前課卡上完自動啟用')
+    : ('✓ '+stuName+' 購課完成！'+_hpSelN+'堂 $'+pay.amount.toLocaleString()));
 }
 
 // ── 約下次上課（成功畫面）──
@@ -8323,9 +8403,11 @@ async function gcMatchDay(ds,opts){
           ? R.some(r=>_sameStu(r)&&r.time===time)
           : R.some(_sameStu);
         if(backfillR&&classEnded&&!_dup){
+          advanceQueuedCard(stu); // 目前課卡上完了、有下一期排隊 → 先切換
           const isSub=teacher!==(stu.teacher||'');
           const exhausted=(stu.used||0)>=(stu.total||0);
           if(!exhausted)stu.used=(stu.used||0)+1;
+          advanceQueuedCard(stu);
           R.push({id:'r'+Date.now()+Math.random().toString(36).slice(2,6),sid:stu.id,date:ds,time,session:stu.used||0,sig:null,isSub,subTeacher:isSub?teacher:'',isUpgraded:false,upgradedTo:'',upgradeDiff:0,actualFee:getDefaultFee(stu.teacher,stu.course),manualFee:null,manualNote:exhausted?'課卡已用完，日曆仍排課（需先幫學員加開課卡才能核銷）':'GC比對，未簽到',confirmed:false,upgPayMethod:'',feeCollected:false,isRetro:true,gcBackfilled:true,cardExhausted:exhausted});
           // exhausted 分支也要算進 rBackfilled：呼叫端只在 rBackfilled>0 時才 save() 並重畫
           // 清單，先前只在非 exhausted 才++，害這筆新紀錄寫進記憶體後從沒存檔、白補了
