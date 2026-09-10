@@ -1157,6 +1157,11 @@ const db={
       </div>
     </div>
 
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 14px;background:var(--bg);border-radius:10px;margin-bottom:12px">
+      <input type="checkbox" id="eLineEn" style="width:18px;height:18px;accent-color:var(--gold)">
+      <span style="font-size:14px;color:var(--ink2)">英文通知（LINE 課後／課前提醒都用英文版）</span>
+    </label>
+
     <button class="btn-full bf-ink" onclick="saveEditStu()">儲存變更</button>
     <button class="btn-full bf-soft" style="margin-top:9px" onclick="closeOvById(&#39;editStuOv&#39;)">取消</button>
   </div>
@@ -5939,6 +5944,7 @@ function openEditStu(sid){
   document.getElementById('eBonusNote').value=s.bonusNote||'';
   setDateSel('eExpiry',s.expiryDate||'');
   const eHN=document.getElementById('eHealthNotes');if(eHN)eHN.value=s.healthNotes||'';
+  const eLE=document.getElementById('eLineEn');if(eLE)eLE.checked=!!s.lineEn;
   // 填老師選單
   const sel=document.getElementById('eTeacher');
   sel.innerHTML='<option value="">── 選擇 ──</option>'+ALL_TEACHERS.map(t=>`<option value="${t}"${s.teacher===t?' selected':''}>${t}</option>`).join('');
@@ -6016,6 +6022,7 @@ function saveEditStu(){
   s.bonusNote=document.getElementById('eBonusNote').value.trim();
   s.expiryDate=getDateSel('eExpiry')||'';
   s.healthNotes=document.getElementById('eHealthNotes')?.value.trim()||'';
+  s.lineEn=document.getElementById('eLineEn')?.checked||false;
   // 課卡的付款金額/日期/方式如果被改過，同步到流水帳裡這位學員最新一筆記錄，
   // 否則流水帳（月報表收入依據）會一直停在編輯前的舊金額，跟課卡對不上
   if(s.actualPayment!==prevPayment||s.payDate!==prevPayDate||s.payMethod!==prevPayMethod){
@@ -6089,9 +6096,10 @@ function lineMsgStuWithAppt(s,areaEl){
 function renderLineMessage(s, remain, isUpgraded, upgradedTo, isSub, subTeacher){
   const el=document.getElementById('lineMessageArea');
   if(!el)return;
-  el.dataset.lang='zh'; // 預設中文，綁定狀態查完若是英文綁定會自動換
+  const _initLang=s.lineEn?'en':'zh'; // 學員設定「英文通知」就直接用英文；否則預設中文，等綁定語言查完再換
+  el.dataset.lang=_initLang;
   const upgradeDiff=isUpgraded?curUpgradeDiff:0;
-  const msg=buildLineMsgText(s,isUpgraded,upgradedTo,upgradeDiff,'zh');
+  const msg=buildLineMsgText(s,isUpgraded,upgradedTo,upgradeDiff,_initLang);
   el.innerHTML='<div class="line-msg-box"><div class="line-msg-label">LINE 課後訊息</div><div class="line-msg-content" id="lineMsgText">'+escLineMsg(msg)+'</div><div id="lineMsgActions" data-sid="'+s.id+'"><div style="text-align:center;font-size:12px;color:var(--ink3);padding:8px 0">確認 LINE 綁定狀態…</div></div></div>';
   renderNextApptArea(s.id);
   renderLineMsgActions(s.id, s.phone, s, isUpgraded, upgradedTo, upgradeDiff);
@@ -6112,9 +6120,10 @@ async function renderLineMsgActions(sid, phone, s, isUpgraded, upgradedTo, upgra
     if(key.length===8){
       const data=(await db.ref('qingjing_line_bindings/'+key).once('value')).val();
       bound=!!(data&&(data.userId||data.groupId||data.roomId));
-      lang=(data&&data.lang==='en')?'en':'zh';
+      lang=((s&&s.lineEn)||(data&&data.lang==='en'))?'en':'zh';
     }
   }catch(e){console.warn('check LINE binding failed:',e);}
+  if(!bound&&s&&s.lineEn)lang='en'; // 沒綁定也要吃學員的英文通知設定
   const cur=document.getElementById('lineMsgActions');
   if(!cur||cur.dataset.sid!==sid)return; // 畫面已經換掉別位學員，不要覆蓋
   const areaEl=document.getElementById('lineMessageArea');
@@ -6185,12 +6194,13 @@ function openResendLineMsg(recId){
   const s=S.find(x=>x.id===r.sid);if(!s){showToast('找不到學員資料','r');return}
   document.getElementById('resendLineOv')?.remove();
   const upgradeDiff=r.isUpgraded?(r.upgradeDiff||0):0;
-  const msg=buildLineMsgText(s,r.isUpgraded,r.upgradedTo,upgradeDiff,'zh');
+  const _initLang=s.lineEn?'en':'zh';
+  const msg=buildLineMsgText(s,r.isUpgraded,r.upgradedTo,upgradeDiff,_initLang);
   const html=`<div id="resendLineOv" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)this.remove()">
     <div style="background:var(--bg);border-radius:16px;padding:18px;width:92%;max-width:400px;max-height:85vh;overflow-y:auto">
       <div style="font-size:14px;font-weight:500;color:var(--ink);margin-bottom:2px">補發 LINE 課後訊息</div>
       <div style="font-size:12px;color:var(--ink3);margin-bottom:12px">${s.name}・${r.date}　第 ${r.session} 堂</div>
-      <div class="line-msg-box" id="resendLineMessageArea" data-lang="zh">
+      <div class="line-msg-box" id="resendLineMessageArea" data-lang="${_initLang}">
         <div class="line-msg-label">LINE 課後訊息</div>
         <div class="line-msg-content" id="resendLineMsgText">${escLineMsg(msg)}</div>
         <div id="resendLineMsgActions" data-sid="${s.id}"><div style="text-align:center;font-size:12px;color:var(--ink3);padding:8px 0">確認 LINE 綁定狀態…</div></div>
@@ -6228,9 +6238,10 @@ async function renderResendLineMsgActions(sid, phone, s, isUpgraded, upgradedTo,
     if(key.length===8){
       const data=(await db.ref('qingjing_line_bindings/'+key).once('value')).val();
       bound=!!(data&&(data.userId||data.groupId||data.roomId));
-      lang=(data&&data.lang==='en')?'en':'zh';
+      lang=((s&&s.lineEn)||(data&&data.lang==='en'))?'en':'zh';
     }
   }catch(e){console.warn('check LINE binding failed:',e);}
+  if(!bound&&s&&s.lineEn)lang='en';
   const cur=document.getElementById('resendLineMsgActions');
   if(!cur||cur.dataset.sid!==sid)return; // 視窗已經關掉了
   const areaEl=document.getElementById('resendLineMessageArea');
@@ -8722,7 +8733,12 @@ ${monthNew.length?`<div class="section">
 
 
 // ── 明日通知 ──
-function generateTomorrowMsg(name, month, day, weekday, time, teacher, courseType){
+const WD_EN_FULL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function generateTomorrowMsg(name, month, day, weekday, time, teacher, courseType, en, dow){
+  if(en){
+    const wdEn=(dow!=null)?WD_EN_FULL[dow]:'';
+    return ['Hi '+name+',','A reminder that you have a class tomorrow — see you soon!','','📅 '+month+'/'+day+(wdEn?' ('+wdEn+')':''),'⏰ '+time,'👩‍🏫 '+teacher,...(courseType?['📋 '+courseType]:[]),'','Rest well today, and let’s move tomorrow 💪🌿'].join('\n');
+  }
   return [name+'您好，我是阿勇店長 🐾','提醒您明天有課，好期待見到您！','','📅 '+month+'/'+day+'（星期'+weekday+'）','⏰ '+time,'👩‍🏫 '+teacher+' 老師',...(courseType?['📋 '+courseType]:[]),'','今天先好好休息，明天一起加油、動次動次 💪🌿'].join('\n');
 }
 
@@ -8843,7 +8859,7 @@ async function renderTomorrowNotify(){
           return x.name.length>=2&&parsed.name.includes(x.name);
         });
         const phone=(stu&&stu.phone)?stu.phone:parsed.phone;
-        allItems.push({name:parsed.name,time:GC.getTime(ev),teacher,courseType:courseLabelFromEvent(ev,stu?.course||parsed.type),phone});
+        allItems.push({name:parsed.name,time:GC.getTime(ev),teacher,courseType:courseLabelFromEvent(ev,stu?.course||parsed.type),phone,lineEn:!!(stu&&stu.lineEn)});
       }
     }
     allItems.sort((a,b)=>a.time.localeCompare(b.time));
@@ -8859,7 +8875,7 @@ async function renderTomorrowNotify(){
     if(boundCount)html+=`<button id="tnSendAllBtn" onclick="sendAllTomorrowMsgs()" style="background:var(--ink);color:#fff;border:none;border-radius:9px;padding:11px;width:100%;font-size:14px;cursor:pointer;margin-bottom:14px;font-weight:500">🚀 一鍵發送全部（已綁定 ${boundCount} 位）</button>`;
     allItems.forEach((item,idx)=>{
       const msgId='tnMsg_'+idx;
-      const msg=generateTomorrowMsg(item.name,tomMonth,tomDay,tomWD,item.time,item.teacher,item.courseType);
+      const msg=generateTomorrowMsg(item.name,tomMonth,tomDay,tomWD,item.time,item.teacher,item.courseType,item.lineEn,tom.getDay());
       const actionBtn=item.bound
         ?`<button id="tnSend_${idx}" onclick="sendTomorrowLineMsg(${idx})" style="background:#06C755;color:#fff;border:none;border-radius:9px;padding:10px;width:100%;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:500"><span style="font-size:18px;line-height:1">🚀</span>一鍵發送</button>`
         :`<button onclick="copyTomorrowMsg('${msgId}')" style="background:#06C755;color:#fff;border:none;border-radius:9px;padding:10px;width:100%;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:500"><span style="font-size:18px;line-height:1">💬</span>複製訊息 & 開啟 LINE</button>`;
