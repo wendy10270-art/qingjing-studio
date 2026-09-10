@@ -4392,7 +4392,7 @@ function gcGuessFee(teacher,type){
   // （同 getCalCT 的判斷規則，見 gcMatchStudent）
   if(/皮拉提斯|pilates/i.test(t))course='器械皮拉提斯';
   else if(/重訓|fitness|strength|trx/i.test(t))course='重訓課程';
-  else if(/瑜珈|yoga/i.test(t))course='瑜珈課程';
+  else if(/瑜[珈伽]|yoga/i.test(t))course='瑜珈課程';
   else{
     const ct=CUSTOM_TEACHERS.find(x=>x.name===teacher);
     course=Object.keys((ct&&ct.fees)||TEACHER_FEES[teacher]||{})[0]||'器械皮拉提斯';
@@ -8237,7 +8237,7 @@ function guessTrialCourse(type){
   const t=type||'';
   if(/皮拉提斯|pilates/i.test(t))return'器械皮拉提斯';
   if(/重訓|strength|trx/i.test(t))return'重訓課程';
-  if(/瑜珈|yoga/i.test(t))return'瑜珈課程';
+  if(/瑜[珈伽]|yoga/i.test(t))return'瑜珈課程';
   return null;
 }
 // 日曆標題課種判斷（給 gcMatchStudent／gcGuessFee 用，跟 getCT(課卡字串) 是不同語境）：
@@ -8246,7 +8246,7 @@ function guessTrialCourse(type){
 // 預設當皮拉提斯，不是「無法判斷」。中英文都認，大小寫不拘。
 function getCalCT(type){
   const t=type||'';
-  if(/瑜珈|yoga/i.test(t))return'y';
+  if(/瑜[珈伽]|yoga/i.test(t))return'y';
   if(/重訓|fitness|strength|trx/i.test(t))return's';
   return'p';
 }
