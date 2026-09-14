@@ -230,8 +230,6 @@ const GOLD = '#8B6914';
 const GOLD2 = '#C4973A';
 const GOLD3 = '#F0D89A';
 const GOLD4 = '#FBF3DC';
-const EXPIRY_WARN_COLOR = '#C05A20'; // 比照 index.html 到期提醒訊息按鈕配色
-const EXPIRY_DANGER_COLOR = '#C0392B';
 
 function todayStr() {
   const d = new Date();
@@ -323,37 +321,6 @@ function buildNextBookingRow(s, lang) {
   };
 }
 
-// 快到期／已過期判斷比照 index.html runDataCheck()（第 9252 行附近）的 ed<now 過期判斷，
-// 另外加 14 天內的「即將到期」提醒門檻，比照到期提醒按鈕（diff2>=0&&diff2<=14）那段
-function buildExpiryRow(s, lang) {
-  if (!s.expiryDate) return null;
-  const ed = parseDateStr(s.expiryDate);
-  const now = new Date();
-  const diffDays = Math.ceil((ed - now) / 86400000);
-  let color = '#3A2E1E';
-  let weight = 'regular';
-  let suffix = '';
-  if (diffDays < 0) {
-    color = EXPIRY_DANGER_COLOR;
-    weight = 'bold';
-    suffix = lang === 'en' ? ' (expired)' : '（已過期）';
-  } else if (diffDays <= 14) {
-    color = EXPIRY_WARN_COLOR;
-    weight = 'bold';
-    suffix = lang === 'en' ? ` (in ${diffDays}d)` : `（剩 ${diffDays} 天）`;
-  }
-  return {
-    type: 'box',
-    layout: 'baseline',
-    spacing: 'sm',
-    margin: 'sm',
-    contents: [
-      { type: 'text', text: lang === 'en' ? 'Expires' : '到期日', size: 'xs', color: '#9A8C78', flex: 2 },
-      { type: 'text', text: `${s.expiryDate}${suffix}`, size: 'sm', color, weight, flex: 5, wrap: true },
-    ],
-  };
-}
-
 // 簽到記錄清單——Flex Message 沒有捲動功能、卡片高度有限，只列最近 5 筆，
 // 超過的話最下面補一行「還有 X 筆更早的紀錄」，不整批塞進去
 const ATTENDANCE_SHOW_LIMIT = 5;
@@ -427,9 +394,7 @@ function buildCourseCardBubble(s, records, last8, lang) {
     buildProgressBar(used, total),
   ];
   const nextRow = buildNextBookingRow(s, lang);
-  const expiryRow = buildExpiryRow(s, lang);
   if (nextRow) bodyContents.push(nextRow);
-  if (expiryRow) bodyContents.push(expiryRow);
   const attendanceSection = buildAttendanceSection(records, lang);
   if (attendanceSection) bodyContents.push(attendanceSection);
 
