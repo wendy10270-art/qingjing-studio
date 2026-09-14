@@ -72,11 +72,9 @@ def main():
     tomorrow = now + timedelta(days=1)
     try:
         d = fetch('/qingjing.json') or {}
-        if isinstance(d, dict) and set(d.keys()) == {'error'}:
-            raise RuntimeError(d['error'])
         bindings = fetch('/qingjing_line_bindings.json') or {}
     except Exception as e:
-        send_ntfy('輕境小幫手', f'⚠️ 上課提醒讀取雲端資料失敗（{e}）\n可能是 Firebase 規則又失效了，請檢查 Realtime Database → 規則。', 'warning')
+        send_ntfy('輕境小幫手', f'⚠️ 上課提醒讀取雲端資料失敗（{e}）\n多半是 scripts-db proxy 金鑰錯或 Vercel 服務異常，請檢查 line-webhook 部署與 SCRIPTS_DB_SECRET。', 'warning')
         return
 
     S = d.get('s') or []
@@ -107,7 +105,7 @@ def main():
             st = next((x for x in S if x.get('id') == sl.get('sid')), None)
             if st:
                 name, phone = resolve_recipient(st, sl.get('attendeeName'))
-                items.append({'time': sl.get('time') or '', 'name': name, 'teacher': teacher, 'phone': phone})
+                items.append({'time': sl.get('time') or '', 'name': name, 'teacher': teacher, 'phone': phone, 'line_en': bool(st.get('lineEn'))})
     for st in S:
         skipped = any(sl.get('sid') == st.get('id') and sl.get('skip')
                       for slots in (SCH.get(td) or {}).values() for sl in slots or [])
@@ -115,15 +113,15 @@ def main():
             if rc and rc.get('day') == dow and st.get('used', 0) < st.get('total', 0) and not skipped:
                 name, phone = resolve_recipient(st, None)
                 if not any(i['name'] == name and i['time'] == rc.get('time') for i in items):
-                    items.append({'time': rc.get('time', ''), 'name': name, 'teacher': st.get('teacher', ''), 'phone': phone})
+                    items.append({'time': rc.get('time', ''), 'name': name, 'teacher': st.get('teacher', ''), 'phone': phone, 'line_en': bool(st.get('lineEn'))})
         nb = st.get('nextBooking')
         if nb and nb.get('date') == td:
             name, phone = resolve_recipient(st, None)
             if not any(i['name'] == name for i in items):
-                items.append({'time': nb.get('time', ''), 'name': name, 'teacher': st.get('teacher', ''), 'phone': phone})
+                items.append({'time': nb.get('time', ''), 'name': name, 'teacher': st.get('teacher', ''), 'phone': phone, 'line_en': bool(st.get('lineEn'))})
     for t in T:
         if t and t.get('date') == td:
-            items.append({'time': t.get('time', ''), 'name': t['name'] + '(體驗)', 'teacher': t.get('teacher', ''), 'phone': t.get('phone')})
+            items.append({'time': t.get('time', ''), 'name': t['name'] + '(體驗)', 'teacher': t.get('teacher', ''), 'phone': t.get('phone'), 'line_en': bool(t.get('lineEn'))})
     items.sort(key=lambda i: i['time'])
 
     if not items:
@@ -140,7 +138,7 @@ def main():
         to = binding and (binding.get('groupId') or binding.get('roomId') or binding.get('userId'))
         if to:
             name = it['name'].replace('(體驗)', '')
-            if binding.get('lang') == 'en':
+            if binding.get('lang') == 'en' or it.get('line_en'):
                 text = (
                     f"Hi {name},\n"
                     f"Reminder: you have a class booked tomorrow!\n\n"

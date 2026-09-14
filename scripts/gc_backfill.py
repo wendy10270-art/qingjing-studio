@@ -112,7 +112,7 @@ def get_ct(course):
 # 瑜珈/重訓才會額外標「Yoga」「Fitness」——沒關鍵字時預設當皮拉提斯（2026-08-03 確認）
 def get_cal_ct(type_str):
     t = type_str or ''
-    if re.search(r'瑜珈|yoga', t, re.I):
+    if re.search(r'瑜[珈伽]|yoga', t, re.I):
         return 'y'
     if re.search(r'重訓|fitness|strength|trx', t, re.I):
         return 's'
