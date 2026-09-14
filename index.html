@@ -2374,6 +2374,7 @@ function closeOvOut(id,e){if(e.target===document.getElementById(id))closeOvById(
 // ── 首頁 ──
 function renderTeachers(){
   sweepQueuedCards(); // 有排隊中的下一期、目前這張又上完了 → 先切換
+  sweepExpiredNextBookings(); // 過期的「指定下堂」預約順手清掉
   const td=todayStr();const sch=SCH[td]||{};
   const trialToday=T.filter(t=>t.date===td);
   const el=document.getElementById('teacherArea');
@@ -2912,6 +2913,7 @@ function clearSearch(){
 
 function renderStuList(){
   sweepQueuedCards();
+  sweepExpiredNextBookings();
   const td=todayStr();const slots=(SCH[td]||{})[curTeacher]||[];
   const trialSlots=T.filter(tr=>tr.teacher===curTeacher&&tr.date===td);
   const el=document.getElementById('stuListArea');
@@ -3492,6 +3494,9 @@ function confirmSig(){
   const feeCollected=document.getElementById('feeCollected')?.checked||false;
   const s=S.find(x=>x.id===curSid);if(!s||s.used>=s.total)return;
   s.used++;
+  // 這堂如果剛好就是店長之前約好的「下次上課」，簽到完成＝這個預約已經兌現，順手清掉，
+  // 避免課後訊息/後台列表之後還一直顯示這個已經上完的舊預約。
+  if(s.nextBooking&&s.nextBooking.date===todayStr())s.nextBooking=null;
   const parts=(s.course||'').split(' ');
   const actualFee=isUpgraded?curUpgradeTeacherFee:getDefaultFee(s.teacher,s.course);
   const newRecId='r'+Date.now();
@@ -5513,6 +5518,7 @@ function exportCSV(){
 // ── 學員管理 ──
 function renderMgrList(){
   sweepQueuedCards();
+  sweepExpiredNextBookings();
   const PAY_NAME={'transfer_fubon':'匯款聯邦','transfer_cathay':'匯款國泰','card':'刷卡','cash':'付現金'};
   const PAY_CLS={'transfer_fubon':'transfer','transfer_cathay':'transfer','card':'card','cash':'cash'};
   const mgrQ=(document.getElementById('mgrSearchInp')?.value||'').trim();
@@ -6933,6 +6939,15 @@ function advanceQueuedCard(s){
 }
 function sweepQueuedCards(){
   let n=0; S.forEach(s=>{ if(advanceQueuedCard(s))n++; });
+  if(n)save();
+  return n;
+}
+// 清掉已過期（日期已經過去）的 nextBooking，避免資料只進不出、課後訊息/後台列表一直卡著舊日期。
+// 只清「日期 < 今天」的，今天或未來的一律不動，避免誤刪還在等待中的正常預約。
+function sweepExpiredNextBookings(){
+  const td=todayStr();
+  let n=0;
+  S.forEach(s=>{ if(s.nextBooking&&s.nextBooking.date<td){s.nextBooking=null;n++;} });
   if(n)save();
   return n;
 }
