@@ -4,3 +4,16 @@ scripts/ig_drafts/
 scripts/ig_ads_drafts/
 .env
 .env.*
+
+# macOS junk files
+._*
+.DS_Store
+
+# large local installer, should never be committed
+TokenMeter_1.1.dmg
+
+# Claude Code local-only settings and worktrees (agents/*.md ARE tracked)
+.claude/settings.local.json
+.claude/launch.json
+.claude/scheduled_tasks.lock
+.claude/worktrees/
