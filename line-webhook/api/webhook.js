@@ -63,13 +63,14 @@ async function findStudentsByPhone(last8) {
 }
 
 // 簽到記錄陣列（qingjing/r，對應 index.html 的全域變數 R）：每筆有 sid（對應學員 id）、
-// date、time、confirmed 等欄位。「已完成」的認定比照薪資結算月結那套邏輯
-// （index.html 第 5022/5052/9050 行 monthR = R.filter(...confirmed!==false)）——
-// 新增簽到預設 confirmed:false 但仍算數，只有店家手動標記「取消／有爭議」才會被排除，
-// 所以要用 confirmed!==false，不是 confirmed===true。
+// date、time、confirmed 等欄位。confirmed 是店長內部核對薪資用的旗標（薪資結算月結才
+// 用 confirmed!==false 篩，見 index.html 第 5022/5052/9050 行），跟學員看到的「已使用
+// 堂數」（s.used，簽到當下就 +1，不看 confirmed）無關。這裡列給學員看的簽到記錄，要跟
+// 已使用堂數口徑一致，所以不篩 confirmed，否則會出現「顯示已用1堂、記錄清單卻空白」的
+// 不一致（2026-09-16 老闆實測發現）。
 async function findRecordsBySid(sid) {
   const records = (await fb('/qingjing/r', { method: 'GET' })) || [];
-  return records.filter((r) => r && r.sid === sid && r.confirmed !== false).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  return records.filter((r) => r && r.sid === sid).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 }
 
 // dest 是 {userId} 或 {groupId} 或 {roomId} 三選一——一對二/一對三共用群組時，
