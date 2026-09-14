@@ -303,9 +303,12 @@ input:focus,select:focus{border-color:var(--gold2)}
 .admin-top-bar{background:var(--white);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:50px;flex-shrink:0}
 .admin-top-ttl{font-size:17px;letter-spacing:2px}
 .admin-top-sub{font-size:13px;color:var(--ink3);margin-top:2px}
-.admin-tabs{display:flex;background:var(--bg2);flex-shrink:0;border-bottom:2px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch}
-.a-tab{flex:1;padding:11px 3px;text-align:center;font-size:13px;cursor:pointer;color:var(--ink3);border-bottom:3px solid transparent;transition:.2s;letter-spacing:.3px;white-space:nowrap}
+.admin-tabs{display:flex;background:var(--bg2);flex-shrink:0;border-bottom:2px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;padding-top:16px}
+.a-tab{position:relative;flex:1;padding:11px 3px;text-align:center;font-size:13px;cursor:pointer;color:var(--ink3);border-bottom:3px solid transparent;transition:.2s;letter-spacing:.3px;white-space:nowrap}
 .a-tab.active{color:var(--ink);font-size:14px;font-weight:600;background:var(--white);border-bottom:3px solid var(--gold);border-radius:8px 8px 0 0}
+.a-tab-grp{border-left:1px solid var(--border);margin-left:2px}
+.a-tab-grp:first-child{border-left:none;margin-left:0}
+.a-tab-grp::before{content:attr(data-glabel);position:absolute;top:-16px;left:0;width:200%;font-size:9.5px;color:var(--ink3);letter-spacing:1px;text-align:left;white-space:nowrap;pointer-events:none;opacity:.85}
 .admin-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .a-page{display:none;padding:16px}
 .a-page.active{display:block}
@@ -554,6 +557,19 @@ input:focus,select:focus{border-color:var(--gold2)}
   #sc-success #lineMessageArea{max-width:none!important;width:100%}
   #sc-success #nextBookingArea{margin-top:0!important}
   #sc-success #successActions{grid-column:1/-1;max-width:320px;margin:24px auto 0}
+}
+
+/* ── 寬螢幕（電腦）後台：流水帳／薪資結算資訊密集，直向堆疊很浪費橫向空間，
+   改成多欄並排。只鎖定這兩個分頁、只在寬螢幕生效，手機版排版完全不受影響 ── */
+@media (min-width: 900px) {
+  #ap-ledger, #ap-wage{max-width:1100px;margin:0 auto}
+  /* 流水帳：收入／支出清單卡片改兩欄並排 */
+  #ap-ledger .ldg-list{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  #ap-ledger .ldg-item{margin-bottom:0!important}
+  /* 薪資結算：核對課堂（daily-tc）跟師資薪資卡（teacher-grid-admin）改多欄 */
+  #ap-wage #dailyContent{display:grid;grid-template-columns:1fr 1fr;gap:11px;align-items:start}
+  #ap-wage #dailyContent .daily-tc{margin-bottom:0}
+  #ap-wage .teacher-grid-admin{grid-template-columns:repeat(3,1fr)}
 }
 </style>
 <!-- Firebase 匿名登入：證明讀寫資料庫的請求真的來自這個網站，不是任何人拿著公開 API Key
@@ -822,14 +838,14 @@ const db={
     </label>
   </div>
   <div class="admin-tabs">
-    <div class="a-tab active" onclick="aTab(&#39;helper&#39;)">✨小幫手</div>
-    <div class="a-tab" onclick="aTab(&#39;ledger&#39;)">流水帳</div>
-    <div class="a-tab" onclick="aTab(&#39;wage&#39;)">薪資結算</div>
-    <div class="a-tab" onclick="aTab(&#39;mgr&#39;)">學員管理</div>
-    <div class="a-tab" onclick="aTab(&#39;tch&#39;)">師資管理</div>
-    <div class="a-tab" onclick="aTab(&#39;gcal&#39;)">Google日曆</div>
-    <div class="a-tab" onclick="aTab(&#39;hourly&#39;)">工讀管理</div>
+    <div class="a-tab a-tab-grp active" data-glabel="日常" onclick="aTab(&#39;helper&#39;)">✨小幫手</div>
     <div class="a-tab" onclick="aTab(&#39;notify&#39;)">明日通知</div>
+    <div class="a-tab a-tab-grp" data-glabel="學員與師資" onclick="aTab(&#39;mgr&#39;)">學員管理</div>
+    <div class="a-tab" onclick="aTab(&#39;tch&#39;)">師資管理</div>
+    <div class="a-tab a-tab-grp" data-glabel="財務" onclick="aTab(&#39;ledger&#39;)">流水帳</div>
+    <div class="a-tab" onclick="aTab(&#39;wage&#39;)">薪資結算</div>
+    <div class="a-tab a-tab-grp" data-glabel="排課設定" onclick="aTab(&#39;gcal&#39;)">Google日曆</div>
+    <div class="a-tab" onclick="aTab(&#39;hourly&#39;)">工讀管理</div>
     <div class="a-tab" onclick="leaveAdmin()" style="color:#8A5A50">← 離開</div>
   </div>
   <div class="admin-scroll">
@@ -3771,7 +3787,7 @@ function ledgerSub(v){
 function aTab(t){
   if((t==='wage'||t==='ledger')&&!_financeUnlocked){openPin(t);return;}
   renderDashboard();
-  const ns=['helper','ledger','wage','mgr','tch','gcal','hourly','notify'];
+  const ns=['helper','notify','mgr','tch','ledger','wage','gcal','hourly'];
   document.querySelectorAll('.a-tab').forEach((el,i)=>el.classList.toggle('active',ns[i]===t));
   ns.forEach(n=>document.getElementById('ap-'+n).classList.toggle('active',n===t));
   if(t==='helper')renderHelper();
@@ -7435,8 +7451,9 @@ function renderLedger(){
     </div>
   </div>
 
+  <div class="ldg-list">
   ${monthEntries.length?monthEntries.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(l=>`
-  <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow)">
+  <div class="ldg-item" style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
       <div>
         <div style="display:flex;align-items:center;gap:8px">
@@ -7468,6 +7485,7 @@ function renderLedger(){
       </div>
     </div>
   </div>`).join(''):`<div style="text-align:center;color:var(--ink3);padding:30px 0;font-size:15px">本月尚無購課記錄</div>`}
+  </div>
   `;
 }
 
@@ -7546,8 +7564,9 @@ function renderExpenses(){
       <button onclick="saveExpenseEntry()" style="width:100%;padding:12px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:16px;cursor:pointer;font-weight:500">儲存支出</button>
     </div>
   </div>
+  <div class="ldg-list">
   ${monthEntries.length?monthEntries.sort((a,b)=>b.date.localeCompare(a.date)).map(x=>`
-  <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between">
+  <div class="ldg-item" style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between">
     <div>
       <div style="font-size:17px;letter-spacing:1px">${hEsc(x.name)}</div>
       <div style="font-size:13px;color:var(--ink3);margin-top:3px">${x.date}${x.note?'・'+hEsc(x.note):''}</div>
@@ -7558,6 +7577,7 @@ function renderExpenses(){
       <button onclick="deleteExpenseEntry('${x.id}')" style="padding:4px 10px;background:var(--red2);border:1px solid var(--red3);border-radius:6px;font-size:13px;cursor:pointer;color:var(--red)">刪除</button>
     </div>
   </div>`).join(''):`<div style="text-align:center;color:var(--ink3);padding:30px 0;font-size:15px">本月尚無支出記錄</div>`}
+  </div>
   `;
 }
 function toggleExpensePanel(){
