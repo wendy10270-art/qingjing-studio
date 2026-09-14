@@ -570,6 +570,30 @@ input:focus,select:focus{border-color:var(--gold2)}
   #ap-wage #dailyContent{display:grid;grid-template-columns:1fr 1fr;gap:11px;align-items:start}
   #ap-wage #dailyContent .daily-tc{margin-bottom:0}
   #ap-wage .teacher-grid-admin{grid-template-columns:repeat(3,1fr)}
+  /* 小幫手：營運總覽／日曆核銷提醒／資料健康檢查等卡片改兩欄並排 */
+  #ap-helper{max-width:1200px;margin:0 auto}
+  #ap-helper .helper-cards-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  #ap-helper .helper-cards-grid>div{margin-bottom:0!important}
+  /* 學員管理：學員卡片改兩欄並排 */
+  #ap-mgr{max-width:1400px;margin:0 auto}
+  #mgrStuList{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  #mgrStuList .smc{margin-bottom:0}
+  /* 師資管理：自訂師資卡改兩欄、預設師資清單改多欄 */
+  #ap-tch{max-width:1300px;margin:0 auto}
+  #tchContent .tch-custom-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  #tchContent .tch-custom-grid>div{margin-bottom:0}
+  #tchContent .tch-builtin-list{display:grid!important;grid-template-columns:repeat(2,1fr);gap:8px}
+  /* Google 日曆：老師→日曆對照清單改兩欄（其餘步驟式設定維持單欄，避免打亂操作順序）*/
+  #ap-gcal{max-width:1100px;margin:0 auto}
+  #gcMapRows{display:grid;grid-template-columns:1fr 1fr;gap:0 20px;align-items:start}
+  /* 工讀管理：工讀生卡片改兩欄並排 */
+  #ap-hourly{max-width:1200px;margin:0 auto}
+  #hourlyContent .hourly-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  #hourlyContent .hourly-grid>div{margin-bottom:0}
+  /* 明日通知：每位學員的通知卡改兩欄並排 */
+  #ap-notify{max-width:1300px;margin:0 auto}
+  #notifyContent .notify-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  #notifyContent .notify-grid>div{margin-bottom:0}
 }
 </style>
 <!-- Firebase 匿名登入：證明讀寫資料庫的請求真的來自這個網站，不是任何人拿著公開 API Key
@@ -6473,9 +6497,9 @@ function renderTchMgr(){
   el.innerHTML=`
   <button onclick="openAddTeacher()" style="display:block;width:100%;padding:13px;background:var(--ink);color:#fff;border:none;border-radius:11px;font-size:16px;cursor:pointer;font-weight:500;margin-bottom:16px">＋ 新增師資</button>
   <div style="font-size:13px;color:var(--ink3);letter-spacing:1px;margin-bottom:10px">自訂師資（${custom.length} 位）</div>
-  ${custom.length?custom.map(t=>renderTchCard(t,true)).join(''):'<div style="text-align:center;color:var(--ink3);padding:16px;font-size:14px;background:var(--bg);border-radius:10px;margin-bottom:16px">尚未新增自訂師資</div>'}
+  <div class="tch-custom-grid">${custom.length?custom.map(t=>renderTchCard(t,true)).join(''):'<div style="text-align:center;color:var(--ink3);padding:16px;font-size:14px;background:var(--bg);border-radius:10px;margin-bottom:16px">尚未新增自訂師資</div>'}</div>
   <div style="font-size:13px;color:var(--ink3);letter-spacing:1px;margin:16px 0 10px">預設師資（${builtIn.length} 位，費率已內建）</div>
-  <div style="display:flex;flex-direction:column;gap:8px">${builtIn.map(name=>`
+  <div class="tch-builtin-list" style="display:flex;flex-direction:column;gap:8px">${builtIn.map(name=>`
     <div style="display:flex;align-items:center;justify-content:space-between;background:var(--white);border:1px solid var(--border);border-radius:8px;padding:7px 10px 7px 14px">
       <div style="font-size:14px;color:var(--ink2)">${name}</div>
       <div style="display:flex;align-items:center;gap:8px">
@@ -8208,7 +8232,7 @@ function renderHourlyMgr(){
   el.innerHTML=`
 ${ok?'':`<div style="background:#FFF4EE;border:1px solid #F5C4A1;border-radius:10px;padding:11px 15px;margin-bottom:16px;font-size:14px;color:#C05A20">尚未連接 Google 日曆，請先到「Google日曆」分頁連接帳號，才能選擇工讀生的日曆</div>`}
 <button onclick="openHourlyStaffOv()" style="width:100%;padding:12px;background:var(--ink);color:#fff;border:none;border-radius:9px;font-size:15px;cursor:pointer;margin-bottom:16px">＋ 新增工讀生</button>
-${names.length?names.map(n=>{
+<div class="hourly-grid">${names.length?names.map(n=>{
   const cfg=HOURLY_STAFF[n]||{};
   const calName=(_gcAvailCals||[]).find(c=>c.id===cfg.calId)?.summary||(cfg.calId?'（日曆已設定）':'尚未設定日曆');
   return`<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px">
@@ -8221,7 +8245,7 @@ ${names.length?names.map(n=>{
       <button onclick="deleteHourlyStaff('${jsQ(n)}')" style="padding:8px 12px;background:var(--red2);border:1px solid var(--red3);border-radius:8px;font-size:13px;cursor:pointer;color:var(--red)">刪除</button>
     </div>
   </div>`;
-}).join(''):'<div style="text-align:center;color:var(--ink3);padding:24px;font-size:14px">尚未新增任何工讀生</div>'}`;
+}).join(''):'<div style="text-align:center;color:var(--ink3);padding:24px;font-size:14px">尚未新增任何工讀生</div>'}</div>`;
   if(ok&&(!_gcAvailCals||!_gcAvailCals.length))GC.listCals().then(cals=>{_gcAvailCals=cals;renderHourlyMgr();}).catch(()=>{});
 }
 async function openHourlyStaffOv(name){
@@ -8897,6 +8921,7 @@ async function renderTomorrowNotify(){
     const boundCount=allItems.filter(it=>it.bound).length;
     let html=`<div style="margin-bottom:14px"><div style="font-family:'Noto Serif TC',serif;font-size:19px;letter-spacing:2px;color:var(--ink);margin-bottom:4px">明日通知</div><div style="font-size:14px;color:var(--ink3)">📅 ${dateLabel}・共 ${allItems.length} 堂${boundCount?'・已綁定 '+boundCount+' 位':''}</div></div><div style="font-size:13px;color:var(--ink3);background:var(--bg);border-radius:8px;padding:8px 12px;margin-bottom:14px;line-height:1.7">已綁定 LINE 的學員可「一鍵發送」直接推播；未綁定的請用「複製 & 開啟 LINE」手動傳送</div>`;
     if(boundCount)html+=`<button id="tnSendAllBtn" onclick="sendAllTomorrowMsgs()" style="background:var(--ink);color:#fff;border:none;border-radius:9px;padding:11px;width:100%;font-size:15px;cursor:pointer;margin-bottom:14px;font-weight:500">🚀 一鍵發送全部（已綁定 ${boundCount} 位）</button>`;
+    html+='<div class="notify-grid">';
     allItems.forEach((item,idx)=>{
       const msgId='tnMsg_'+idx;
       const msg=generateTomorrowMsg(item.name,tomMonth,tomDay,tomWD,item.time,item.teacher,item.courseType,item.lineEn,tom.getDay());
@@ -8912,6 +8937,7 @@ async function renderTomorrowNotify(){
         ${actionBtn}
       </div>`;
     });
+    html+='</div>';
     el.innerHTML=html;
   }catch(e){
     el.innerHTML=`<div style="padding:16px;color:var(--red);font-size:14px">讀取失敗：${e.message}</div>`;
@@ -9284,6 +9310,7 @@ function renderHelper(){
     <div style="font-family:'Noto Serif TC',serif;font-size:20px;letter-spacing:2px;color:var(--ink)">✨ 輕境小幫手</div>
     <div style="font-size:13px;color:var(--ink3);margin-top:4px">${dateLabel}・今日 ${items.length} 堂${items.length?`（已簽 ${signed}・待簽 ${pending}${leave?`・請假 ${leave}`:''}）`:''}</div>
   </div>
+  <div class="helper-cards-grid">
   ${card('☁️ 雲端同步',`<div id="helperSyncCard"><div style="font-size:14px;color:var(--ink3)">檢查中…</div></div>`)}
   ${card('📊 營運總覽',`<div id="helperMonthCard"></div>`,`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end">
     <button id="hvBtnMonth" onclick="helperViewToggle('month')" style="padding:4px 10px;border-radius:7px;font-size:13px;cursor:pointer;border:1px solid var(--ink);background:var(--ink);color:#fff">本月</button>
@@ -9293,6 +9320,7 @@ function renderHelper(){
   </div>`)}
   ${card('📅 Google 日曆核銷提醒',`<div style="font-size:13px;color:var(--ink2);line-height:1.8">檢查近 14 天日曆課程是否都已核銷師資費，列出還沒核銷的日期。</div><button onclick="helperCheckGcSettle()" style="width:100%;margin-top:8px;background:var(--white);color:var(--ink);border:1.5px solid var(--ink);border-radius:9px;padding:10px;font-size:14px;cursor:pointer;font-weight:500">檢查未核銷課程</button><div id="helperGcSettleResult" style="margin-top:10px"></div>`)}
   ${card('🔍 資料健康檢查',`<div style="font-size:13px;color:var(--ink2);line-height:1.8">檢查堂數異常、過期課程、重複簽到，並比對 Google 日曆找出漏簽。</div><button onclick="runDataCheck()" style="width:100%;margin-top:8px;background:var(--white);color:var(--ink);border:1.5px solid var(--ink);border-radius:9px;padding:10px;font-size:14px;cursor:pointer;font-weight:500">開始檢查</button><div id="dataCheckResult" style="margin-top:10px"></div>`)}
+  </div>
   <div style="height:20px"></div>`;
   renderHelperMonth();
   helperCheckSync();
