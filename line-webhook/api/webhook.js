@@ -62,6 +62,16 @@ async function findStudentsByPhone(last8) {
   return students.filter((s) => s && matchesPhone(s, last8));
 }
 
+// 簽到記錄陣列（qingjing/r，對應 index.html 的全域變數 R）：每筆有 sid（對應學員 id）、
+// date、time、confirmed 等欄位。「已完成」的認定比照薪資結算月結那套邏輯
+// （index.html 第 5022/5052/9050 行 monthR = R.filter(...confirmed!==false)）——
+// 新增簽到預設 confirmed:false 但仍算數，只有店家手動標記「取消／有爭議」才會被排除，
+// 所以要用 confirmed!==false，不是 confirmed===true。
+async function findRecordsBySid(sid) {
+  const records = (await fb('/qingjing/r', { method: 'GET' })) || [];
+  return records.filter((r) => r && r.sid === sid && r.confirmed !== false).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+}
+
 // dest 是 {userId} 或 {groupId} 或 {roomId} 三選一——一對二/一對三共用群組時，
 // 通知要發到整個群組，不是打字的那個人的私人帳號，所以綁的是 groupId 不是 userId。
 async function bindPhone(last8, dest, name, lang) {
@@ -158,8 +168,25 @@ async function lineReply(replyToken, text) {
   });
 }
 
+async function lineReplyFlex(replyToken, altText, contents) {
+  if (!CHANNEL_ACCESS_TOKEN) return;
+  await fetch('https://api.line.me/v2/bot/message/reply', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}`,
+    },
+    body: JSON.stringify({ replyToken, messages: [{ type: 'flex', altText, contents }] }),
+  });
+}
+
 const KEYWORDS_ZH = ['提醒', '綁定'];
 const KEYWORDS_EN = ['remind', 'reminder', 'bind', 'register'];
+
+// 查課卡狀態關鍵字——跟提醒/綁定關鍵字分開判斷，觸發後直接反查綁定、組 Flex 卡片回覆，
+// 不需要再問電話號碼（因為要查課卡狀態的人一定已經綁定過，見 handleCourseCardQuery）
+const KEYWORDS_QUERY_ZH = ['查詢', '課卡', '查課卡', '我的課表'];
+const KEYWORDS_QUERY_EN = ['query', 'mycard', 'my card', 'my courses'];
 
 const GREETING_TEXT =
   '嗨，歡迎加入輕境 🌿\n如果想開啟「上課前一天 LINE 提醒」，請輸入「提醒」開始綁定。\n\n' +
@@ -176,6 +203,8 @@ const MSG = {
     bindSuccess: (name) => `✅ 綁定成功，${name}！之後上課前一天會提醒您唷 🌿`,
     bindSuccessTeacher: (name) => `✅ 綁定成功，${name}老師！之後場租扣堂會通知您剩餘堂數 🌿`,
     alreadyBound: (name) => `✅ ${name}，這個對話已經綁定過提醒通知囉，不用再輸入電話號碼 🌿`,
+    guideBind: '請先輸入「提醒」完成綁定，之後就能直接查詢課卡狀態囉 🌿',
+    noCards: '目前查不到課卡資料，麻煩直接聯繫工作室確認喔 🙏',
   },
   en: {
     askPhone: 'Please enter the phone number registered with the studio (e.g. 0912345678) to complete your class reminder registration 🌿',
@@ -187,8 +216,325 @@ const MSG = {
     bindSuccess: (name) => `✅ Registered successfully, ${name}! We'll remind you the day before your class 🌿`,
     bindSuccessTeacher: (name) => `✅ Registered successfully, ${name}! We'll notify you when your rental sessions get deducted 🌿`,
     alreadyBound: (name) => `✅ ${name}, this chat is already registered for reminders — no need to enter your phone number again 🌿`,
+    guideBind: 'Please type "remind" first to complete registration, then you can check your course card status anytime 🌿',
+    noCards: 'No course card data found. Please contact the studio to confirm 🙏',
   },
 };
+
+// ---- 課卡狀態查詢：Flex Message 卡片 ----
+
+const WD_ZH = '日一二三四五六';
+const WD_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const GOLD = '#8B6914';
+const GOLD2 = '#C4973A';
+const GOLD3 = '#F0D89A';
+const GOLD4 = '#FBF3DC';
+const EXPIRY_WARN_COLOR = '#C05A20'; // 比照 index.html 到期提醒訊息按鈕配色
+const EXPIRY_DANGER_COLOR = '#C0392B';
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0');
+}
+
+function parseDateStr(str) {
+  const [y, mo, d] = String(str || '').split('/');
+  return new Date(+y || 1970, (+mo || 1) - 1, +d || 1);
+}
+
+// 共用課卡時查詢者看到的姓名要是自己的名字（altRecipients 裡的），不是整張課卡的複合名稱——
+// 跟 bindPhone 時決定 bindName 用的是同一套邏輯（見 handleEvent 裡 altMatch 那段）
+function studentDisplayName(s, last8) {
+  const alt = (s.altRecipients || []).find(
+    (r) => r && r.phone && r.phone.replace(/\D/g, '').slice(-8) === last8
+  );
+  return alt ? alt.name : s.name;
+}
+
+// 已用堂數逐格畫成色塊，堂數多（>12）時格子會太擠、也可能超出卡片寬度，改用比例橫條
+function buildProgressBar(used, total) {
+  const u = Math.max(0, used || 0);
+  const t = Math.max(0, total || 0);
+  if (t > 0 && t <= 12) {
+    const boxes = [];
+    for (let i = 0; i < t; i++) {
+      boxes.push({
+        type: 'box',
+        layout: 'vertical',
+        width: '16px',
+        height: '16px',
+        cornerRadius: '4px',
+        backgroundColor: i < u ? GOLD2 : GOLD3,
+        contents: [],
+      });
+    }
+    return { type: 'box', layout: 'horizontal', spacing: 'xs', contents: boxes };
+  }
+  const remain = Math.max(t - u, 0);
+  const bar = {
+    type: 'box',
+    layout: 'horizontal',
+    contents: [
+      {
+        type: 'box',
+        layout: 'vertical',
+        flex: Math.max(u, t ? 1 : 0),
+        height: '10px',
+        cornerRadius: '5px',
+        backgroundColor: GOLD2,
+        contents: [],
+      },
+    ],
+  };
+  if (remain > 0) {
+    bar.contents.push({
+      type: 'box',
+      layout: 'vertical',
+      flex: remain,
+      height: '10px',
+      cornerRadius: '5px',
+      backgroundColor: GOLD3,
+      contents: [],
+    });
+  }
+  return bar;
+}
+
+// 「過期就當沒約」：跟 index.html（signStudentIn 那段對 nextBooking 的處理）同一套邏輯，
+// nextBooking 日期已經過去就不顯示，避免學員看到早就上完、失效的舊預約時間
+function buildNextBookingRow(s, lang) {
+  if (!s.nextBooking || !s.nextBooking.date || s.nextBooking.date < todayStr()) return null;
+  const d = parseDateStr(s.nextBooking.date);
+  const time = s.nextBooking.time || '';
+  const label =
+    lang === 'en'
+      ? `${s.nextBooking.date} (${WD_EN[d.getDay()]}) ${time}`.trim()
+      : `${s.nextBooking.date}（星期${WD_ZH[d.getDay()]}）${time}`.trim();
+  return {
+    type: 'box',
+    layout: 'baseline',
+    spacing: 'sm',
+    margin: 'md',
+    contents: [
+      { type: 'text', text: lang === 'en' ? 'Next class' : '下次上課', size: 'xs', color: '#9A8C78', flex: 2 },
+      { type: 'text', text: label, size: 'sm', color: '#3A2E1E', flex: 5, wrap: true },
+    ],
+  };
+}
+
+// 快到期／已過期判斷比照 index.html runDataCheck()（第 9252 行附近）的 ed<now 過期判斷，
+// 另外加 14 天內的「即將到期」提醒門檻，比照到期提醒按鈕（diff2>=0&&diff2<=14）那段
+function buildExpiryRow(s, lang) {
+  if (!s.expiryDate) return null;
+  const ed = parseDateStr(s.expiryDate);
+  const now = new Date();
+  const diffDays = Math.ceil((ed - now) / 86400000);
+  let color = '#3A2E1E';
+  let weight = 'regular';
+  let suffix = '';
+  if (diffDays < 0) {
+    color = EXPIRY_DANGER_COLOR;
+    weight = 'bold';
+    suffix = lang === 'en' ? ' (expired)' : '（已過期）';
+  } else if (diffDays <= 14) {
+    color = EXPIRY_WARN_COLOR;
+    weight = 'bold';
+    suffix = lang === 'en' ? ` (in ${diffDays}d)` : `（剩 ${diffDays} 天）`;
+  }
+  return {
+    type: 'box',
+    layout: 'baseline',
+    spacing: 'sm',
+    margin: 'sm',
+    contents: [
+      { type: 'text', text: lang === 'en' ? 'Expires' : '到期日', size: 'xs', color: '#9A8C78', flex: 2 },
+      { type: 'text', text: `${s.expiryDate}${suffix}`, size: 'sm', color, weight, flex: 5, wrap: true },
+    ],
+  };
+}
+
+// 簽到記錄清單——Flex Message 沒有捲動功能、卡片高度有限，只列最近 5 筆，
+// 超過的話最下面補一行「還有 X 筆更早的紀錄」，不整批塞進去
+const ATTENDANCE_SHOW_LIMIT = 5;
+
+function buildAttendanceSection(records, lang) {
+  if (!records || records.length === 0) return null;
+  const recent = records.slice(0, ATTENDANCE_SHOW_LIMIT);
+  const moreCount = records.length - recent.length;
+
+  const rows = recent.map((r) => {
+    const d = parseDateStr(r.date);
+    const dateLabel =
+      lang === 'en'
+        ? `${r.date} (${WD_EN[d.getDay()]})`
+        : `${r.date}（${WD_ZH[d.getDay()]}）`;
+    return {
+      type: 'box',
+      layout: 'baseline',
+      spacing: 'sm',
+      contents: [
+        { type: 'text', text: '・', size: 'xs', color: GOLD2, flex: 0 },
+        { type: 'text', text: dateLabel, size: 'xs', color: '#5A4A34', flex: 1, wrap: true },
+      ],
+    };
+  });
+
+  if (moreCount > 0) {
+    rows.push({
+      type: 'text',
+      text: lang === 'en' ? `+${moreCount} earlier record${moreCount > 1 ? 's' : ''}` : `還有 ${moreCount} 筆更早的紀錄`,
+      size: 'xxs',
+      color: '#9A8C78',
+      margin: 'xs',
+    });
+  }
+
+  return {
+    type: 'box',
+    layout: 'vertical',
+    margin: 'md',
+    spacing: 'xs',
+    contents: [
+      { type: 'text', text: lang === 'en' ? 'Attendance' : '簽到記錄', size: 'xs', color: '#9A8C78' },
+      { type: 'separator', margin: 'xs', color: GOLD3 },
+      { type: 'box', layout: 'vertical', margin: 'xs', spacing: 'xs', contents: rows },
+    ],
+  };
+}
+
+function buildCourseCardBubble(s, records, last8, lang) {
+  const name = studentDisplayName(s, last8);
+  const used = s.used || 0;
+  const total = s.total || 0;
+  const bodyContents = [
+    {
+      type: 'box',
+      layout: 'baseline',
+      contents: [
+        { type: 'text', text: String(used), size: 'xxl', weight: 'bold', color: GOLD, flex: 0 },
+        {
+          type: 'text',
+          text: `/ ${total} ${lang === 'en' ? 'sessions used' : '堂已使用'}`,
+          size: 'sm',
+          color: '#9A8C78',
+          margin: 'sm',
+          gravity: 'bottom',
+          wrap: true,
+        },
+      ],
+    },
+    buildProgressBar(used, total),
+  ];
+  const nextRow = buildNextBookingRow(s, lang);
+  const expiryRow = buildExpiryRow(s, lang);
+  if (nextRow) bodyContents.push(nextRow);
+  if (expiryRow) bodyContents.push(expiryRow);
+  const attendanceSection = buildAttendanceSection(records, lang);
+  if (attendanceSection) bodyContents.push(attendanceSection);
+
+  return {
+    type: 'bubble',
+    size: 'kilo',
+    header: {
+      type: 'box',
+      layout: 'horizontal',
+      paddingAll: '16px',
+      backgroundColor: GOLD2,
+      contents: [
+        {
+          type: 'text',
+          text: s.course || (lang === 'en' ? 'Course' : '課程'),
+          color: '#FFFFFF',
+          weight: 'bold',
+          size: 'md',
+          flex: 3,
+          wrap: true,
+        },
+        {
+          type: 'text',
+          text: name || '',
+          color: GOLD4,
+          size: 'sm',
+          align: 'end',
+          gravity: 'center',
+          flex: 2,
+          wrap: true,
+        },
+      ],
+    },
+    body: { type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '16px', contents: bodyContents },
+    footer: {
+      type: 'box',
+      layout: 'vertical',
+      paddingAll: '12px',
+      contents: [
+        {
+          type: 'text',
+          text: lang === 'en' ? 'Questions? Please ask your teacher 🌿' : '如有疑問請洽老師 🌿',
+          size: 'xs',
+          color: '#9A8C78',
+          align: 'center',
+          wrap: true,
+        },
+      ],
+    },
+  };
+}
+
+// 反查這個對話綁的是哪個學員（last8 + name）——跟 findExistingBinding 很像，但那個只回傳 name，
+// 這裡多回傳 last8 才能拿去 findStudentsByPhone 撈課卡資料。只查學員綁定節點，不查老師的，
+// 因為老師沒有課卡資料
+async function findStudentBinding(dest) {
+  const bindings = (await fb('/qingjing_line_bindings', { method: 'GET' })) || {};
+  const key = Object.keys(bindings).find((k) => matchesDest(bindings[k], dest));
+  if (!key) return null;
+  return { last8: key, name: bindings[key].name };
+}
+
+async function handleCourseCardQuery(dest, lang, replyToken) {
+  const m = MSG[lang];
+  let binding;
+  try {
+    binding = await findStudentBinding(dest);
+  } catch (e) {
+    console.error('query binding lookup error', e);
+    await lineReply(replyToken, m.lookupError);
+    return;
+  }
+  if (!binding) {
+    await lineReply(replyToken, m.guideBind);
+    return;
+  }
+
+  let students;
+  try {
+    students = await findStudentsByPhone(binding.last8);
+  } catch (e) {
+    console.error('query students lookup error', e);
+    await lineReply(replyToken, m.lookupError);
+    return;
+  }
+
+  const cards = students.filter((s) => studentDisplayName(s, binding.last8) === binding.name);
+  if (cards.length === 0) {
+    await lineReply(replyToken, m.noCards);
+    return;
+  }
+
+  let bubbles;
+  try {
+    bubbles = await Promise.all(
+      cards.map(async (s) => buildCourseCardBubble(s, await findRecordsBySid(s.id), binding.last8, lang))
+    );
+  } catch (e) {
+    console.error('query records lookup error', e);
+    await lineReply(replyToken, m.lookupError);
+    return;
+  }
+  const contents = bubbles.length === 1 ? bubbles[0] : { type: 'carousel', contents: bubbles };
+  const altText = lang === 'en' ? `${binding.name}'s course card status` : `${binding.name} 的課卡狀態`;
+  await lineReplyFlex(replyToken, altText, contents);
+}
 
 async function handleEvent(event) {
   if (event.type === 'unfollow') {
@@ -241,6 +587,18 @@ async function handleEvent(event) {
     // 還沒有人打過關鍵字：只有打「完全等於」關鍵字的訊息才回應，其他訊息（客人問問題、日常聊天等）
     // 完全不打擾，交給店家手動聊天。改成精確比對（而非子字串 includes）是因為子字串太容易在正常
     // 對話裡意外命中「提醒」「綁定」這兩個字（2026-07-28 誤觸發事故）。
+    // 查課卡狀態：跟綁定流程分開判斷，直接反查綁定→組 Flex 卡片回覆，不用再問電話號碼
+    // （要查課卡狀態的人一定已經綁定過，沒綁過的引導去打「提醒」）
+    const isQueryZh = KEYWORDS_QUERY_ZH.includes(text);
+    const isQueryEn = !isQueryZh && KEYWORDS_QUERY_EN.includes(textLower);
+    if (isQueryZh || isQueryEn) {
+      const qLang = isQueryEn ? 'en' : 'zh';
+      await handleCourseCardQuery(dest, qLang, event.replyToken).catch((e) =>
+        console.error('course card query error', e)
+      );
+      return;
+    }
+
     // 中英文關鍵字都認，用哪個語言的關鍵字觸發，後面就用哪個語言回覆
     const isZh = KEYWORDS_ZH.includes(text);
     const isEn = !isZh && KEYWORDS_EN.includes(textLower);
