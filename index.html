@@ -306,9 +306,14 @@ input:focus,select:focus{border-color:var(--gold2)}
 .admin-tabs{display:flex;background:var(--bg2);flex-shrink:0;border-bottom:2px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;padding-top:16px}
 .a-tab{position:relative;flex:1;padding:11px 3px;text-align:center;font-size:13px;cursor:pointer;color:var(--ink3);border-bottom:3px solid transparent;transition:.2s;letter-spacing:.3px;white-space:nowrap}
 .a-tab.active{color:var(--ink);font-size:14px;font-weight:600;background:var(--white);border-bottom:3px solid var(--gold);border-radius:8px 8px 0 0}
-.a-tab-grp{border-left:1px solid var(--border);margin-left:2px}
-.a-tab-grp:first-child{border-left:none;margin-left:0}
-.a-tab-grp::before{content:attr(data-glabel);position:absolute;top:-16px;left:0;width:200%;font-size:9.5px;color:var(--ink3);letter-spacing:1px;text-align:left;white-space:nowrap;pointer-events:none;opacity:.85}
+/* 手機版：a-tab-grp 是「群組」包裝 div，但手機沿用舊版扁平排列，
+   用 display:contents 讓包裝 div 本身不佔版面、不產生盒子——
+   底下真正的 .a-tab 才是 flex 項目，維持原本 flex:1 平均撐滿＋橫向捲動 */
+.a-tab-grp{display:contents}
+.a-tab[data-glabel]{border-left:1px solid var(--border);margin-left:2px}
+.a-tab-grp:first-child .a-tab[data-glabel]{border-left:none;margin-left:0}
+/* 群組標籤文字：手機版用絕對定位浮在 tab 正上方（原本做法，維持不變） */
+.a-tab[data-glabel]::before{content:attr(data-glabel);position:absolute;top:-16px;left:0;width:200%;font-size:9.5px;color:var(--ink3);letter-spacing:1px;text-align:left;white-space:nowrap;pointer-events:none;opacity:.85}
 .admin-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .a-page{display:none;padding:16px}
 .a-page.active{display:block}
@@ -562,6 +567,20 @@ input:focus,select:focus{border-color:var(--gold2)}
 /* ── 寬螢幕（電腦）後台：流水帳／薪資結算資訊密集，直向堆疊很浪費橫向空間，
    改成多欄並排。只鎖定這兩個分頁、只在寬螢幕生效，手機版排版完全不受影響 ── */
 @media (min-width: 900px) {
+  /* 後台分頁列：寬螢幕不要 flex:1 硬撐滿（老闆反映擠、群組標籤被裁切）——
+     改成群組色塊、內容自然寬度＋間距、整列靠左，右側留白，離開按鈕靠右。
+     群組標籤改回正常文件流的區塊標題（用 ::before 但 position:static，
+     配合 flex-wrap 讓標題自己佔滿一行、底下兩個分頁再排成一行），
+     不再是絕對定位浮在 padding 區——避免又被 overflow-x:auto 連動出的
+     overflow-y:auto 裁到。 */
+  .admin-tabs{flex-wrap:nowrap;align-items:center;padding:14px 20px 0;gap:12px}
+  .a-tab-grp{display:flex;flex-wrap:wrap;align-content:flex-start;flex:0 0 auto;background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:7px;gap:6px}
+  .a-tab-grp::before{content:attr(data-glabel);position:static;flex:0 0 100%;width:auto;font-size:11px;color:var(--ink3);letter-spacing:1.5px;text-align:left;white-space:nowrap;opacity:.8;padding:1px 6px 5px}
+  .a-tab[data-glabel]{border-left:none;margin-left:0}
+  .a-tab[data-glabel]::before{content:none}
+  .a-tab{flex:0 0 auto;padding:12px 24px;font-size:14.5px;border-radius:9px}
+  .a-tab.active{border-radius:9px;font-size:15.5px}
+  .admin-tabs>.a-tab{margin-left:auto}
   #ap-ledger, #ap-wage{max-width:1100px;margin:0 auto}
   /* 流水帳：收入／支出清單卡片改兩欄並排 */
   #ap-ledger .ldg-list{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
@@ -862,14 +881,22 @@ const db={
     </label>
   </div>
   <div class="admin-tabs">
-    <div class="a-tab a-tab-grp active" data-glabel="日常" onclick="aTab(&#39;helper&#39;)">✨小幫手</div>
-    <div class="a-tab" onclick="aTab(&#39;notify&#39;)">明日通知</div>
-    <div class="a-tab a-tab-grp" data-glabel="學員與師資" onclick="aTab(&#39;mgr&#39;)">學員管理</div>
-    <div class="a-tab" onclick="aTab(&#39;tch&#39;)">師資管理</div>
-    <div class="a-tab a-tab-grp" data-glabel="財務" onclick="aTab(&#39;ledger&#39;)">流水帳</div>
-    <div class="a-tab" onclick="aTab(&#39;wage&#39;)">薪資結算</div>
-    <div class="a-tab a-tab-grp" data-glabel="排課設定" onclick="aTab(&#39;gcal&#39;)">Google日曆</div>
-    <div class="a-tab" onclick="aTab(&#39;hourly&#39;)">工讀管理</div>
+    <div class="a-tab-grp" data-glabel="日常">
+      <div class="a-tab active" data-glabel="日常" onclick="aTab(&#39;helper&#39;)">✨小幫手</div>
+      <div class="a-tab" onclick="aTab(&#39;notify&#39;)">明日通知</div>
+    </div>
+    <div class="a-tab-grp" data-glabel="學員與師資">
+      <div class="a-tab" data-glabel="學員與師資" onclick="aTab(&#39;mgr&#39;)">學員管理</div>
+      <div class="a-tab" onclick="aTab(&#39;tch&#39;)">師資管理</div>
+    </div>
+    <div class="a-tab-grp" data-glabel="財務">
+      <div class="a-tab" data-glabel="財務" onclick="aTab(&#39;ledger&#39;)">流水帳</div>
+      <div class="a-tab" onclick="aTab(&#39;wage&#39;)">薪資結算</div>
+    </div>
+    <div class="a-tab-grp" data-glabel="排課設定">
+      <div class="a-tab" data-glabel="排課設定" onclick="aTab(&#39;gcal&#39;)">Google日曆</div>
+      <div class="a-tab" onclick="aTab(&#39;hourly&#39;)">工讀管理</div>
+    </div>
     <div class="a-tab" onclick="leaveAdmin()" style="color:#8A5A50">← 離開</div>
   </div>
   <div class="admin-scroll">
