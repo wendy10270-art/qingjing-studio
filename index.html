@@ -6115,6 +6115,12 @@ function saveEditStu(){
 // 課後訊息的中英文版本。lang 由學員 LINE 綁定時選的語言決定（qingjing_line_bindings 的 lang 欄位）。
 function buildLineMsgText(s, isUpgraded, upgradedTo, upgradeDiff, lang){
   const parts=[];
+  // s.nextBooking 是店長手動「約下次上課」時寫入、只有手動刪除當天課表才會清掉，
+  // 沒有到期自動失效機制。如果那個日期已經過去（表示這堂早就上完/沒清掉），
+  // 就當作沒有預排，避免訊息顯示過去的日期（曾發生過顯示 3 個月前日期的案例）。
+  if(s&&s.nextBooking&&s.nextBooking.date<todayStr()){
+    s={...s,nextBooking:null};
+  }
   if(lang==='en'){
     parts.push('Hi, this is manager Along 🐾');
     parts.push('Great work in class today! Remember to drink water and rest well~');
