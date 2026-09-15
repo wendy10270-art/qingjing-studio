@@ -1670,7 +1670,7 @@ let TL=JSON.parse(localStorage.getItem('qjf_tl')||'[]');
 // 進入階段 1（雙寫）才會真的接進現有呼叫點，且會先在 flag 開啟時雙寫驗證一段時間，
 // 確認新舊資料一致後才切成單寫新結構。
 // ══════════════════════════════════════════════════════════════════════════
-const USE_NEW_RECORD_STORE=false;
+const USE_NEW_RECORD_STORE=true;
 
 // 寫入一筆簽到記錄到 qingjing/records/{key}。key 用 Firebase 自動產生的 push key
 // （而非舊機制的 'r'+Date.now()），避免兩台裝置幾乎同時簽到時 id 互撞。
@@ -1750,7 +1750,30 @@ async function newStoreIncrementStudentUsed(sid,delta){
   }
   throw new Error('newStoreIncrementStudentUsed: 重試 '+maxRetry+' 次仍衝突，放棄');
 }
-// ══ 新資料層地基結束（以上函式目前皆未被任何呼叫點使用）══
+// ══ 新資料層地基結束 ══
+
+// ──────────────────────────────────────────────────────────────────────────
+// 階段 1：雙寫（2026-09-15）。舊邏輯（陣列 push/used++/save()）完全不動，
+// 這三支只是額外把同一筆資料悄悄多寫一份到新結構，供之後比對驗證用。
+// 刻意「不 await」＋外層/內層雙重 try/catch 全部吞掉：新結構寫入失敗、變慢、
+// 甚至整個掛掉，都絕對不能讓使用者的簽到流程卡住或跳出任何錯誤。最壞情況
+// 就是這一筆先跳過，之後靠 scripts/migrate_records_students.py --verify 補齊。
+// ──────────────────────────────────────────────────────────────────────────
+function dualWriteAddRecord(record){
+  if(!USE_NEW_RECORD_STORE)return;
+  try{ newStoreAddRecord(record).catch(e=>console.warn('[雙寫] newStoreAddRecord 失敗（不影響簽到）',e)); }
+  catch(e){ console.warn('[雙寫] newStoreAddRecord 失敗（不影響簽到）',e); }
+}
+function dualWriteDeleteRecord(id){
+  if(!USE_NEW_RECORD_STORE||!id)return;
+  try{ newStoreDeleteRecord(id).catch(e=>console.warn('[雙寫] newStoreDeleteRecord 失敗（不影響簽到）',e)); }
+  catch(e){ console.warn('[雙寫] newStoreDeleteRecord 失敗（不影響簽到）',e); }
+}
+function dualWriteIncrementUsed(sid,delta){
+  if(!USE_NEW_RECORD_STORE||!sid)return;
+  try{ newStoreIncrementStudentUsed(sid,delta).catch(e=>console.warn('[雙寫] newStoreIncrementStudentUsed 失敗（不影響簽到）',e)); }
+  catch(e){ console.warn('[雙寫] newStoreIncrementStudentUsed 失敗（不影響簽到）',e); }
+}
 
 function save(){
   // 本地備份
@@ -3568,8 +3591,9 @@ function undoLastSignIn(){
   if(idx===-1){showToast('找不到記錄，可能已被刪除','r');return;}
   const rec=R[idx];
   const s=S.find(x=>x.id===rec.sid);
-  if(s&&rec.note!=='紙本簽到'&&s.used>0)s.used--;
+  if(s&&rec.note!=='紙本簽到'&&s.used>0){s.used--;dualWriteIncrementUsed(s.id,-1);}
   R.splice(idx,1);
+  dualWriteDeleteRecord(rec.id);
   _lastSignInRecId='';_lastSignInSid='';_undoSecs=0;clearInterval(_undoTimer);
   const el=document.getElementById('undoSignInArea');if(el)el.innerHTML='';
   save();renderTeachers();
@@ -3596,7 +3620,9 @@ function confirmSig(){
   const parts=(s.course||'').split(' ');
   const actualFee=isUpgraded?curUpgradeTeacherFee:getDefaultFee(s.teacher,s.course);
   const newRecId='r'+Date.now();
-  R.push({id:newRecId,sid:curSid,date:todayStr(),time:nowTime(),session:s.used,sig:document.getElementById('sigC')?.toDataURL()||null,isSub,subTeacher,isUpgraded,upgradedTo:isUpgraded?curUpgradeRatio:'',upgradeDiff:isUpgraded?curUpgradeDiff:0,actualFee,manualFee:null,manualNote:'',confirmed:false,upgPayMethod:isUpgraded?upgPayMethod:'',feeCollected:isUpgraded?feeCollected:false});
+  const newRec={id:newRecId,sid:curSid,date:todayStr(),time:nowTime(),session:s.used,sig:document.getElementById('sigC')?.toDataURL()||null,isSub,subTeacher,isUpgraded,upgradedTo:isUpgraded?curUpgradeRatio:'',upgradeDiff:isUpgraded?curUpgradeDiff:0,actualFee,manualFee:null,manualNote:'',confirmed:false,upgPayMethod:isUpgraded?upgPayMethod:'',feeCollected:isUpgraded?feeCollected:false};
+  R.push(newRec);
+  dualWriteAddRecord(newRec);dualWriteIncrementUsed(curSid,1);
   _lastSignInRecId=newRecId;_lastSignInSid=curSid;_undoSecs=60; // 先卡住可撤銷視窗，避免 renderTeachers 的 sweep 立刻把課卡切到下一期
   // 升級加人的補費如果店長當場就打勾「已收款」，直接記進流水帳收入——
   // 不然這筆錢只會留在這堂簽到記錄的 feeCollected 欄位，沒有任何報表會讀到它，
@@ -3671,8 +3697,11 @@ function confirmRetro(sid){
   if(s.used>=s.total){showToast('課程堂數已用完，無法補簽','r');return;}
   const note=document.getElementById('retroNote').value.trim();
   s.used++;
+  dualWriteIncrementUsed(sid,1);
   advanceQueuedCard(s);
-  R.push({id:'r'+Date.now(),sid,date,time:'',session:s.used,sig:null,isSub:false,subTeacher:'',isUpgraded:false,upgradedTo:'',upgradeDiff:0,actualFee:getDefaultFee(s.teacher,s.course),manualFee:null,manualNote:note,confirmed:false,upgPayMethod:'',feeCollected:false,isRetro:true});
+  const retroRec={id:'r'+Date.now(),sid,date,time:'',session:s.used,sig:null,isSub:false,subTeacher:'',isUpgraded:false,upgradedTo:'',upgradeDiff:0,actualFee:getDefaultFee(s.teacher,s.course),manualFee:null,manualNote:note,confirmed:false,upgPayMethod:'',feeCollected:false,isRetro:true};
+  R.push(retroRec);
+  dualWriteAddRecord(retroRec);
   document.getElementById('retroOv')?.remove();
   save();renderTeachers();renderCard(sid);
   showToast('✓ 已補簽 '+date);
@@ -4439,8 +4468,9 @@ function cleanupGhostBackfill(ds){
     if(real.length!==1||!ghosts.length)return;
     ghosts.forEach(g=>{
       const idx=R.indexOf(g);if(idx<0)return;
-      if(!g.cardExhausted){const st=S.find(x=>x.id===g.sid);if(st&&(st.used||0)>0)st.used--;}
+      if(!g.cardExhausted){const st=S.find(x=>x.id===g.sid);if(st&&(st.used||0)>0){st.used--;dualWriteIncrementUsed(st.id,-1);}}
       R.splice(idx,1);removed++;
+      dualWriteDeleteRecord(g.id);
     });
   });
   if(removed>0){console.log('🗑 清掉重複 GC 補簽',removed,'筆（'+ds+'）');save();}
@@ -5065,8 +5095,9 @@ function deleteRec(id, type, name){
     if(idx===-1)return;
     const r=R[idx];
     const s=S.find(x=>x.id===r.sid);
-    if(s&&r.note!=='紙本簽到'&&s.used>0){s.used--;} // ✅ 升級加人的記錄也要扣回（之前誤加 !r.isUpgraded 條件，導致刪除升級記錄後 used 偏高）
+    if(s&&r.note!=='紙本簽到'&&s.used>0){s.used--;dualWriteIncrementUsed(s.id,-1);} // ✅ 升級加人的記錄也要扣回（之前誤加 !r.isUpgraded 條件，導致刪除升級記錄後 used 偏高）
     R.splice(idx,1);
+    dualWriteDeleteRecord(r.id);
   } else {
     // trial：直接從 T 陣列移除（之前是 date=null 保留，會導致 Firebase 殘留再次出現）
     const idx=T.findIndex(x=>x.id===id);
@@ -5860,8 +5891,11 @@ function addStu(){
   if(paperUsed>0){
     const newStu=S[S.length-1];
     for(let i=1;i<=paperUsed;i++){
-      R.push({id:'r'+Date.now()+i,sid:newStu.id,date:newStu.payDate||todayStr(),time:'--:--',session:i,note:'紙本簽到',sig:null,isUpgraded:false,isSub:false});
+      const paperRec={id:'r'+Date.now()+i,sid:newStu.id,date:newStu.payDate||todayStr(),time:'--:--',session:i,note:'紙本簽到',sig:null,isUpgraded:false,isSub:false};
+      R.push(paperRec);
+      dualWriteAddRecord(paperRec);
     }
+    dualWriteIncrementUsed(newStu.id,paperUsed);
   }
   if(isPaid)addLedgerEntry({type:'purchase',sid:S[S.length-1].id,name,teacher,course:selPlan,total:selN,price:selPrice,actualPayment:finalActual,payMethod:selPayMethod,payDate,bonus:Math.round(finalActual*0.03),bonusPaid:false});
   save();renderTeachers();renderMgrList();closeAddOv();
@@ -8609,9 +8643,11 @@ async function gcMatchDay(ds,opts){
           advanceQueuedCard(stu); // 目前課卡上完了、有下一期排隊 → 先切換
           const isSub=teacher!==(stu.teacher||'');
           const exhausted=(stu.used||0)>=(stu.total||0);
-          if(!exhausted)stu.used=(stu.used||0)+1;
+          if(!exhausted){stu.used=(stu.used||0)+1;dualWriteIncrementUsed(stu.id,1);}
           advanceQueuedCard(stu);
-          R.push({id:'r'+Date.now()+Math.random().toString(36).slice(2,6),sid:stu.id,date:ds,time,session:stu.used||0,sig:null,isSub,subTeacher:isSub?teacher:'',isUpgraded:false,upgradedTo:'',upgradeDiff:0,actualFee:getDefaultFee(stu.teacher,stu.course),manualFee:null,manualNote:exhausted?'課卡已用完，日曆仍排課（需先幫學員加開課卡才能核銷）':'GC比對，未簽到',confirmed:false,upgPayMethod:'',feeCollected:false,isRetro:true,gcBackfilled:true,cardExhausted:exhausted});
+          const gcRec={id:'r'+Date.now()+Math.random().toString(36).slice(2,6),sid:stu.id,date:ds,time,session:stu.used||0,sig:null,isSub,subTeacher:isSub?teacher:'',isUpgraded:false,upgradedTo:'',upgradeDiff:0,actualFee:getDefaultFee(stu.teacher,stu.course),manualFee:null,manualNote:exhausted?'課卡已用完，日曆仍排課（需先幫學員加開課卡才能核銷）':'GC比對，未簽到',confirmed:false,upgPayMethod:'',feeCollected:false,isRetro:true,gcBackfilled:true,cardExhausted:exhausted};
+          R.push(gcRec);
+          dualWriteAddRecord(gcRec);
           // exhausted 分支也要算進 rBackfilled：呼叫端只在 rBackfilled>0 時才 save() 並重畫
           // 清單，先前只在非 exhausted 才++，害這筆新紀錄寫進記憶體後從沒存檔、白補了
           rBackfilled++;
