@@ -1656,6 +1656,102 @@ let RENT_BOOKING_NOTIFIED=new Set(JSON.parse(localStorage.getItem('qjf_rbn')||'[
 // {gcKey:{owner,name,target,date,time,reason,ts}}
 let RENT_BOOKING_REVIEW=JSON.parse(localStorage.getItem('qjf_rbr')||'{}');
 let TL=JSON.parse(localStorage.getItem('qjf_tl')||'[]');
+
+// ══════════════════════════════════════════════════════════════════════════
+// 新資料層地基（R+S 資料層遷移計畫．階段 0：準備，2026-09-15）
+// ──────────────────────────────────────────────────────────────────────────
+// 目標：把 qingjing/s（學員陣列）、qingjing/r（簽到記錄陣列）從「整包覆蓋寫入」
+// 改成「逐筆 Firebase 節點」（qingjing/records/{key}、qingjing/students/{sid}），
+// 學員扣堂用條件寫入模擬 transaction，避免兩台裝置同時操作互相蓋掉彼此的結果。
+//
+// USE_NEW_RECORD_STORE=false（現在）：下面這些函式完全不會被任何現有呼叫點呼叫到。
+// confirmSig()/confirmRetro()/loadFromFirebase()/doFirebaseWrite() 等都還是原封不動走
+// 舊的 S/R 整包陣列邏輯。這一批函式只是先把「新機制」寫出來、可以獨立測試，之後
+// 進入階段 1（雙寫）才會真的接進現有呼叫點，且會先在 flag 開啟時雙寫驗證一段時間，
+// 確認新舊資料一致後才切成單寫新結構。
+// ══════════════════════════════════════════════════════════════════════════
+const USE_NEW_RECORD_STORE=false;
+
+// 寫入一筆簽到記錄到 qingjing/records/{key}。key 用 Firebase 自動產生的 push key
+// （而非舊機制的 'r'+Date.now()），避免兩台裝置幾乎同時簽到時 id 互撞。
+// 不透過 db.ref()（那支只有 set/patch/once），直接複用同一套 fetch+_authQuery+fbCheck，
+// 兩邊實作彼此獨立，不會互相影響。回傳新產生的 key。
+async function newStoreAddRecord(record){
+  const res=await fetch(FB_URL+'/qingjing/records.json'+await _authQuery(),{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(record)
+  }).then(fbCheck);
+  if(!res||!res.name)throw new Error('newStoreAddRecord: push 未回傳 key：'+JSON.stringify(res));
+  return res.name;
+}
+
+// 讀取 qingjing/records 整個節點，轉成陣列（每筆補上 id=節點 key，形狀跟舊 R 陣列的
+// {id,...} 一致，方便未來沿用既有的 R.find/R.filter 邏輯）
+async function newStoreLoadRecords(){
+  const snap=await fetch(FB_URL+'/qingjing/records.json'+await _authQuery()).then(fbCheck);
+  if(!snap||typeof snap!=='object')return[];
+  return Object.keys(snap).map(key=>({id:key,...snap[key]}));
+}
+
+// 刪除單筆記錄節點（撤銷簽到／補簽刪除等場景用；舊邏輯是整包 R 陣列濾掉再整包覆蓋寫回）
+async function newStoreDeleteRecord(key){
+  return fetch(FB_URL+'/qingjing/records/'+key+'.json'+await _authQuery(),{method:'DELETE'}).then(fbCheck);
+}
+
+// 寫入單筆學員資料到 qingjing/students/{sid}。用學員既有的 id 當節點 key——學員 id
+// 本來就唯一，不用另外配一個 push key
+async function newStoreSetStudent(sid,student){
+  return fetch(FB_URL+'/qingjing/students/'+sid+'.json'+await _authQuery(),{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(student)
+  }).then(fbCheck);
+}
+
+// 讀取 qingjing/students 整個節點，轉成陣列（同樣補上 id）
+async function newStoreLoadStudents(){
+  const snap=await fetch(FB_URL+'/qingjing/students.json'+await _authQuery()).then(fbCheck);
+  if(!snap||typeof snap!=='object')return[];
+  return Object.keys(snap).map(sid=>({id:sid,...snap[sid]}));
+}
+
+// 用「條件寫入」模擬 transaction，原子性更新學員的 used 堂數：讀出目前值＋Firebase
+// 的 ETag，寫入時帶 If-Match；若這段時間節點被別人改過，PUT 會回 412，重讀最新值、
+// 重算、重試。這解決舊機制的真實風險——本機記憶體 s.used++ 再整包覆蓋寫入 S 陣列，
+// 兩台裝置幾乎同時簽到時，後寫入那台會用「稍舊的 used」整包蓋掉先寫入那台剛 +1
+// 的結果，其中一筆簽到的扣堂數會悄悄失效。
+// （RTDB REST API 沒有 Admin SDK 那種原生 transaction 端點，ETag 條件寫入是官方文件
+// 給 REST 用戶端模擬 transaction 的做法：GET 帶 X-Firebase-ETag:true 換 ETag，
+// PUT 帶 if-match 做樂觀鎖。）
+async function newStoreIncrementStudentUsed(sid,delta){
+  delta=(typeof delta==='number')?delta:1;
+  const path='qingjing/students/'+sid+'/used';
+  const maxRetry=5;
+  for(let attempt=0;attempt<maxRetry;attempt++){
+    const qs=await _authQuery();
+    const getRes=await fetch(FB_URL+'/'+path+'.json'+qs,{headers:{'X-Firebase-ETag':'true'}});
+    if(!getRes.ok)throw new Error('newStoreIncrementStudentUsed: 讀取失敗 HTTP '+getRes.status);
+    const etag=getRes.headers.get('ETag');
+    const cur=await getRes.json();
+    const curUsed=(typeof cur==='number')?cur:0;
+    const nextUsed=curUsed+delta;
+    const putRes=await fetch(FB_URL+'/'+path+'.json'+qs,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json','if-match':etag||''},
+      body:JSON.stringify(nextUsed)
+    });
+    if(putRes.status===412)continue; // 條件不符：這段時間被別人改過，重讀最新值再試一次
+    if(!putRes.ok){
+      const body=await putRes.json().catch(()=>null);
+      throw new Error((body&&body.error)||('HTTP '+putRes.status));
+    }
+    return nextUsed;
+  }
+  throw new Error('newStoreIncrementStudentUsed: 重試 '+maxRetry+' 次仍衝突，放棄');
+}
+// ══ 新資料層地基結束（以上函式目前皆未被任何呼叫點使用）══
+
 function save(){
   // 本地備份
   localStorage.setItem('qjf_s',JSON.stringify(S));
