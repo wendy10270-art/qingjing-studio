@@ -3294,7 +3294,16 @@ function renderCard(sid){
   sa.className='sign-section';
   const alreadyLeave=L.find(l=>l.sid===sid&&l.date===todayStr());
   const retroBtn=remain>0?`<button onclick="showRetroModal('${sid}')" style="margin-top:14px;background:transparent;border:1px dashed var(--purple3);color:var(--purple);border-radius:10px;padding:9px 22px;font-size:13px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">補登過去某堂課</button>`:'';
-  if(already){
+  // ghostRec：GC 自動比對「搶先」補的未簽到紀錄（gcBackfilled），還沒被店長在「核對課堂」
+  // 確認過（!confirmed）、也還沒有本人真正簽過名（!sig）——這種是待轉正的暫時記錄，
+  // 不能當成「今日已完成簽到」卡住畫面，要讓學員本人能繼續走到簽名板，簽名送出時
+  // 直接把這筆記錄原地轉正（見 confirmSig），不能新增第二筆、也不能重複扣堂數。
+  // 2026-09-17 查出：GC 排程（gc_backfill.py）如果因為 GitHub Actions 延遲跑到隔天凌晨，
+  // 會把「今天」全天（含還沒開始的未來時段）都搶先標記成這種 ghost 記錄，疊加這裡原本的
+  // return，害整天真人完全無法簽到。已經被店長在「核對課堂」確認過（confirmed）或已經有
+  // 本人簽名（sig）的，還是照舊視為「今日已完成」不能再簽一次。
+  const ghostRec=(already&&already.gcBackfilled&&!already.confirmed&&!already.sig)?already:null;
+  if(already&&!ghostRec){
     // gcBackfilled：系統比對 Google 日曆自動補的，不是本人親自簽名，顯示上要跟真人簽到分開，
     // 不然店長看到「今日已完成簽到」會誤以為學員本人已經簽過名了
     const isGcAuto=!!already.gcBackfilled;
@@ -3303,6 +3312,7 @@ function renderCard(sid){
       :`<div style="text-align:center;padding:22px 0"><div style="font-size:31px;margin-bottom:9px">✓</div><div style="font-size:17px;letter-spacing:2px;color:var(--green)">今日已完成簽到</div><div style="font-size:14px;color:var(--ink3);margin-top:5px">${already.date} ${already.time}${already.isUpgraded?' ・升級'+already.upgradedTo:''}${already.isSub?' ・代課：'+already.subTeacher:''}</div>${retroBtn}</div>`;
     return;
   }
+  const ghostNotice=ghostRec?`<div style="background:var(--gold4);border:1.5px solid var(--gold2);border-radius:12px;padding:11px 15px;margin-bottom:13px;font-size:13px;color:var(--orange4);line-height:1.6">🤖 系統已依日曆預先標記本堂「未簽到」，這不是本人真正簽到——如果學員本人現在要上課，直接在下方簽名即可，會原地把這筆記錄轉正，不會重複扣堂數。</div>`:'';
   if(alreadyLeave){
     const lvTypeLabel=alreadyLeave.type==='same_day'?'臨時請假':'事先請假';
     const lvNote=alreadyLeave.note?' ・'+alreadyLeave.note:'';
@@ -3314,7 +3324,11 @@ function renderCard(sid){
       ${retroBtn}
     </div>`;return;
   }
-  if(remain<=0){sa.innerHTML=`<div style="text-align:center;padding:22px 0;color:var(--red)"><div style="font-size:17px">堂數已用完，請洽小幫手購課</div><button onclick="openRenewStu('${s.id}')" style="margin-top:14px;padding:11px 22px;background:var(--teal);border:none;border-radius:10px;font-size:15px;font-weight:600;color:#fff;cursor:pointer;font-family:'Noto Sans TC',sans-serif">🔄 幫她續課</button></div>`;return}
+  // ghostRec 且沒有 cardExhausted：GC 補簽時已經把這堂算進 used，remain 已經反映扣過的
+  // 結果（可能剛好是這堂用完最後一堂變成 0），這種情況不能擋掉本人補簽名，要放行；
+  // ghostRec.cardExhausted===true 代表補簽當下堂數就已經用完（GC 補簽時沒有再多扣），
+  // 這種是真的用完了，照舊擋下來走續課流程。
+  if(remain<=0&&!(ghostRec&&!ghostRec.cardExhausted)){sa.innerHTML=`<div style="text-align:center;padding:22px 0;color:var(--red)"><div style="font-size:17px">堂數已用完，請洽小幫手購課</div><button onclick="openRenewStu('${s.id}')" style="margin-top:14px;padding:11px 22px;background:var(--teal);border:none;border-radius:10px;font-size:15px;font-weight:600;color:#fff;cursor:pointer;font-family:'Noto Sans TC',sans-serif">🔄 幫她續課</button></div>`;return}
 
   const upgradeOpts=getUpgradeOpts(s.course, s.teacher);
   let upgradeSection='';
@@ -3332,16 +3346,21 @@ function renderCard(sid){
     </div>`;
   }
   const calActualTeacher=todayCalActualTeacher(sid);
-  const autoSub=calActualTeacher&&calActualTeacher!==s.teacher;
+  const autoSub=(ghostRec?ghostRec.isSub:false)||(calActualTeacher&&calActualTeacher!==s.teacher);
+  const autoSubTeacher=ghostRec&&ghostRec.isSub?ghostRec.subTeacher:calActualTeacher;
   const autoSubNote=autoSub?`<div style="font-size:13px;color:var(--gold2);margin:-4px 0 8px 2px">🔄 已依 Google 日曆自動偵測代課老師，如不正確可手動修改或取消</div>`:'';
-  sa.innerHTML=`<div class="sign-ttl">第 ${s.used+1} 堂　學員簽名</div>
+  // ghostRec 存在時這堂的堂數已經在 GC 補簽時算進 s.used 了（除非 cardExhausted），
+  // 顯示的堂次要用 ghostRec.session，不能再用 s.used+1，不然會多算一堂
+  const displaySession=ghostRec&&!ghostRec.cardExhausted?ghostRec.session:s.used+1;
+  sa.innerHTML=`<div class="sign-ttl">第 ${displaySession} 堂　學員簽名</div>
     <div class="sign-sub">${todayStr()} ${nowTime()}</div>
+    ${ghostNotice}
     ${upgradeSection}
     <div class="opt-row bg-default"><span class="opt-lbl">本堂為代課</span>
       <label class="tog-wrap"><input type="checkbox" id="subTog" onchange="onSubTog()"${autoSub?' checked':''}><div class="tog-track"></div><div class="tog-thumb"></div></label>
     </div>
     ${autoSubNote}
-    <div class="sub-extra${autoSub?' show':''}" id="subInpWrap"><label>代課老師姓名</label><input type="text" id="subTeacher" placeholder="例：Winnie" value="${hEsc(autoSub?calActualTeacher:'')}" style="margin-bottom:0"></div>
+    <div class="sub-extra${autoSub?' show':''}" id="subInpWrap"><label>代課老師姓名</label><input type="text" id="subTeacher" placeholder="例：Winnie" value="${hEsc(autoSub?(autoSubTeacher||''):'')}" style="margin-bottom:0"></div>
 
     <div class="opt-row bg-purple"><span class="opt-lbl" style="color:var(--purple)">記錄為請假（不簽名、不扣堂）</span>
       <label class="tog-wrap purple"><input type="checkbox" id="leaveTog" onchange="onLeaveTog()"><div class="tog-track"></div><div class="tog-thumb"></div></label>
@@ -3612,17 +3631,34 @@ function confirmSig(){
   if(document.getElementById('upgTog')?.checked&&!curUpgradeRatio){showToast('請選擇升級方案','r');return}
   const upgPayMethod=document.getElementById('upgPayMethod')?.value||'';
   const feeCollected=document.getElementById('feeCollected')?.checked||false;
-  const s=S.find(x=>x.id===curSid);if(!s||s.used>=s.total)return;
-  s.used++;
+  const s=S.find(x=>x.id===curSid);if(!s)return;
+  // ghostRec：今天已經有 GC 自動比對搶先補的「未簽到」紀錄（gcBackfilled、還沒被店長
+  // 確認、也沒有本人簽名），本人現在真的來簽名——原地把這筆記錄轉正，不要新增第二筆、
+  // 也不要重複扣堂數（GC 補簽時如果課卡沒用完，已經先扣過這一堂了）。
+  // 2026-09-17 死鎖 bug 的另一半修正，見 renderCard 裡 ghostRec 的定義。
+  const ghostRec=R.find(r=>r.sid===curSid&&r.date===todayStr()&&r.gcBackfilled&&!r.confirmed&&!r.sig);
+  if(!ghostRec&&s.used>=s.total)return;
+  const wasExhaustedGhost=!!(ghostRec&&ghostRec.cardExhausted);
+  if(!ghostRec||wasExhaustedGhost){
+    if(s.used>=s.total)return; // 保險：exhausted ghost 沒有先扣堂，這裡照舊擋住用完的課卡
+    s.used++;
+  }
   // 這堂如果剛好就是店長之前約好的「下次上課」，簽到完成＝這個預約已經兌現，順手清掉，
   // 避免課後訊息/後台列表之後還一直顯示這個已經上完的舊預約。
   if(s.nextBooking&&s.nextBooking.date===todayStr())s.nextBooking=null;
   const parts=(s.course||'').split(' ');
   const actualFee=isUpgraded?curUpgradeTeacherFee:getDefaultFee(s.teacher,s.course);
-  const newRecId='r'+Date.now();
+  const newRecId=ghostRec?ghostRec.id:('r'+Date.now());
   const newRec={id:newRecId,sid:curSid,date:todayStr(),time:nowTime(),session:s.used,sig:document.getElementById('sigC')?.toDataURL()||null,isSub,subTeacher,isUpgraded,upgradedTo:isUpgraded?curUpgradeRatio:'',upgradeDiff:isUpgraded?curUpgradeDiff:0,actualFee,manualFee:null,manualNote:'',confirmed:false,upgPayMethod:isUpgraded?upgPayMethod:'',feeCollected:isUpgraded?feeCollected:false};
-  R.push(newRec);
-  dualWriteAddRecord(newRec);dualWriteIncrementUsed(curSid,1);
+  if(ghostRec){
+    const gi=R.findIndex(r=>r.id===ghostRec.id);
+    if(gi!==-1)R[gi]=newRec;else R.push(newRec);
+    dualWriteDeleteRecord(ghostRec.id);dualWriteAddRecord(newRec);
+    if(wasExhaustedGhost)dualWriteIncrementUsed(curSid,1);
+  } else {
+    R.push(newRec);
+    dualWriteAddRecord(newRec);dualWriteIncrementUsed(curSid,1);
+  }
   _lastSignInRecId=newRecId;_lastSignInSid=curSid;_undoSecs=60; // 先卡住可撤銷視窗，避免 renderTeachers 的 sweep 立刻把課卡切到下一期
   // 升級加人的補費如果店長當場就打勾「已收款」，直接記進流水帳收入——
   // 不然這筆錢只會留在這堂簽到記錄的 feeCollected 欄位，沒有任何報表會讀到它，

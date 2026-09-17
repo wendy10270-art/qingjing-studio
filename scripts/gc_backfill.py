@@ -206,9 +206,34 @@ def event_time(ev):
     return dt[11:16] if dt else ''
 
 
+# 課已經結束多久才能放心判定「沒簽到」——跟 index.html gcMatchDay 的 BACKFILL_DELAY_MS
+# 用同一個緩衝（下課後 2 小時內學員都還可能自己補簽），沒有 end.dateTime（全天事件，
+# 正課不該發生）保守當作已結束不擋
+BACKFILL_DELAY = timedelta(hours=2)
+
+
+def event_ended(ev, now):
+    end_dt = (ev.get('end') or {}).get('dateTime')
+    if not end_dt:
+        return True
+    try:
+        end = datetime.fromisoformat(end_dt)
+    except ValueError:
+        return True
+    return (end + BACKFILL_DELAY) <= now
+
+
 def main():
     now = datetime.now(ZoneInfo('Asia/Taipei'))
-    td = now.strftime('%Y/%m/%d')
+    # GitHub Actions 的排程時間只是「儘量準時」，實際上常常延遲，這支腳本本來預期在台北
+    # 23:30（當天課都上完）執行。2026-09-17 查出：延遲太久跨過午夜才真正執行，
+    # datetime.now() 的日期已經跳到隔天，若照樣把 now 的日期當成要處理的「今天」，
+    # 會把「隔天還沒開始上課」的整天課表，當成「已經上完卻沒簽到」全部誤判補簽，
+    # 導致隔天一早開店前所有課程就被搶先標記「未簽到・GC 比對」，真人完全沒辦法簽到。
+    # 這支腳本本來就只該在深夜跑，凌晨到中午之間執行一律視為「延遲到隔天的那一次」，
+    # 目標日期退回一天。
+    target = now - timedelta(days=1) if now.hour < 12 else now
+    td = target.strftime('%Y/%m/%d')
 
     try:
         S = db_get('qingjing/s') or []
@@ -228,7 +253,7 @@ def main():
         send_ntfy('輕境小幫手', f'⚠️ 每日補簽讀取 Google 日曆授權失敗（{e}）', 'warning')
         return
 
-    tmin = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    tmin = target.replace(hour=0, minute=0, second=0, microsecond=0)
     tmax = tmin + timedelta(days=1)
 
     backfilled, skipped_exhausted, unmatched, read_errors = [], [], [], []
@@ -262,6 +287,11 @@ def main():
                 continue
             parsed = parse_title(ev.get('summary') or '')
             if not parsed or is_rent(parsed['type']) or '體驗' in parsed['type']:
+                continue
+            # 第二層防呆：不管上面的日期判斷有沒有算對，這堂課的時間還沒真的過（含下課後
+            # 2 小時緩衝）就絕對不能判定「沒簽到」——這支腳本本來就該只在深夜跑，正常情況
+            # 這裡永遠是 True，只有在 target 判斷失準時才會擋下（2026-09-17 事故後加）。
+            if not event_ended(ev, now):
                 continue
             stu = match_student(parsed, teacher, S)
             if not stu:
