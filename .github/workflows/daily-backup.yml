@@ -1,0 +1,22 @@
+name: 每日全庫自動備份
+on:
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch: {}
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 呼叫 backup-db API 觸發今日備份
+        env:
+          BACKUP_SECRET: ${{ secrets.BACKUP_SECRET }}
+        run: |
+          set -e
+          resp=$(curl -sS -w '\n%{http_code}' "https://line-webhook-gules.vercel.app/api/backup-db?key=${BACKUP_SECRET}")
+          body=$(echo "$resp" | sed '$d')
+          code=$(echo "$resp" | tail -n1)
+          echo "$body"
+          if [ "$code" != "200" ]; then
+            echo "備份失敗，HTTP $code"
+            exit 1
+          fi
