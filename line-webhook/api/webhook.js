@@ -14,6 +14,18 @@ const { fb } = require('../lib/firebaseAdmin');
 
 const CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET || '';
 const CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+// 「我要體驗」流程收集完資料要推播給工作室負責人的 LINE userId，可能不只一個人（例如
+// Winnie、Jungle 都要收到），所以用逗號分隔存成 OWNER_LINE_USER_IDS。沒有既有機制能拿到
+// 這個值，負責人要先在跟官方帳號的 1 對 1 對話裡打「我的ID」（見下面 MY_ID_KEYWORD），
+// bot 會把 userId 回傳，再手動貼進 Vercel 環境變數。OWNER_LINE_USER_ID（單數）保留給舊設定
+// 相容，兩個環境變數都有設的話會合併、去重。
+const OWNER_LINE_USER_IDS = Array.from(
+  new Set(
+    [process.env.OWNER_LINE_USER_ID, ...(process.env.OWNER_LINE_USER_IDS || '').split(',')]
+      .map((id) => (id || '').trim())
+      .filter(Boolean)
+  )
+);
 
 module.exports.config = { api: { bodyParser: false } };
 
@@ -179,6 +191,383 @@ async function lineReplyFlex(replyToken, altText, contents) {
     },
     body: JSON.stringify({ replyToken, messages: [{ type: 'flex', altText, contents }] }),
   });
+}
+
+// 用文字快速按鈕問問題（LINE Quick Reply）——點下去等同直接打那句文字，
+// 所以後面判斷答案時跟真的手打完全一樣處理，不用另外解析 postback data。
+async function lineReplyQuick(replyToken, text, options) {
+  if (!CHANNEL_ACCESS_TOKEN) return;
+  await fetch('https://api.line.me/v2/bot/message/reply', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}`,
+    },
+    body: JSON.stringify({
+      replyToken,
+      messages: [
+        {
+          type: 'text',
+          text,
+          quickReply: {
+            items: options.map((label) => ({
+              type: 'action',
+              action: { type: 'message', label: label.slice(0, 20), text: label },
+            })),
+          },
+        },
+      ],
+    }),
+  });
+}
+
+// 「我要體驗」流程開場歡迎詞附一張阿勇店長的照片，圖檔放在 public/ 底下，
+// Vercel 會直接把 public/ 當靜態檔案伺服器出去，用正式網域組成 LINE 圖片訊息需要的網址。
+// along3.png 是背景去背、舉手比讚的那張，之前做迷因梗圖也是用同一批素材。
+const ALONG_PHOTO = {
+  original: 'https://line-webhook-gules.vercel.app/along3.png',
+  preview: 'https://line-webhook-gules.vercel.app/along3_preview.png',
+};
+
+async function lineReplyImageAndQuick(replyToken, imageUrl, previewUrl, text, options) {
+  if (!CHANNEL_ACCESS_TOKEN) return;
+  await fetch('https://api.line.me/v2/bot/message/reply', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}`,
+    },
+    body: JSON.stringify({
+      replyToken,
+      messages: [
+        { type: 'image', originalContentUrl: imageUrl, previewImageUrl: previewUrl },
+        {
+          type: 'text',
+          text,
+          quickReply: {
+            items: options.map((label) => ({
+              type: 'action',
+              action: { type: 'message', label: label.slice(0, 20), text: label },
+            })),
+          },
+        },
+      ],
+    }),
+  });
+}
+
+async function pushLineText(to, text) {
+  if (!CHANNEL_ACCESS_TOKEN || !to) return false;
+  const res = await fetch('https://api.line.me/v2/bot/message/push', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}`,
+    },
+    body: JSON.stringify({ to, messages: [{ type: 'text', text }] }),
+  });
+  return res.ok;
+}
+
+// 抓對方 LINE 暱稱給老闆通知用——只是錦上添花，抓不到（沒加好友、群組取不到等）就放棄，
+// 不能因為這支 API 失敗就擋住整個體驗預約流程
+async function getDisplayName(event) {
+  if (!CHANNEL_ACCESS_TOKEN) return null;
+  const { type, userId, groupId, roomId } = event.source;
+  if (!userId) return null;
+  try {
+    const url =
+      type === 'group'
+        ? `https://api.line.me/v2/bot/group/${groupId}/member/${userId}`
+        : type === 'room'
+        ? `https://api.line.me/v2/bot/room/${roomId}/member/${userId}`
+        : `https://api.line.me/v2/bot/profile/${userId}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${CHANNEL_ACCESS_TOKEN}` } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.displayName || null;
+  } catch (e) {
+    console.warn('getDisplayName failed:', e.message);
+    return null;
+  }
+}
+
+// ---- 「我要體驗」對話式資訊收集：課程 → 人數 → 時段 → 器械經驗 → 舊傷 → 醫療狀況 →
+// 運動習慣 → 目標 → 通知老闆 ----
+// 全程用「阿勇店長」第一人稱口吻講話，比較親切、像真人在聊天，不是制式問卷。
+// 有中英文兩種版本（有外國學生），中文用「我要體驗」觸發、英文用「trial」觸發，
+// 觸發用哪個語言，後面全部問題跟結尾都用同一個語言回覆（存在 state.lang 裡）。
+// 常態功能，跟任何檔期無關。中途狀態存 Firebase（qingjing_trial_flow/{convoKey}），
+// 30 分鐘沒動作就當放棄，下次打關鍵字重新開始（避免半年前的殘留狀態突然復活接話）。
+const TRIAL_STATE_TTL_MS = 30 * 60 * 1000;
+
+const TRIAL_I18N = {
+  zh: {
+    keyword: '我要體驗',
+    cancelWord: '取消',
+    listSep: '、',
+    start:
+      '哈囉，我是阿勇店長 🌿 很開心你想來體驗看看！我先問你幾個小問題，這樣才能幫你安排最適合的老師和時間～\n\n首先，你想體驗哪一種課程呢？',
+    // 跟 index.html 的 PLANS 課程類型（器械皮拉提斯／重訓課程／瑜珈課程）同一套名稱，
+    // 多加一個「不確定」給第一次接觸、還不知道要選哪種的新同學
+    courseOptions: ['器械皮拉提斯', '重訓課程', '瑜珈課程', '不確定，請幫我推薦'],
+    coursePickOptions: ['器械皮拉提斯', '重訓課程', '瑜珈課程'],
+    notSure: '不確定，請幫我推薦',
+    courseIntro:
+      '沒問題，我簡單跟你介紹一下 🌿\n\n' +
+      '🧘‍♀️ 器械皮拉提斯：用專業器械訓練核心、雕塑體態，適合想改善姿勢、核心無力的人\n' +
+      '🏋️ 重訓課程：透過重量訓練提升肌力和代謝，適合想增肌、變得更有力量的人\n' +
+      '🧘 瑜珈課程：伸展放鬆、調整身心平衡，適合想紓壓、增加柔軟度的人\n\n' +
+      '看完之後，想先體驗哪一種呢？',
+    capacityQ: '好唷～那這堂課你是想自己一個人上，還是要揪朋友一起呢？',
+    // 一對二、一對三是跟其他同學共用時段的小班課，要自己揪朋友一起來，選項裡先講清楚
+    capacityOptions: ['一對一', '一對二（可以揪1位朋友）', '一對三（可以揪2位朋友）'],
+    // 時段要能複選，同一組按鈕可以連續點好幾次，累積記錄，點「都選好了」才算完成這一題；
+    // 也接受直接打整句話（例如「平日晚上跟週末都可以」）當成其中一個答案項目一起累加。
+    timeslotQ: (done) => `了解！那你平常方便上課的時間大概是什麼時候呢？可以點選多個時段，都選好之後點「${done}」，當然也可以直接打字跟我說 🌿`,
+    timeslotOptions: ['平日白天', '平日晚上', '週末白天', '週末晚上'],
+    timeslotDone: '都選好了',
+    timeslotNeedOne: '要先點一個方便的時段唷 🙏',
+    timeslotRecorded: (list, done) => `記錄囉：${list}\n還有其他方便的時段可以繼續點，都選好了就點「${done}」`,
+    experienceQ: (course) => `再麻煩回答幾個小問題，這樣老師上課前會更清楚你的狀況唷！\n\n你以前有上過${course ? '「' + course + '」或類似的' : ''}運動課程經驗嗎？`,
+    experienceOptions: ['完全沒有', '有，上過團體課', '有，上過一對一'],
+    experienceNone: '完全沒有',
+    experienceDurationQ: '大概上了多久呢？（例如：3個月、半年、1年以上）',
+    injuryQ: '好的～那目前身體有沒有什麼舊傷、不舒服或會痛的地方呢？（比如腰痠、肩頸僵硬、膝蓋不適、椎間盤突出這些都可以說，沒有的話回「無」就可以）',
+    medicalQ: '那最近有動過手術，或有什麼比較特別的身體狀況要讓老師知道的嗎？（比如三個月內開過刀、懷孕、高血壓這些，沒有的話一樣回「無」）',
+    frequencyQ: '平常有運動習慣嗎？大概多常呢？',
+    frequencyOptions: ['沒有固定運動', '每週1~2次', '每週3次以上'],
+    goalQ: '最後一題～這次想透過課程改善或達成什麼呢？（比如改善體態姿勢、練核心肌力、放鬆緊繃肌肉、提升體能之類的都可以）',
+    thanks: '謝謝你耐心回答這些問題～已經收到你的資料了，我會盡快幫你安排最適合的老師和時間，很快會有人跟你聯絡喔 🌿\n\n阿勇店長',
+    cancelReply: (kw) => `好的，先幫你取消這次的填寫囉，之後想再約體驗的話，再跟我說「${kw}」就可以啦 🌿`,
+  },
+  en: {
+    keyword: 'trial',
+    cancelWord: 'cancel',
+    listSep: ', ',
+    start:
+      "Hi, I'm Boss Yong 🌿 So glad you'd like to try a class! I'll ask a few quick questions so I can match you with the right teacher and time.\n\nFirst, which class would you like to try?",
+    courseOptions: ['Pilates Reformer', 'Strength Training', 'Yoga', 'Not sure, please recommend'],
+    coursePickOptions: ['Pilates Reformer', 'Strength Training', 'Yoga'],
+    notSure: 'Not sure, please recommend',
+    courseIntro:
+      "No problem, here's a quick overview 🌿\n\n" +
+      '🧘‍♀️ Pilates Reformer: uses specialized equipment to build core strength and improve posture — great if you want better alignment or a stronger core\n' +
+      '🏋️ Strength Training: builds muscle and boosts metabolism — great if you want to get stronger\n' +
+      '🧘 Yoga: stretching and relaxation for body and mind — great if you want to de-stress and improve flexibility\n\n' +
+      'Which one would you like to try?',
+    capacityQ: 'Great — would you like to come by yourself, or bring a friend along?',
+    capacityOptions: ['1-on-1', '1-on-2 (bring 1 friend)', '1-on-3 (bring 2 friends)'],
+    timeslotQ: (done) =>
+      `Got it! What times generally work for you? You can tap multiple options, then tap "${done}" when you're done — or just type it out 🌿`,
+    timeslotOptions: ['Weekday daytime', 'Weekday evening', 'Weekend daytime', 'Weekend evening'],
+    timeslotDone: "That's all",
+    timeslotNeedOne: 'Please pick at least one time slot 🙏',
+    timeslotRecorded: (list, done) => `Noted: ${list}\nFeel free to add more, then tap "${done}" when you're done`,
+    experienceQ: (course) =>
+      `A few more quick questions so your teacher knows what to expect!\n\nHave you taken${course ? ' ' + course + ' or similar' : ''} classes before?`,
+    experienceOptions: ['None at all', 'Yes, group classes', 'Yes, private 1-on-1'],
+    experienceNone: 'None at all',
+    experienceDurationQ: 'About how long did/have you practiced? (e.g. 3 months, 6 months, 1+ year)',
+    injuryQ: 'Got it — do you currently have any old injuries, discomfort, or pain? (e.g. lower back, neck/shoulder tightness, knee issues, herniated disc — just type "none" if not)',
+    medicalQ: 'Have you had any surgery recently, or any other medical conditions we should know about? (e.g. surgery within 3 months, pregnancy, high blood pressure — type "none" if not)',
+    frequencyQ: 'Do you exercise regularly? About how often?',
+    frequencyOptions: ['No regular exercise', '1-2 times a week', '3+ times a week'],
+    goalQ: 'Last question — what would you like to achieve or improve through this class? (e.g. posture, core strength, relaxation, fitness, etc.)',
+    thanks:
+      "Thanks so much for answering these questions! We've got your info and will arrange the best teacher and time for you soon — someone will reach out shortly 🌿\n\nBoss Yong",
+    cancelReply: (kw) => `No problem, I've cancelled this for now. Just message "${kw}" again whenever you're ready 🌿`,
+  },
+};
+
+function trialLangOf(state) {
+  return state && state.lang === 'en' ? 'en' : 'zh';
+}
+
+async function getTrialState(convoKey) {
+  const v = await fb(`/qingjing_trial_flow/${convoKey}`, { method: 'GET' });
+  if (!v || typeof v.ts !== 'number' || Date.now() - v.ts >= TRIAL_STATE_TTL_MS) return null;
+  return v;
+}
+async function setTrialState(convoKey, state) {
+  await fb(`/qingjing_trial_flow/${convoKey}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...state, ts: Date.now() }),
+  });
+}
+async function clearTrialState(convoKey) {
+  await fb(`/qingjing_trial_flow/${convoKey}`, { method: 'DELETE' });
+}
+
+const LANG_PICK_PROMPT = '請選擇語言 / Please select your language 🌿';
+const LANG_PICK_OPTIONS = ['中文', 'English'];
+
+async function beginTrialQuestions(convoKey, replyToken, lang) {
+  const T = TRIAL_I18N[lang];
+  await setTrialState(convoKey, { step: 'course', lang });
+  await lineReplyImageAndQuick(replyToken, ALONG_PHOTO.original, ALONG_PHOTO.preview, T.start, T.courseOptions);
+}
+
+// 選單按鈕固定送出中文「我要體驗」四個字，但可能是外國學生在點，所以中文關鍵字觸發時
+// 一律先問語言，選完才真正開始問課程；英文關鍵字「trial」是已經知道要打英文的人直接打的，
+// 不用再繞一層語言選擇。
+async function startTrialFlow(convoKey, replyToken, lang) {
+  if (lang === 'zh') {
+    await setTrialState(convoKey, { step: 'lang' });
+    await lineReplyQuick(replyToken, LANG_PICK_PROMPT, LANG_PICK_OPTIONS);
+    return;
+  }
+  await beginTrialQuestions(convoKey, replyToken, lang);
+}
+
+async function handleTrialAnswer(state, text, event) {
+  const { replyToken } = event;
+  const convoKey = event.source.groupId || event.source.roomId || event.source.userId;
+
+  // 中途又打一次任一語言的關鍵字：大概率是想重新開始（例如答錯、想重填，或想切換語言），
+  // 直接重啟整個流程，不要把關鍵字本身誤存成某一題的答案。這個判斷要放在最前面，
+  // 不看目前語言是哪個，兩種關鍵字都要認得出來。
+  if (text === TRIAL_I18N.zh.keyword) {
+    await startTrialFlow(convoKey, replyToken, 'zh');
+    return;
+  }
+  if (text.toLowerCase() === TRIAL_I18N.en.keyword) {
+    await startTrialFlow(convoKey, replyToken, 'en');
+    return;
+  }
+
+  if (state.step === 'lang') {
+    await beginTrialQuestions(convoKey, replyToken, text === 'English' ? 'en' : 'zh');
+    return;
+  }
+
+  const lang = trialLangOf(state);
+  const T = TRIAL_I18N[lang];
+  const textLower = text.toLowerCase();
+
+  if (text === T.cancelWord || (lang === 'en' && textLower === T.cancelWord)) {
+    await clearTrialState(convoKey);
+    await lineReply(replyToken, T.cancelReply(T.keyword));
+    return;
+  }
+
+  if (state.step === 'course') {
+    if (text === T.notSure) {
+      // 先給個簡單的課程介紹，還不算答完這一題，等他們看完介紹再選一次；
+      // 順便刷新一下 ts，避免看介紹看比較久導致 30 分鐘逾時被清掉
+      await setTrialState(convoKey, state);
+      await lineReplyQuick(replyToken, T.courseIntro, T.coursePickOptions);
+      return;
+    }
+    await setTrialState(convoKey, { ...state, step: 'capacity', course: text });
+    await lineReplyQuick(replyToken, T.capacityQ, T.capacityOptions);
+    return;
+  }
+
+  if (state.step === 'capacity') {
+    await setTrialState(convoKey, { ...state, step: 'timeslot', capacity: text, timeslots: [] });
+    await lineReplyQuick(replyToken, T.timeslotQ(T.timeslotDone), [...T.timeslotOptions, T.timeslotDone]);
+    return;
+  }
+
+  if (state.step === 'timeslot') {
+    // Firebase Realtime Database 會把空陣列（[]）當成沒有資料，讀回來時 state.timeslots
+    // 會是 undefined，不是 []，這裡一律用 Array.isArray 保底，不能直接假設一定是陣列。
+    const currentTimeslots = Array.isArray(state.timeslots) ? state.timeslots : [];
+    if (text === T.timeslotDone) {
+      if (!currentTimeslots.length) {
+        await lineReplyQuick(replyToken, T.timeslotNeedOne, [...T.timeslotOptions, T.timeslotDone]);
+        return;
+      }
+      await setTrialState(convoKey, { ...state, timeslots: currentTimeslots, step: 'experience' });
+      await lineReplyQuick(replyToken, T.experienceQ(state.course), T.experienceOptions);
+      return;
+    }
+    const timeslots = currentTimeslots.includes(text) ? currentTimeslots : [...currentTimeslots, text];
+    await setTrialState(convoKey, { ...state, timeslots });
+    await lineReplyQuick(
+      replyToken,
+      T.timeslotRecorded(timeslots.join(T.listSep), T.timeslotDone),
+      [...T.timeslotOptions, T.timeslotDone]
+    );
+    return;
+  }
+
+  if (state.step === 'experience') {
+    if (text === T.experienceNone) {
+      await setTrialState(convoKey, { ...state, step: 'injury', experience: text });
+      await lineReply(replyToken, T.injuryQ);
+      return;
+    }
+    // 選過團體課／一對一都要多問一句大概上多久，方便老師抓程度
+    await setTrialState(convoKey, { ...state, step: 'experienceDuration', experience: text });
+    await lineReply(replyToken, T.experienceDurationQ);
+    return;
+  }
+
+  if (state.step === 'experienceDuration') {
+    await setTrialState(convoKey, { ...state, step: 'injury', experienceDuration: text });
+    await lineReply(replyToken, T.injuryQ);
+    return;
+  }
+
+  if (state.step === 'injury') {
+    await setTrialState(convoKey, { ...state, step: 'medical', injury: text });
+    await lineReply(replyToken, T.medicalQ);
+    return;
+  }
+
+  if (state.step === 'medical') {
+    await setTrialState(convoKey, { ...state, step: 'frequency', medical: text });
+    await lineReplyQuick(replyToken, T.frequencyQ, T.frequencyOptions);
+    return;
+  }
+
+  if (state.step === 'frequency') {
+    await setTrialState(convoKey, { ...state, step: 'goal', frequency: text });
+    await lineReply(replyToken, T.goalQ);
+    return;
+  }
+
+  if (state.step === 'goal') {
+    const displayName = await getDisplayName(event);
+    const experienceLine = state.experienceDuration
+      ? `${state.experience || ''}（約 ${state.experienceDuration}）`
+      : state.experience || '';
+    // 通知老闆的摘要固定用中文（老闆讀中文），只有語言是英文時多加一行提醒改用英文回覆對方
+    const summary =
+      '🌱 有新的體驗預約填寫完成！\n\n' +
+      (lang === 'en' ? '🌐 語言：English（請用英文跟他聯絡）\n' : '') +
+      '👤 LINE 暱稱：' + (displayName || '（讀不到暱稱）') + '\n' +
+      '🧘 體驗課程：' + (state.course || '') + '\n' +
+      '👥 上課人數：' + (state.capacity || '') + '\n' +
+      '⏰ 方便時段：' + (Array.isArray(state.timeslots) ? state.timeslots.join(T.listSep) : '') + '\n' +
+      '📋 相關運動經驗：' + experienceLine + '\n' +
+      '🤕 舊傷／不適：' + (state.injury || '') + '\n' +
+      '🏥 近期手術／醫療狀況：' + (state.medical || '') + '\n' +
+      '🏃 運動習慣：' + (state.frequency || '') + '\n' +
+      '🎯 想達成的目標：' + text + '\n\n' +
+      '麻煩幫忙安排合適的老師和時間 🙏\n\n輕境運動工作室';
+    let pushed = false;
+    if (OWNER_LINE_USER_IDS.length) {
+      const results = await Promise.all(
+        OWNER_LINE_USER_IDS.map((id) =>
+          pushLineText(id, summary).catch((e) => {
+            console.error('owner push failed for', id, e);
+            return false;
+          })
+        )
+      );
+      pushed = results.some(Boolean);
+    } else {
+      console.warn('OWNER_LINE_USER_IDS 未設定，體驗預約資訊沒有推播出去：', summary);
+    }
+    await clearTrialState(convoKey);
+    await lineReply(replyToken, T.thanks);
+    if (!pushed) console.warn('trial flow finished but owner notification did not send');
+    return;
+  }
 }
 
 const KEYWORDS_ZH = ['提醒', '綁定'];
@@ -538,6 +927,25 @@ async function handleEvent(event) {
   const text = event.message.text.trim();
   const textLower = text.toLowerCase();
 
+  // 老闆專用小工具：在跟官方帳號的 1 對 1 對話裡打「我的ID」，把 userId 讀回去，
+  // 拿去設 OWNER_LINE_USER_ID 環境變數（「我要體驗」流程收集完資料要推播給這個 id）。
+  // 純粹回傳訊息來源自己的 id，不會洩漏給別人，風險很低，故意不做額外權限檢查。
+  if (text === '我的ID' || textLower === 'my id') {
+    await lineReply(event.replyToken, 'userId: ' + (event.source.userId || '（無，這是群組/多人聊天室）'));
+    return;
+  }
+
+  // 「我要體驗」對話流程：中途狀態存在的話，這則訊息一律當成「回答目前這一題」，
+  // 不要再拿去跟「提醒」「綁定」「查詢」等其他關鍵字比對，避免誤觸發別的流程。
+  const trialState = await getTrialState(convoKey).catch((e) => {
+    console.error('trial state check error', e);
+    return null;
+  });
+  if (trialState) {
+    await handleTrialAnswer(trialState, text, event).catch((e) => console.error('trial answer error', e));
+    return;
+  }
+
   const pending = await getPendingBind(convoKey).catch((e) => {
     console.error('pending check error', e);
     return null;
@@ -562,6 +970,17 @@ async function handleEvent(event) {
       await handleCourseCardQuery(dest, qLang, event.replyToken).catch((e) =>
         console.error('course card query error', e)
       );
+      return;
+    }
+
+    // 「我要體驗」/ "trial"——常態功能（不限定任何檔期），精確比對跟其他關鍵字同一套邏輯，
+    // 避免子字串誤觸發；中英文哪個關鍵字觸發，後面就用哪個語言問問題
+    if (text === TRIAL_I18N.zh.keyword) {
+      await startTrialFlow(convoKey, event.replyToken, 'zh').catch((e) => console.error('start trial flow error', e));
+      return;
+    }
+    if (textLower === TRIAL_I18N.en.keyword) {
+      await startTrialFlow(convoKey, event.replyToken, 'en').catch((e) => console.error('start trial flow error', e));
       return;
     }
 
