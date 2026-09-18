@@ -951,6 +951,12 @@ const db={
         <input type="text" id="mgrSearchInp" placeholder="搜尋學員姓名或電話…" oninput="renderMgrList()" style="width:100%;padding:12px 16px 12px 44px;border:1.5px solid var(--border);border-radius:12px;background:var(--white);font-family:&#39;Noto Sans TC&#39;,sans-serif;font-size:16px;color:var(--ink);outline:none">
       </div>
       <div id="mgrStuList"></div>
+      <div style="margin-top:22px;border-top:1px dashed var(--border);padding-top:12px">
+        <div onclick="toggleTrashPanel()" style="cursor:pointer;color:var(--ink3);font-size:13px;display:flex;align-items:center;gap:5px">
+          <span id="trashPanelArrow">▸</span> 已刪除學員（可復原）
+        </div>
+        <div id="trashPanel" style="display:none;margin-top:10px"></div>
+      </div>
     </div>
     <div class="a-page" id="ap-tch"><div style="padding:4px 0"><div id="tchLeaveContent" style="margin-bottom:16px"></div><div id="tchContent"></div></div></div>
     <div class="a-page" id="ap-gcal"><div id="gcalContent" style="padding:4px 0"></div></div>
@@ -6150,9 +6156,27 @@ function closeRecurringOv(){document.getElementById('recurringOv').classList.rem
 // ── 編輯學員 ──
 let editStuId='', ePayMethod='';
 
-function deleteStu(sid){
+// 2026-09-18：改成軟刪除。刪除前先把學員主檔＋他的簽到記錄／流水帳整包存進
+// qingjing_trash（Firebase），再照原本邏輯從 S/R/L 過濾掉。畫面體驗不變，
+// 差別只是資料不會真的消失，可在「學員管理→已刪除學員」復原。
+async function deleteStu(sid){
   const s=S.find(x=>x.id===sid);if(!s)return;
-  if(!confirm('確定要刪除「'+s.name+'」的所有資料？\n此操作無法復原！'))return;
+  if(!confirm('確定要刪除「'+s.name+'」的所有資料？\n（可在下方「已刪除學員」復原）'))return;
+  const recs=R.filter(x=>x.sid===sid);
+  const ledgerRecs=L.filter(x=>x.sid===sid);
+  const trashKey=sid+'_'+Date.now();
+  try{
+    await db.ref('qingjing_trash/'+trashKey).set({
+      deletedAt:new Date().toISOString(),
+      student:s,
+      records:recs,
+      ledger:ledgerRecs
+    });
+  }catch(e){
+    console.warn('寫入回收站失敗，取消刪除以免資料真的消失：',e);
+    alert('刪除失敗（無法先備份到回收站），請檢查網路後再試一次。');
+    return;
+  }
   S=S.filter(x=>x.id!==sid);
   R=R.filter(x=>x.sid!==sid);
   L=L.filter(x=>x.sid!==sid);
@@ -6165,7 +6189,60 @@ function deleteStu(sid){
     if(!Object.keys(SCH[date]).length)delete SCH[date];
   });
   markSchChanged();save();renderMgrList();renderTeachers();
-  showToast('✓ '+s.name+' 已刪除');
+  showToast('✓ '+s.name+' 已刪除（可在「已刪除學員」復原）');
+}
+
+// ── 已刪除學員（回收站）──
+let _trashOpen=false;
+function toggleTrashPanel(){
+  _trashOpen=!_trashOpen;
+  document.getElementById('trashPanel').style.display=_trashOpen?'block':'none';
+  document.getElementById('trashPanelArrow').textContent=_trashOpen?'▾':'▸';
+  if(_trashOpen)loadTrashList();
+}
+async function loadTrashList(){
+  const el=document.getElementById('trashPanel');
+  el.innerHTML='<div style="color:var(--ink3);font-size:13px">載入中…</div>';
+  try{
+    const snap=await db.ref('qingjing_trash').once('value');
+    const data=snap.val()||{};
+    renderTrashList(data);
+  }catch(e){
+    console.warn('讀取回收站失敗：',e);
+    el.innerHTML='<div style="color:var(--red);font-size:13px">讀取回收站失敗，請稍後再試</div>';
+  }
+}
+function renderTrashList(data){
+  const el=document.getElementById('trashPanel');
+  const keys=Object.keys(data||{}).sort((a,b)=>(data[b].deletedAt||'').localeCompare(data[a].deletedAt||''));
+  if(!keys.length){el.innerHTML='<div style="color:var(--ink3);font-size:13px">目前沒有已刪除的學員</div>';return;}
+  el.innerHTML=keys.map(k=>{
+    const item=data[k];const st=item.student||{};
+    const when=item.deletedAt?item.deletedAt.replace('T',' ').slice(0,16):'';
+    return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div style="font-size:13px;color:var(--ink2)">
+        <div style="font-weight:600;color:var(--ink)">${st.name||'（無姓名）'}</div>
+        <div style="color:var(--ink3)">${st.phone||''}　刪除於 ${when}</div>
+      </div>
+      <button onclick="restoreFromTrash('${k}')" style="padding:6px 12px;background:var(--teal2);border:1px solid var(--teal3);border-radius:8px;font-size:13px;cursor:pointer;color:var(--teal);white-space:nowrap">復原</button>
+    </div>`;
+  }).join('');
+}
+async function restoreFromTrash(key){
+  try{
+    const snap=await db.ref('qingjing_trash/'+key).once('value');
+    const item=snap.val();
+    if(!item){alert('找不到這筆回收站資料，可能已經被復原過了');loadTrashList();return;}
+    if(item.student&&!S.find(x=>x.id===item.student.id))S.push(item.student);
+    (item.records||[]).forEach(r=>{if(!R.find(x=>x.id===r.id))R.push(r);});
+    (item.ledger||[]).forEach(l=>{if(!L.find(x=>x.id===l.id))L.push(l);});
+    await db.ref('qingjing_trash/'+key).set(null);
+    markSchChanged();save();renderMgrList();renderTeachers();loadTrashList();
+    showToast('✓ '+(item.student?.name||'學員')+' 已復原');
+  }catch(e){
+    console.warn('復原失敗：',e);
+    alert('復原失敗，請檢查網路後再試一次');
+  }
 }
 
 function openEditStu(sid){
