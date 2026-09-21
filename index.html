@@ -1678,18 +1678,22 @@ let TL=JSON.parse(localStorage.getItem('qjf_tl')||'[]');
 // ══════════════════════════════════════════════════════════════════════════
 const USE_NEW_RECORD_STORE=true;
 
-// 寫入一筆簽到記錄到 qingjing/records/{key}。key 用 Firebase 自動產生的 push key
-// （而非舊機制的 'r'+Date.now()），避免兩台裝置幾乎同時簽到時 id 互撞。
+// 寫入一筆簽到記錄到 qingjing/records/{key}。key 用記錄物件本身既有的 record.id
+// （舊結構 R 陣列一直在用的那個 id，例如 'r'+Date.now()），不用 Firebase push key。
+// 這樣才能跟 scripts/migrate_records_students.py（搬歷史資料時用舊 id 當新結構 key）
+// 保持一致，也讓 dualWriteDeleteRecord(rec.id) 刪除時的路徑跟新增時寫入的路徑對得上
+// （2026-09-21 修正：先前用 push key 寫入、用 id 刪除，兩者對不上，且跟遷移腳本的
+// key 命名不一致，會讓新結構出現「同一筆記錄兩份 key」的重複資料）。
 // 不透過 db.ref()（那支只有 set/patch/once），直接複用同一套 fetch+_authQuery+fbCheck，
-// 兩邊實作彼此獨立，不會互相影響。回傳新產生的 key。
+// 兩邊實作彼此獨立，不會互相影響。
 async function newStoreAddRecord(record){
-  const res=await fetch(FB_URL+'/qingjing/records.json'+await _authQuery(),{
-    method:'POST',
+  if(!record||!record.id)throw new Error('newStoreAddRecord: record 缺少 id');
+  await fetch(FB_URL+'/qingjing/records/'+record.id+'.json'+await _authQuery(),{
+    method:'PUT',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify(record)
   }).then(fbCheck);
-  if(!res||!res.name)throw new Error('newStoreAddRecord: push 未回傳 key：'+JSON.stringify(res));
-  return res.name;
+  return record.id;
 }
 
 // 讀取 qingjing/records 整個節點，轉成陣列（每筆補上 id=節點 key，形狀跟舊 R 陣列的
