@@ -1722,6 +1722,12 @@ async function newStoreLoadStudents(){
   return Object.keys(snap).map(sid=>({id:sid,...snap[sid]}));
 }
 
+// 刪除單一學員節點（軟刪除學員時用；學員本身在舊結構是搬進 qingjing_trash 再整包從
+// S 濾掉，新結構這邊對應直接刪掉 qingjing/students/{sid}，維持「刪除」語意一致）
+async function newStoreDeleteStudent(sid){
+  return fetch(FB_URL+'/qingjing/students/'+sid+'.json'+await _authQuery(),{method:'DELETE'}).then(fbCheck);
+}
+
 // 用「條件寫入」模擬 transaction，原子性更新學員的 used 堂數：讀出目前值＋Firebase
 // 的 ETag，寫入時帶 If-Match；若這段時間節點被別人改過，PUT 會回 412，重讀最新值、
 // 重算、重試。這解決舊機制的真實風險——本機記憶體 s.used++ 再整包覆蓋寫入 S 陣列，
@@ -1779,6 +1785,25 @@ function dualWriteIncrementUsed(sid,delta){
   if(!USE_NEW_RECORD_STORE||!sid)return;
   try{ newStoreIncrementStudentUsed(sid,delta).catch(e=>console.warn('[雙寫] newStoreIncrementStudentUsed 失敗（不影響簽到）',e)); }
   catch(e){ console.warn('[雙寫] newStoreIncrementStudentUsed 失敗（不影響簽到）',e); }
+}
+// 2026-09-21 補：newStoreSetStudent 先前從沒被呼叫過，導致新結構 qingjing/students/{sid}
+// 只有 newStoreIncrementStudentUsed 碰得到（只 PUT .../used 子路徑）——學員節點第一次
+// 出現時只有 used 欄位，姓名/電話/課程/總堂數/付款資料全部沒有，且 used 是從 0 累加
+// delta，跟 S 陣列裡的真實 used 對不上。凡是會改到 S 裡某個學員完整物件的地方
+// （新增學員、編輯資料、續約、改課卡、收款、退費…），都在 save() 之前呼叫這支，把當下
+// 完整的學員物件整包 PUT 進去，蓋掉殘缺節點、對齊真實 used，之後的 increment 才會疊在
+// 正確的基礎上。
+function dualWriteSetStudent(sid,student){
+  if(!USE_NEW_RECORD_STORE||!sid||!student)return;
+  try{ newStoreSetStudent(sid,student).catch(e=>console.warn('[雙寫] newStoreSetStudent 失敗（不影響存檔）',e)); }
+  catch(e){ console.warn('[雙寫] newStoreSetStudent 失敗（不影響存檔）',e); }
+}
+// 學員軟刪除／復原的雙寫。刪除：比照舊結構把這個學員的簽到記錄一併清掉；
+// 復原：把學員節點＋記錄補回去。
+function dualWriteDeleteStudent(sid){
+  if(!USE_NEW_RECORD_STORE||!sid)return;
+  try{ newStoreDeleteStudent(sid).catch(e=>console.warn('[雙寫] newStoreDeleteStudent 失敗（不影響存檔）',e)); }
+  catch(e){ console.warn('[雙寫] newStoreDeleteStudent 失敗（不影響存檔）',e); }
 }
 
 function save(){
@@ -4193,7 +4218,7 @@ function calDeleteSlot(date, teacher, sid, evType){
   if(evType==='next'){
     // 清除學員的 nextBooking
     const s=S.find(x=>x.id===sid);
-    if(s&&s.nextBooking&&s.nextBooking.date===date){s.nextBooking=null;}
+    if(s&&s.nextBooking&&s.nextBooking.date===date){s.nextBooking=null;dualWriteSetStudent(s.id,s);}
     // 也清除 SCH 中若有的對應紀錄
     if(SCH[date]&&SCH[date][teacher]){
       SCH[date][teacher]=SCH[date][teacher].filter(sl=>sl.sid!==sid);
@@ -4284,13 +4309,13 @@ function applySuggestions(){
 // 清除某學員的 nextBooking
 function clearNextBooking(sid){
   const s=S.find(x=>x.id===sid);
-  if(s){s.nextBooking=null;save();}
+  if(s){s.nextBooking=null;dualWriteSetStudent(s.id,s);save();}
 }
 
 // 儲存 nextBooking（從成功畫面呼叫）
 function setNextBooking(sid,date,time){
   const s=S.find(x=>x.id===sid);
-  if(s){s.nextBooking={date,time};save();showToast('✓ 下次上課已預排：'+date+' '+time);}
+  if(s){s.nextBooking={date,time};dualWriteSetStudent(s.id,s);save();showToast('✓ 下次上課已預排：'+date+' '+time);}
 }
 
 // ── 預排下堂改期並通知（保守型：店長手動改時間、手動按送出，不自動偵測日曆異動）──
@@ -4330,7 +4355,7 @@ async function saveRescheduleAndNotify(){
       body:JSON.stringify({phone:s.phone,message:msg})
     });
     const data=await res.json().catch(()=>({}));
-    s.nextBooking={date:newDate,time:newTime};save();renderMgrList();
+    s.nextBooking={date:newDate,time:newTime};dualWriteSetStudent(s.id,s);save();renderMgrList();
     if(data.ok){
       showToast('✓ 已更新時間並通知 '+s.name);
       closeRescheduleOv();
@@ -5944,6 +5969,9 @@ function addStu(){
     }
     dualWriteIncrementUsed(newStu.id,paperUsed);
   }
+  // 新學員整包物件（含上面紙本簽到已套用的 used）雙寫進新結構，避免只靠
+  // newStoreIncrementStudentUsed 建出只有 used 欄位的殘缺節點
+  dualWriteSetStudent(S[S.length-1].id,S[S.length-1]);
   if(isPaid)addLedgerEntry({type:'purchase',sid:S[S.length-1].id,name,teacher,course:selPlan,total:selN,price:selPrice,actualPayment:finalActual,payMethod:selPayMethod,payDate,bonus:Math.round(finalActual*0.03),bonusPaid:false});
   save();renderTeachers();renderMgrList();closeAddOv();
   // 若由 GC 未匹配觸發，新增後自動排入今日課表
@@ -6185,6 +6213,10 @@ async function deleteStu(sid){
   S=S.filter(x=>x.id!==sid);
   R=R.filter(x=>x.sid!==sid);
   L=L.filter(x=>x.sid!==sid);
+  // 新結構雙寫：學員軟刪除在舊結構是整包搬進 qingjing_trash、真的從 S 濾掉，
+  // 新結構這邊比照清掉這個學員的記錄＋學員節點本身，避免留下幽靈資料
+  recs.forEach(r=>dualWriteDeleteRecord(r.id));
+  dualWriteDeleteStudent(sid);
   // 清除排課
   Object.keys(SCH).forEach(date=>{
     Object.keys(SCH[date]).forEach(teacher=>{
@@ -6241,6 +6273,9 @@ async function restoreFromTrash(key){
     if(item.student&&!S.find(x=>x.id===item.student.id))S.push(item.student);
     (item.records||[]).forEach(r=>{if(!R.find(x=>x.id===r.id))R.push(r);});
     (item.ledger||[]).forEach(l=>{if(!L.find(x=>x.id===l.id))L.push(l);});
+    // 新結構雙寫：復原學員節點＋補回這個學員的記錄
+    if(item.student)dualWriteSetStudent(item.student.id,item.student);
+    (item.records||[]).forEach(r=>dualWriteAddRecord(r));
     await db.ref('qingjing_trash/'+key).set(null);
     markSchChanged();save();renderMgrList();renderTeachers();loadTrashList();
     showToast('✓ '+(item.student?.name||'學員')+' 已復原');
@@ -6360,6 +6395,7 @@ function saveEditStu(){
       saveLedger();
     }
   }
+  dualWriteSetStudent(s.id,s);
   save();renderMgrList();renderTeachers();
   closeOvById('editStuOv');
   showToast('✓ '+name+' 的資料已更新');
@@ -7172,8 +7208,9 @@ function _applyPackageToCard(s,np){
     s.actualPayment=np.actualPayment||0; s.bonus=np.bonus||0;
     s.paymentStatus='paid'; delete s.pendingAmount; delete s.pendingType;
   }
+  dualWriteSetStudent(s.id,s);
 }
-function queueRenewPackage(s,np){ s.queued=s.queued||[]; s.queued.push(np); }
+function queueRenewPackage(s,np){ s.queued=s.queued||[]; s.queued.push(np); dualWriteSetStudent(s.id,s); }
 // 目前這張課卡上完了、而且有排隊中的下一期 → 封存目前這張、切換到下一期
 function advanceQueuedCard(s){
   if(!s||!Array.isArray(s.queued)||!s.queued.length)return false;
@@ -7195,7 +7232,7 @@ function sweepQueuedCards(){
 function sweepExpiredNextBookings(){
   const td=todayStr();
   let n=0;
-  S.forEach(s=>{ if(s.nextBooking&&s.nextBooking.date<td){s.nextBooking=null;n++;} });
+  S.forEach(s=>{ if(s.nextBooking&&s.nextBooking.date<td){s.nextBooking=null;dualWriteSetStudent(s.id,s);n++;} });
   if(n)save();
   return n;
 }
@@ -7300,6 +7337,7 @@ function confirmCollectPay(){
   s.paymentStatus='paid';
   delete s.pendingAmount;delete s.pendingType;
   addLedgerEntry({type:entryType,sid:s.id,name:s.name,teacher:s.teacher,course:s.course,total:s.total,price:planPrice,actualPayment:amount,payMethod:collectPayMethod,payDate,bonus,bonusPaid:false});
+  dualWriteSetStudent(s.id,s);
   save();renderMgrList();renderTeachers();
   if(typeof curSid!=='undefined'&&curSid===s.id&&document.getElementById('sc-card')?.classList.contains('active'))renderCard(s.id);
   closeOvById('collectPayOv');
@@ -7476,6 +7514,7 @@ function confirmHomePurchase(){
       installment:false,installEvery:null,expiryDate:'',healthNotes:''
     };
     S.push(newStu);
+    dualWriteSetStudent(newStu.id,newStu);
     addLedgerEntry({type:'new',sid:newStu.id,name:newStu.name,teacher:newStu.teacher,course:_hpSelPlan,total:_hpSelN,price:_hpSelPrice,actualPayment:pay.amount,payMethod:_hpPayMethod,payDate,bonus,bonusPaid:false,note});
     stuName=newStu.name;
   } else {
