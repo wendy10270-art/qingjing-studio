@@ -2269,7 +2269,12 @@ function autoGcSyncOnLoad(){
   localStorage.setItem(todayKey,'1');
   setTimeout(()=>{
     const mockBtn={disabled:false,textContent:''};
-    gcSyncToday({target:mockBtn,preventDefault:()=>{}})
+    // backfillR:false——2026-09-21：這支每天「第一次開頁」1.5 秒後自動觸發的同步，原本沒帶
+    // backfillR，會落到 gcSyncToday 的預設值 true，等於白天任何裝置開頁都會跑一次跟晚上
+    // gc_backfill.py 排程一樣的「自動幫超過下課 2 小時還沒簽到的課補一筆未簽到記錄」邏輯，
+    // 曾經蓋掉當天稍早已經寫入的真簽到記錄。自動補簽只交給打烊後的排程，或店長手動按
+    // 「同步課表」／未來的「核對課堂」。這裡只做「同步今日課表」，不自動補簽到。
+    gcSyncToday({target:mockBtn,preventDefault:()=>{}},{backfillR:false})
       .then(()=>{try{renderTeachers();}catch(e){}})
       .catch(e=>console.warn('Auto GC sync failed:',e));
     syncFutureRentBookings().catch(e=>console.warn('Future rent booking scan failed:',e));
