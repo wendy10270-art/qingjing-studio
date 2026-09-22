@@ -29,6 +29,11 @@
   --orange:#C05C00;--orange2:#FFF0E0;--orange3:#FFD8A0;--orange4:#8B4000;  /* 升等／加購（orange4 為淺底上的可讀深字） */
   --teal:#0F6E56;--teal2:#E1F5EE;--teal3:#A8DFC5;         /* 體驗課 */
   --purple:#6B3FA0;--purple2:#F0E8FF;--purple3:#C9A8F0;   /* 請假／補簽 */
+  /* 課程類型色（2026-09 店長定案，LINE 查詢卡片跟系統課卡要同一套）：
+     瑜珈＝橄欖金棕／皮拉提斯＝深綠／重訓＝磚紅，其他課種維持品牌金棕色不變 */
+  --ct-yoga:#997A2E;--ct-yoga2:#F1EAD6;--ct-yoga3:#D9C79A;
+  --ct-pilates:#0F6E56;--ct-pilates2:#DFF0EA;--ct-pilates3:#A9D6C6;
+  --ct-strength:#993C1D;--ct-strength2:#F6E1D8;--ct-strength3:#E0B3A0;
 }
 .bot-tab.active{color:var(--brown) !important}
 .bot-tab.active svg{stroke:var(--brown)}
@@ -135,9 +140,9 @@ body{background:var(--bg);color:var(--ink);font-size:16px;display:flex;flex-dire
 .trial-top-badge-ttl{font-size:17px;letter-spacing:1px}
 .trial-top-badge-sub{font-size:13px;opacity:.8;margin-top:3px;letter-spacing:.5px}
 .stripe{height:5px;border-radius:3px;margin-bottom:13px}
-.stripe-p{background:linear-gradient(90deg,var(--gold2),var(--gold3))}
-.stripe-s{background:linear-gradient(90deg,var(--blue),var(--blue3))}
-.stripe-y{background:linear-gradient(90deg,var(--green),var(--green3))}
+.stripe-p{background:linear-gradient(90deg,var(--ct-pilates),var(--ct-pilates3))}
+.stripe-s{background:linear-gradient(90deg,var(--ct-strength),var(--ct-strength3))}
+.stripe-y{background:linear-gradient(90deg,var(--ct-yoga),var(--ct-yoga3))}
 .stripe-t{background:linear-gradient(90deg,var(--teal),var(--teal3))}
 .stu-top-row{display:flex;align-items:flex-end;justify-content:space-between}
 .stu-name-big{font-size:29px;letter-spacing:3px}
@@ -145,9 +150,9 @@ body{background:var(--bg);color:var(--ink);font-size:16px;display:flex;flex-dire
 .remain-badge{text-align:center;border-radius:11px;padding:9px 17px;min-width:76px}
 .remain-n{font-size:37px;line-height:1}
 .remain-lbl{font-size:13px;margin-top:3px;opacity:.75;letter-spacing:1px}
-.badge-p{background:var(--gold4);color:var(--gold)}
-.badge-s{background:var(--blue2);color:var(--blue)}
-.badge-y{background:var(--green2);color:var(--green)}
+.badge-p{background:var(--ct-pilates2);color:var(--ct-pilates)}
+.badge-s{background:var(--ct-strength2);color:var(--ct-strength)}
+.badge-y{background:var(--ct-yoga2);color:var(--ct-yoga)}
 .course-type-row{margin-top:11px;padding-top:11px;border-top:1px solid var(--bg2);display:flex;align-items:center;gap:9px}
 .course-type-name{font-size:17px;letter-spacing:1px}
 .course-ratio{font-size:15px;color:var(--ink2)}
@@ -2921,7 +2926,7 @@ function onHomeSearch(val){
     const remain=s.total-s.used;
     const rc=remain<=0?'var(--red)':remain<=3?'#B8860B':remain<=6?'var(--gold2)':'var(--gold)';
     const _ct=getCT(s.course);
-    const _ctColor=_ct==='p'?'var(--gold)':_ct==='s'?'var(--blue)':'var(--green)';
+    const _ctColor=_ct==='p'?'var(--ct-pilates)':_ct==='s'?'var(--ct-strength)':'var(--ct-yoga)';
     return`<div onclick="homeSearchSelect('${s.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--bg2);border-left:4px solid ${_ctColor};cursor:pointer;active:background:var(--bg)${remain<=0?';opacity:.5':''}">
       <div>
         <div style="font-size:15px;font-weight:500;color:var(--ink)">${s.name}</div>
@@ -3271,8 +3276,8 @@ function renderCard(sid){
       <div style="font-size:13px;color:var(--orange4);margin-bottom:8px">如果這次是提早續課，可以把目前這張新卡改排到「下一期」，先把上一期 ${_lastPrev.total-_lastPrev.used} 堂上完。</div>
       <button onclick="undoRenewToQueue('${s.id}')" style="background:#fff;color:var(--orange);border:1px solid var(--orange3);border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;font-family:'Noto Sans TC',sans-serif">改成先上完上一期</button>
     </div>`:'';
-  const _ctColor=ct==='p'?'var(--gold)':ct==='s'?'var(--blue)':'var(--green)';
-  const _ctBg=ct==='p'?'var(--gold4)':ct==='s'?'var(--blue2)':'var(--green2)';
+  const _ctColor=ct==='p'?'var(--ct-pilates)':ct==='s'?'var(--ct-strength)':'var(--ct-yoga)';
+  const _ctBg=ct==='p'?'var(--ct-pilates2)':ct==='s'?'var(--ct-strength2)':'var(--ct-yoga2)';
   const _ctName=ct==='p'?'器械皮拉提斯':ct==='s'?'重訓':'瑜珈';
   document.getElementById('cardTop').innerHTML=leaveAlertToday+leaveAlertUpcoming+unpaidAlert+undoRenewBanner+queuedBanner+lowSessAlert+installAlert+healthAlert+expiryAlert+noteAlert+adminActions+`<div class="stu-top" style="border-left:6px solid ${_ctColor}">
     <div class="${ci.stripe} stripe"></div>
@@ -5737,8 +5742,8 @@ function renderMgrList(){
     const pmCls=PAY_CLS[s.payMethod]||'';
     const pay=s.actualPayment?'$'+s.actualPayment.toLocaleString():'未記錄';
     const _ct=getCT(s.course);
-    const remColor=_ct==='p'?'var(--gold)':_ct==='s'?'var(--blue)':'var(--green)';
-    const _ctBg=_ct==='p'?'var(--gold4)':_ct==='s'?'var(--blue2)':'var(--green2)';
+    const remColor=_ct==='p'?'var(--ct-pilates)':_ct==='s'?'var(--ct-strength)':'var(--ct-yoga)';
+    const _ctBg=_ct==='p'?'var(--ct-pilates2)':_ct==='s'?'var(--ct-strength2)':'var(--ct-yoga2)';
     const _ctName=_ct==='p'?'器械皮拉提斯':_ct==='s'?'重訓':'瑜珈';
     const _ctChip='<span style="display:inline-block;background:'+_ctBg+';color:'+remColor+';border-radius:5px;padding:1px 7px;font-size:13px;font-weight:700;margin-right:6px;vertical-align:middle">'+_ctName+'</span>';
     // 續購／到期／分期提醒：跟課卡上的判斷條件一致，這裡是給店長掃學員清單時能一鍵複製訊息

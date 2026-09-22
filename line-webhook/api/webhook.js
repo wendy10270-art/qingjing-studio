@@ -625,6 +625,27 @@ const GOLD = '#8B6914';
 const GOLD2 = '#C4973A';
 const GOLD3 = '#F0D89A';
 const GOLD4 = '#FBF3DC';
+// 剩餘堂數強調色（紅色系），跟課程類型無關，固定用這組
+const REMAIN_COLOR = '#C0392B';
+const REMAIN_BG = '#FDE8E6';
+
+// 依課程名稱關鍵字判斷課卡配色，2026-09 店長定案：
+// 瑜珈→橄欖金棕／皮拉提斯→深綠／重訓→磚紅，其他課程維持原本金色不變。
+// index.html 有同一套邏輯（CSS 變數 --ct-yoga/--ct-pilates/--ct-strength），
+// 兩邊各自實作、色碼要保持一致，改這裡記得同步改 index.html。
+function courseTypeColors(courseName) {
+  const c = String(courseName || '');
+  if (c.includes('瑜珈') || c.includes('瑜伽')) {
+    return { main: '#997A2E', light: '#D9C79A' };
+  }
+  if (c.includes('皮拉提斯')) {
+    return { main: '#0F6E56', light: '#A9D6C6' };
+  }
+  if (c.includes('重訓') || c.includes('重量訓練')) {
+    return { main: '#993C1D', light: '#E0B3A0' };
+  }
+  return { main: GOLD2, light: GOLD3 };
+}
 
 function todayStr() {
   const d = new Date();
@@ -646,7 +667,10 @@ function studentDisplayName(s, last8) {
 }
 
 // 已用堂數逐格畫成色塊，堂數多（>12）時格子會太擠、也可能超出卡片寬度，改用比例橫條
-function buildProgressBar(used, total) {
+// colors 可傳課程類型配色（見 courseTypeColors），沒傳就照舊用金色
+function buildProgressBar(used, total, colors) {
+  const main = (colors && colors.main) || GOLD2;
+  const light = (colors && colors.light) || GOLD3;
   const u = Math.max(0, used || 0);
   const t = Math.max(0, total || 0);
   if (t > 0 && t <= 12) {
@@ -658,7 +682,7 @@ function buildProgressBar(used, total) {
         width: '16px',
         height: '16px',
         cornerRadius: '4px',
-        backgroundColor: i < u ? GOLD2 : GOLD3,
+        backgroundColor: i < u ? main : light,
         contents: [],
       });
     }
@@ -675,7 +699,7 @@ function buildProgressBar(used, total) {
         flex: Math.max(u, t ? 1 : 0),
         height: '10px',
         cornerRadius: '5px',
-        backgroundColor: GOLD2,
+        backgroundColor: main,
         contents: [],
       },
     ],
@@ -687,7 +711,7 @@ function buildProgressBar(used, total) {
       flex: remain,
       height: '10px',
       cornerRadius: '5px',
-      backgroundColor: GOLD3,
+      backgroundColor: light,
       contents: [],
     });
   }
@@ -769,25 +793,51 @@ function buildCourseCardBubble(s, records, last8, lang, upcoming) {
   const name = studentDisplayName(s, last8);
   const used = s.used || 0;
   const total = s.total || 0;
-  const bodyContents = [
-    {
-      type: 'box',
-      layout: 'baseline',
-      contents: [
-        { type: 'text', text: String(used), size: 'xxl', weight: 'bold', color: GOLD, flex: 0 },
-        {
-          type: 'text',
-          text: `/ ${total} ${lang === 'en' ? 'sessions used' : '堂已使用'}`,
-          size: 'sm',
-          color: '#9A8C78',
-          margin: 'sm',
-          gravity: 'bottom',
-          wrap: true,
-        },
-      ],
-    },
-    buildProgressBar(used, total),
-  ];
+  const remain = Math.max(total - used, 0);
+  const ctColors = courseTypeColors(s.course);
+  const usedRemainRow = {
+    type: 'box',
+    layout: 'horizontal',
+    spacing: 'md',
+    contents: [
+      {
+        type: 'box',
+        layout: 'baseline',
+        flex: 3,
+        contents: [
+          { type: 'text', text: String(used), size: 'xxl', weight: 'bold', color: GOLD, flex: 0 },
+          {
+            type: 'text',
+            text: `/ ${total} ${lang === 'en' ? 'sessions used' : '堂已使用'}`,
+            size: 'sm',
+            color: '#9A8C78',
+            margin: 'sm',
+            gravity: 'bottom',
+            wrap: true,
+          },
+        ],
+      },
+      {
+        type: 'box',
+        layout: 'vertical',
+        flex: 2,
+        backgroundColor: REMAIN_BG,
+        cornerRadius: '10px',
+        paddingAll: '8px',
+        contents: [
+          { type: 'text', text: String(remain), size: 'xl', weight: 'bold', color: REMAIN_COLOR, align: 'center' },
+          {
+            type: 'text',
+            text: lang === 'en' ? 'sessions left' : '剩餘堂數',
+            size: 'xxs',
+            color: REMAIN_COLOR,
+            align: 'center',
+          },
+        ],
+      },
+    ],
+  };
+  const bodyContents = [usedRemainRow, buildProgressBar(used, total, ctColors)];
   const nextRow = buildNextBookingRow(s, lang);
   if (nextRow) bodyContents.push(nextRow);
   const upcomingSection = buildUpcomingSection(upcoming, lang);
@@ -802,7 +852,7 @@ function buildCourseCardBubble(s, records, last8, lang, upcoming) {
       type: 'box',
       layout: 'horizontal',
       paddingAll: '16px',
-      backgroundColor: GOLD2,
+      backgroundColor: ctColors.main,
       contents: [
         {
           type: 'text',
