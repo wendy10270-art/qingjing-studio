@@ -765,7 +765,7 @@ function buildAttendanceSection(records, lang) {
   };
 }
 
-function buildCourseCardBubble(s, records, last8, lang) {
+function buildCourseCardBubble(s, records, last8, lang, upcoming) {
   const name = studentDisplayName(s, last8);
   const used = s.used || 0;
   const total = s.total || 0;
@@ -790,6 +790,8 @@ function buildCourseCardBubble(s, records, last8, lang) {
   ];
   const nextRow = buildNextBookingRow(s, lang);
   if (nextRow) bodyContents.push(nextRow);
+  const upcomingSection = buildUpcomingSection(upcoming, lang);
+  if (upcomingSection) bodyContents.push(upcomingSection);
   const attendanceSection = buildAttendanceSection(records, lang);
   if (attendanceSection) bodyContents.push(attendanceSection);
 
@@ -842,6 +844,223 @@ function buildCourseCardBubble(s, records, last8, lang) {
   };
 }
 
+// ---- 未來已預約課程（讀 Google 日曆）----
+// 這裡是伺服器端版本，邏輯照抄 index.html 的 GC.parseTitle / GC.searchStudentEvents（不重新設計比對規則），
+// 只是換了兩個地方：① 換 access token 改用存在 Firebase 的 refresh_token（見 gc-token.js /
+// gc-oauth-callback.js 同一套），不能像瀏覽器版靠 GC.silentRefresh() 打 Vercel API 再繞一手，
+// 這裡直接在伺服器內部跟 Google 換；② 老師→日曆對照表改讀 Firebase 的 qingjing_teacher_calmap
+// （index.html 的 gcSaveMap() 已經會把這份設定雙寫到這個節點，見該處註解），不是瀏覽器 localStorage。
+const GOOGLE_CLIENT_SECRET_GC = process.env.GOOGLE_CLIENT_SECRET || '';
+
+async function gcGetAccessToken() {
+  if (!GOOGLE_CLIENT_SECRET_GC) return null;
+  const stored = await fb('/qingjing_gc_refresh_token', { method: 'GET' });
+  if (!stored || !stored.refresh_token || !stored.client_id) return null;
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      refresh_token: stored.refresh_token,
+      client_id: stored.client_id,
+      client_secret: GOOGLE_CLIENT_SECRET_GC,
+      grant_type: 'refresh_token',
+    }),
+  });
+  const tokenData = await tokenRes.json();
+  if (!tokenRes.ok || !tokenData.access_token) {
+    throw new Error(tokenData.error_description || tokenData.error || `refresh failed: ${tokenRes.status}`);
+  }
+  return tokenData.access_token;
+}
+
+async function gcApiGet(accessToken, path) {
+  const r = await fetch('https://www.googleapis.com/calendar/v3' + path, {
+    headers: { Authorization: 'Bearer ' + accessToken },
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error((data.error && data.error.message) || `gc api failed: ${r.status}`);
+  return data;
+}
+
+// 照抄 index.html GC.parseTitle：標題格式「課程類型｜姓名 電話（備註）」，
+// 標題/備註含「取消」的事件回傳 null（呼叫端要排除）
+function gcParseTitle(t) {
+  if (!t) return null;
+  if (/^[\(（]取消/.test(t) || /^[\(（]老師出國/.test(t) || /^取消/.test(t)) return null;
+  const m = t.match(/^(.+?)\s*[|｜]\s*(.+)$/);
+  if (!m) return null;
+  const type = m[1].trim();
+  let raw = m[2].trim();
+  let notes = [];
+  raw = raw.replace(/[\(（]([^)\)）]*)[\)）]/g, (_, n) => {
+    notes.push(n.trim());
+    return '';
+  }).trim();
+  if (notes.some((n) => /取消/.test(n))) return null;
+  let name = raw;
+  let phone = '';
+  const allPhones = [...raw.matchAll(/\d{8,10}/g)];
+  if (allPhones.length) {
+    const first = allPhones[0];
+    phone = first[0];
+    name = raw.slice(0, first.index).trim();
+  }
+  return { type, name, phone, notes, raw };
+}
+
+// 照抄 index.html GC.searchStudentEvents 的比對邏輯（所有已對照日曆 + 該學員老師日曆整本抓 +
+// 用姓名/電話後8碼比對、排除取消、只留未來場次），只是查詢改打 Google API 直接用 fetch，
+// 不透過瀏覽器的 GC.api()
+async function gcSearchStudentEvents(accessToken, calMap, name, teacherName, phone, limit) {
+  const calIds = [...new Set([...Object.values(calMap || {}), 'primary'])];
+  const now = new Date();
+  const tMin = encodeURIComponent(now.toISOString());
+  const tMax = encodeURIComponent(new Date(now.getFullYear(), now.getMonth() + 9, now.getDate()).toISOString());
+  const seen = new Set();
+  const allEvents = [];
+
+  const fetchQ = async (calId, q) => {
+    try {
+      const data = await gcApiGet(
+        accessToken,
+        `/calendars/${encodeURIComponent(calId)}/events?q=${encodeURIComponent(q)}&timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=${(limit || 10) + 10}`
+      );
+      (data.items || []).forEach((ev) => {
+        const key = ev.iCalUID || ev.id;
+        if (!seen.has(key)) {
+          seen.add(key);
+          ev.calendarId = calId;
+          allEvents.push(ev);
+        }
+      });
+    } catch (e) {
+      console.warn('gc search error', calId, e.message);
+    }
+  };
+  const fetchAll = async (calId) => {
+    try {
+      const data = await gcApiGet(
+        accessToken,
+        `/calendars/${encodeURIComponent(calId)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=250`
+      );
+      (data.items || []).forEach((ev) => {
+        const key = ev.iCalUID || ev.id;
+        if (!seen.has(key)) {
+          seen.add(key);
+          ev.calendarId = calId;
+          allEvents.push(ev);
+        }
+      });
+    } catch (e) {
+      console.warn('gc fetchAll error', calId, e.message);
+    }
+  };
+
+  const jobs = [];
+  for (const calId of calIds) {
+    jobs.push(fetchQ(calId, name));
+    if (phone && phone.replace(/\D/g, '').length >= 8) {
+      jobs.push(fetchQ(calId, phone.replace(/\D/g, '').slice(-8)));
+    }
+  }
+  const ownCalId = teacherName && (calMap || {})[teacherName];
+  if (ownCalId) jobs.push(fetchAll(ownCalId));
+  await Promise.all(jobs);
+
+  const phoneDigits = (phone || '').replace(/\D/g, '').slice(-8);
+  const cancelRe = /^[\(（]取消|^取消/;
+  const tokenize = (x) =>
+    String(x || '')
+      .split(/[_\s,，、\/]+/)
+      .map((t) => t.trim())
+      .filter((t) => t.length >= 2);
+  const nameTokens = tokenize(name);
+
+  const verified = allEvents.filter((ev) => {
+    if (!ev.summary) return false;
+    if (cancelRe.test(ev.summary)) return false;
+    const evStart = ev.start && ev.start.dateTime
+      ? new Date(ev.start.dateTime)
+      : ev.start && ev.start.date
+      ? new Date(ev.start.date + 'T23:59:59')
+      : null;
+    if (evStart && evStart <= now) return false;
+    if (ev.summary.includes(name)) return true;
+    const parsed = gcParseTitle(ev.summary);
+    if (parsed && parsed.name) {
+      const evTokens = tokenize(parsed.name);
+      if (nameTokens.some((nt) => evTokens.some((et) => et === nt || et.includes(nt) || nt.includes(et)))) return true;
+    }
+    if (phoneDigits) {
+      if (parsed && parsed.phone && parsed.phone.replace(/\D/g, '').slice(-8) === phoneDigits) return true;
+    }
+    return false;
+  });
+
+  verified.sort((a, b) => {
+    const at = (a.start && (a.start.dateTime || a.start.date)) || '';
+    const bt = (b.start && (b.start.dateTime || b.start.date)) || '';
+    return at.localeCompare(bt);
+  });
+  return verified.slice(0, limit || 5);
+}
+
+const UPCOMING_SHOW_LIMIT = 5;
+
+// 查詢卡片用：抓這位學員未來已預約、還沒上的課程場次。查不到、Calendar 沒連接、token 換發失敗
+// 等任何一種情況都吞掉回傳空陣列，不能讓查詢功能因為 Calendar API 掛掉而整個壞掉
+// （簽到堂數、簽到記錄照常顯示）。
+async function findUpcomingBookings(s) {
+  try {
+    const accessToken = await gcGetAccessToken();
+    if (!accessToken) return [];
+    const calMap = (await fb('/qingjing_teacher_calmap', { method: 'GET' })) || {};
+    if (!Object.keys(calMap).length) return [];
+    const events = await gcSearchStudentEvents(accessToken, calMap, s.name, s.teacher, s.phone, UPCOMING_SHOW_LIMIT);
+    return events.map((ev) => {
+      const start = ev.start && ev.start.dateTime ? new Date(ev.start.dateTime) : ev.start && ev.start.date ? new Date(ev.start.date + 'T00:00:00') : null;
+      if (!start) return null;
+      const date = start.getFullYear() + '/' + String(start.getMonth() + 1).padStart(2, '0') + '/' + String(start.getDate()).padStart(2, '0');
+      const time = ev.start.dateTime ? String(start.getHours()).padStart(2, '0') + ':' + String(start.getMinutes()).padStart(2, '0') : '';
+      return { date, time, weekday: start.getDay() };
+    }).filter(Boolean);
+  } catch (e) {
+    console.error('findUpcomingBookings error', e.message);
+    return [];
+  }
+}
+
+function buildUpcomingSection(events, lang) {
+  if (!events || events.length === 0) return null;
+  const rows = events.map((ev) => {
+    const label =
+      lang === 'en'
+        ? `${ev.date} (${WD_EN[ev.weekday]}) ${ev.time}`.trim()
+        : `${ev.date}（${WD_ZH[ev.weekday]}）${ev.time}`.trim();
+    return {
+      type: 'box',
+      layout: 'baseline',
+      spacing: 'sm',
+      contents: [
+        { type: 'text', text: '・', size: 'xs', color: GOLD2, flex: 0 },
+        { type: 'text', text: label, size: 'xs', color: '#5A4A34', flex: 1, wrap: true },
+      ],
+    };
+  });
+
+  return {
+    type: 'box',
+    layout: 'vertical',
+    margin: 'md',
+    spacing: 'xs',
+    contents: [
+      { type: 'text', text: lang === 'en' ? 'Upcoming classes' : '未來已預約課程', size: 'xs', color: '#9A8C78' },
+      { type: 'separator', margin: 'xs', color: GOLD3 },
+      { type: 'box', layout: 'vertical', margin: 'xs', spacing: 'xs', contents: rows },
+    ],
+  };
+}
+
 // 反查這個對話綁的是哪個學員（last8 + name）——跟 findExistingBinding 很像，但那個只回傳 name，
 // 這裡多回傳 last8 才能拿去 findStudentsByPhone 撈課卡資料。只查學員綁定節點，不查老師的，
 // 因為老師沒有課卡資料
@@ -885,7 +1104,13 @@ async function handleCourseCardQuery(dest, lang, replyToken) {
   let bubbles;
   try {
     bubbles = await Promise.all(
-      cards.map(async (s) => buildCourseCardBubble(s, await findRecordsBySid(s.id), binding.last8, lang))
+      cards.map(async (s) => {
+        const [records, upcoming] = await Promise.all([
+          findRecordsBySid(s.id),
+          findUpcomingBookings(s), // 內部已吞掉所有 Calendar API 錯誤，這裡不用另外 try/catch
+        ]);
+        return buildCourseCardBubble(s, records, binding.last8, lang, upcoming);
+      })
     );
   } catch (e) {
     console.error('query records lookup error', e);
