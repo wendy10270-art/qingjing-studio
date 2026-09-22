@@ -80,9 +80,15 @@ async function findStudentsByPhone(last8) {
 // 堂數」（s.used，簽到當下就 +1，不看 confirmed）無關。這裡列給學員看的簽到記錄，要跟
 // 已使用堂數口徑一致，所以不篩 confirmed，否則會出現「顯示已用1堂、記錄清單卻空白」的
 // 不一致（2026-09-16 老闆實測發現）。
+// 續課時舊一期的簽到記錄會標記 archived=true（同一學員 id 沿用，不建新 id，見
+// index.html 第7214/7269行），已使用堂數（s.used）續課時會歸零重算，只算當期，
+// 所以這裡也要排除 archived===true 的舊期記錄，否則查詢卡片的記錄清單會比已使用堂數多
+// 出舊期的簽到記錄，兩者對不上（2026-09-22 查出）。
 async function findRecordsBySid(sid) {
   const records = (await fb('/qingjing/r', { method: 'GET' })) || [];
-  return records.filter((r) => r && r.sid === sid).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  return records
+    .filter((r) => r && r.sid === sid && !r.archived)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 }
 
 // dest 是 {userId} 或 {groupId} 或 {roomId} 三選一——一對二/一對三共用群組時，
