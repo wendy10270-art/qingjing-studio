@@ -1250,6 +1250,10 @@ const db={
     <div class="modal-ttl" id="tchModalTitle">新增師資</div>
     <label>老師姓名</label>
     <input type="text" id="tchName" placeholder="例：Wendy">
+    <label>手機號碼（給老師用 LINE 綁定＋收通知，選填）</label>
+    <input type="tel" id="tchPhone" placeholder="例：0912345678" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:16px;outline:none;margin-bottom:12px">
+    <label>Email（薪資明細寄送用，選填）</label>
+    <input type="email" id="tchEmail" placeholder="例：teacher@example.com" style="width:100%;padding:11px;border:1.5px solid var(--border);border-radius:9px;font-size:16px;outline:none;margin-bottom:12px">
     <div style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:14px;letter-spacing:1px;color:var(--ink2);margin-bottom:12px">各課程師資費設定</div>
     <div id="feeEditorContent"></div>
     <button class="btn-full bf-ink" onclick="saveTchFees()" style="margin-top:6px">儲存師資費率</button>
@@ -7029,6 +7033,8 @@ function openAddTeacher(){
   document.getElementById('tchModalTitle').textContent='新增師資';
   document.getElementById('tchName').value='';
   document.getElementById('tchName').disabled=false;
+  document.getElementById('tchPhone').value='';
+  document.getElementById('tchEmail').value='';
   renderFeeEditor('');
   document.getElementById('tchOv').classList.add('open');
 }
@@ -7037,6 +7043,8 @@ function openEditTeacher(name){
   document.getElementById('tchModalTitle').textContent=name+' 費率設定';
   document.getElementById('tchName').value=name;
   document.getElementById('tchName').disabled=true;
+  document.getElementById('tchPhone').value=TEACHER_PHONES[name]||'';
+  document.getElementById('tchEmail').value=TEACHER_EMAILS[name]||'';
   renderFeeEditor(name);
   document.getElementById('tchOv').classList.add('open');
 }
@@ -7076,6 +7084,12 @@ function saveTchFees(){
   if(existing>=0)CUSTOM_TEACHERS[existing].fees=fees;
   else CUSTOM_TEACHERS.push({name,fees});
   saveCustomTeachers();
+  const phone=document.getElementById('tchPhone').value.trim();
+  if(phone)TEACHER_PHONES[name]=phone;else delete TEACHER_PHONES[name];
+  saveTeacherPhones();
+  const email=document.getElementById('tchEmail').value.trim();
+  if(email)TEACHER_EMAILS[name]=email;else delete TEACHER_EMAILS[name];
+  saveTeacherEmails();
   document.getElementById('tchOv').classList.remove('open');
   renderTchMgr();showToast('✓ '+name+' 師資費率已儲存');
 }
