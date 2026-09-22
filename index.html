@@ -1597,7 +1597,7 @@ function refreshTeacherList(){ALL_TEACHERS=getAllTeachers();}
 function saveCustomTeachers(){
   localStorage.setItem('qjf_ct',JSON.stringify(CUSTOM_TEACHERS));
   refreshTeacherList();
-  db.ref('qingjing_ct').set(CUSTOM_TEACHERS).catch(e=>console.warn('CT sync error:',e));
+  db.ref('qingjing_ct').set(CUSTOM_TEACHERS).catch(e=>{console.warn('CT sync error:',e);if(typeof showToast==='function')showToast('老師清單同步失敗，請檢查網路後重新整理：'+e.message,'r');});
 }
 
 const CT={p:{stripe:'stripe-p',rem:'badge-p'},s:{stripe:'stripe-s',rem:'badge-s'},y:{stripe:'stripe-y',rem:'badge-y'}};
@@ -8516,6 +8516,7 @@ async function gcLoadCalMap(){
   const el=document.getElementById('gcMapRows');if(!el)return;
   el.innerHTML='<div style="padding:12px 0;color:var(--ink3);font-size:14px">載入日曆清單中…</div>';
   try{
+    refreshTeacherList();
     _gcAvailCals=await GC.listCals();
     const calMap=GC.calMap;
     const noOpt='<option value="">── 不設定 ──</option>';
