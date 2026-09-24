@@ -8654,7 +8654,7 @@ function deleteHourlyStaff(name){
 function guessTrialCourse(type){
   const t=type||'';
   if(/皮拉提斯|pilates/i.test(t))return'器械皮拉提斯';
-  if(/重訓|strength|trx/i.test(t))return'重訓課程';
+  if(/重訓|fitness|strength|trx/i.test(t))return'重訓課程';
   if(/瑜[珈伽]|yoga/i.test(t))return'瑜珈課程';
   return null;
 }
