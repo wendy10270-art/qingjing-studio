@@ -8668,6 +8668,12 @@ function getCalCT(type){
   if(/重訓|fitness|strength|trx/i.test(t))return's';
   return'p';
 }
+// 日曆標題是不是「明確寫了課種關鍵字」，而不是 getCalCT 沒關鍵字時的預設猜測。
+// gcMatchStudent 用來分辨兩種情境：標題完全沒提課種（照店長慣例默認皮拉提斯，猜錯了店長也能接受）
+// vs. 標題明確寫「Fitness」但這位學員根本沒開那張課卡（猜哪張都是錯的，不該讓系統自己選，要交給人工）
+function getCalCTExplicit(type){
+  return/瑜[珈伽]|yoga|重訓|fitness|strength|trx|皮拉提斯|pilates/i.test(type||'');
+}
 // 單一事件比對學員：多層比對策略（電話→姓名→去電話姓名→包含比對→共用課卡別名）。
 // 無副作用的純函式，gcMatchDay() 用它逐一比對日曆事件，避免「同步課表」跟「日曆核銷」
 // 各自重新比對一次、比對結果還可能不一致（這正是核銷會重複算錢的根因）。
@@ -8716,6 +8722,13 @@ function gcMatchStudent(parsed,teacher){
   // 不代表「無法判斷」，而是預設就是皮拉提斯，不需要再交給人工指定
   const parsedCT=getCalCT(parsed.type||'');
   const sameSubject=candidates.filter(s=>s.course&&getCT(s.course)===parsedCT);
+  // 標題明確寫課種（例如「Fitness」）、但這個人名下完全沒有對應課種的課卡時，
+  // 不要退回候選清單亂猜一張現有課卡去扣（老闆回報過：找不到該類課卡，系統就會
+  // 「亂開原本有的」，課種、金額都跟著算錯）。改成直接判定比對不到、交給人工到
+  // 「Google 日曆核銷」卡片手動處理——那邊本來就能手動選課種／金額，不會誤扣課卡堂數。
+  // 只有標題完全沒提課種（沒關鍵字，getCalCTExplicit 為 false）才維持原本「預設皮拉提斯」
+  // 的保底猜測，那是店長 2026-08-03 確認過可以接受的排課慣例。
+  if(!sameSubject.length&&getCalCTExplicit(parsed.type||''))return null;
   const typed=sameSubject.length?sameSubject:candidates;
   const thisTeacher=typed.filter(s=>s.teacher===teacher);
   const pool=thisTeacher.length?thisTeacher:typed;
