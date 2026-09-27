@@ -8674,60 +8674,61 @@ function getCalCT(type){
 function gcMatchStudent(parsed,teacher){
   const cleanParsedName=(parsed.name||'').replace(/\d+/g,'').replace(/[^一-龥a-zA-Z\s]/g,'').trim();
   const parsedPhone=(parsed.phone||'').replace(/[\s\-]/g,'');
-  // 先從「此老師」找，找不到再從「所有老師」找（應對空中Amanda等別名情況）
-  let stu=null;
-  for(const scope of[true,false]){
-    const candidates=S.filter(s=>{
-      if(scope&&s.teacher!==teacher)return false;
-      const sp=(s.phone||'').replace(/[\s\-]/g,'');
-      // 1. 電話完整比對
-      if(parsedPhone&&sp&&(sp===parsedPhone||sp.slice(-8)===parsedPhone.slice(-8)))return true;
-      // 2. 完整姓名比對
-      if(s.name&&s.name===parsed.name)return true;
-      // 3. 去除電話後的姓名比對
-      if(cleanParsedName&&s.name&&s.name===cleanParsedName)return true;
-      // 4. 包含比對（日曆名包含系統名，或系統名包含日曆名）
-      // 限制姓名至少 2 個字才能用「包含」比對——單字姓名（如「花」）用包含比對
-      // 幾乎任何日曆標題只要出現那個字就會誤中，曾經把別的老師「芬&花」共用課的
-      // 皮拉提斯出席，誤配到 Amanda 底下單獨一位叫「花」的瑜珈學員身上、扣錯課卡
-      if(s.name&&s.name.length>=2&&parsed.name&&parsed.name.includes(s.name))return true;
-      if(s.name&&s.name.length>=2&&cleanParsedName&&cleanParsedName.includes(s.name))return true;
-      // 5. 共用方案別名比對：系統姓名用「｜」分隔多個人名（如「楊文玉｜怡潔媽｜衣彤」），
-      // 只要其中一個別名跟日曆解析出的姓名相符，就算同一個共用課卡
-      if(s.name&&s.name.includes('｜')){
-        const aliases=s.name.split('｜').map(a=>a.trim()).filter(Boolean);
-        if(aliases.some(a=>a===parsed.name||a===cleanParsedName||(a.length>=2&&parsed.name&&parsed.name.includes(a))||(a.length>=2&&cleanParsedName&&cleanParsedName.includes(a))))return true;
-      }
-      return false;
-    });
-    // 同一人可能同時持有不同課種／不同人數方案的課卡（例如同時買了瑜珈跟皮拉提斯，
-    // 或同時買了 1on1 跟 1on2），電話姓名都比對得上時：
-    // 1. 先試跟日曆標題（parsed.type，如「器械皮拉提斯 1on1」）完全對上課種＋方案的那張
-    // 2. 對不上就先用課種分類（getCalCT，見下方）篩掉課種不符的候選，
-    //    避免像瑜珈跟皮拉提斯課卡同時存在時，因為方案格式對不上就 fallback 到錯的課種
-    // 3. 篩過課種後再試用人數方案（1on1/1on2/1on3）進一步比對
-    // 4. 真的都比對不出來，才退回候選清單第一張（跟以前一樣的保底邏輯）
-    // 2026-08-03 店長確認的排課慣例：皮拉提斯佔多數，老師排課通常不特別標注，
-    // 只有瑜珈／重訓才會在標題寫「Yoga」「Fitness」——所以日曆標題完全沒提到課種
-    // 不代表「無法判斷」，而是預設就是皮拉提斯，不需要再交給人工指定
-    if(candidates.length){
-      const parsedCT=getCalCT(parsed.type||'');
-      const sameSubject=candidates.filter(s=>s.course&&getCT(s.course)===parsedCT);
-      const pool=sameSubject.length?sameSubject:candidates;
-      const ratioM=(parsed.type||'').match(/1on[123]/);
-      const ratio=ratioM?ratioM[0]:'';
-      // pool 裡如果剩不只一人（例如兩個學員剛好完全同名），且課程內容／人數方案
-      // 都分辨不出是哪一個，以前會無差別 fallback 選 pool[0]，等於用猜的把課扣到
-      // 「候選清單裡排第一個」身上——真的撞到同名時，扣錯課卡本人跟老師都不會發現。
-      // 分辨不出來就交給人工指定，不要用猜的（只有 pool 只剩一人時，選 pool[0]
-      // 才是唯一解，不是用猜的）。
-      stu=pool.find(s=>parsed.type&&s.course&&s.course.includes(parsed.type))
-        ||(ratio?pool.find(s=>s.course&&s.course.includes(ratio)):null)
-        ||(pool.length===1?pool[0]:null);
+  // 姓名／電話比對不分老師範圍（應對空中Amanda等別名情況，也應對同一人
+  // 不同課種的課卡分別掛在不同老師名下的情況——課種比對見下方，要用「這個人
+  // 名下所有課卡」一起挑，不能先用老師範圍篩掉才比課種）
+  const candidates=S.filter(s=>{
+    const sp=(s.phone||'').replace(/[\s\-]/g,'');
+    // 1. 電話完整比對
+    if(parsedPhone&&sp&&(sp===parsedPhone||sp.slice(-8)===parsedPhone.slice(-8)))return true;
+    // 2. 完整姓名比對
+    if(s.name&&s.name===parsed.name)return true;
+    // 3. 去除電話後的姓名比對
+    if(cleanParsedName&&s.name&&s.name===cleanParsedName)return true;
+    // 4. 包含比對（日曆名包含系統名，或系統名包含日曆名）
+    // 限制姓名至少 2 個字才能用「包含」比對——單字姓名（如「花」）用包含比對
+    // 幾乎任何日曆標題只要出現那個字就會誤中，曾經把別的老師「芬&花」共用課的
+    // 皮拉提斯出席，誤配到 Amanda 底下單獨一位叫「花」的瑜珈學員身上、扣錯課卡
+    if(s.name&&s.name.length>=2&&parsed.name&&parsed.name.includes(s.name))return true;
+    if(s.name&&s.name.length>=2&&cleanParsedName&&cleanParsedName.includes(s.name))return true;
+    // 5. 共用方案別名比對：系統姓名用「｜」分隔多個人名（如「楊文玉｜怡潔媽｜衣彤」），
+    // 只要其中一個別名跟日曆解析出的姓名相符，就算同一個共用課卡
+    if(s.name&&s.name.includes('｜')){
+      const aliases=s.name.split('｜').map(a=>a.trim()).filter(Boolean);
+      if(aliases.some(a=>a===parsed.name||a===cleanParsedName||(a.length>=2&&parsed.name&&parsed.name.includes(a))||(a.length>=2&&cleanParsedName&&cleanParsedName.includes(a))))return true;
     }
-    if(stu)break;
-  }
-  return stu;
+    return false;
+  });
+  if(!candidates.length)return null;
+  // 同一人可能同時持有不同課種／不同人數方案的課卡（例如同時買了瑜珈跟皮拉提斯，
+  // 或同時買了 1on1 跟 1on2，甚至分別掛在不同老師名下），電話姓名都比對得上時：
+  // 1. 先用課種分類（getCalCT，見下方）從「這個人名下所有課卡」篩掉課種不符的候選——
+  //    課種比對優先於老師範圍，避免同一人課種對的那張課卡掛在別的老師名下，
+  //    卻因為日曆事件開在這位老師名下，就先選中他名下課種不符的課卡、扣錯卡收錯錢
+  //    （2026-09-26 查出：江婕葳同時有皮拉提斯卡跟重訓卡，重訓卡掛在別的老師名下，
+  //    「Fitness 1on1」的日曆事件卻被誤配到這位老師名下的皮拉提斯卡）。
+  // 2. 課種篩過後，才在課種相符的候選裡優先選「這個老師」名下的那張，
+  //    篩不出候選（沒人有對到課種的卡）才退回原本候選清單，一樣優先本老師、再全部老師
+  // 3. 再試用人數方案（1on1/1on2/1on3）進一步比對
+  // 4. 真的都比對不出來，才退回候選清單第一張（跟以前一樣的保底邏輯）
+  // 2026-08-03 店長確認的排課慣例：皮拉提斯佔多數，老師排課通常不特別標注，
+  // 只有瑜珈／重訓才會在標題寫「Yoga」「Fitness」——所以日曆標題完全沒提到課種
+  // 不代表「無法判斷」，而是預設就是皮拉提斯，不需要再交給人工指定
+  const parsedCT=getCalCT(parsed.type||'');
+  const sameSubject=candidates.filter(s=>s.course&&getCT(s.course)===parsedCT);
+  const typed=sameSubject.length?sameSubject:candidates;
+  const thisTeacher=typed.filter(s=>s.teacher===teacher);
+  const pool=thisTeacher.length?thisTeacher:typed;
+  const ratioM=(parsed.type||'').match(/1on[123]/);
+  const ratio=ratioM?ratioM[0]:'';
+  // pool 裡如果剩不只一人（例如兩個學員剛好完全同名），且課程內容／人數方案
+  // 都分辨不出是哪一個，以前會無差別 fallback 選 pool[0]，等於用猜的把課扣到
+  // 「候選清單裡排第一個」身上——真的撞到同名時，扣錯課卡本人跟老師都不會發現。
+  // 分辨不出來就交給人工指定，不要用猜的（只有 pool 只剩一人時，選 pool[0]
+  // 才是唯一解，不是用猜的）。
+  return pool.find(s=>parsed.type&&s.course&&s.course.includes(parsed.type))
+    ||(ratio?pool.find(s=>s.course&&s.course.includes(ratio)):null)
+    ||(pool.length===1?pool[0]:null);
 }
 // 統一日曆比對入口：任一天（ds）的日曆事件只在這裡比對一次，「同步課表」跟「日曆核銷」
 // 都改吃這裡的結果，不再各自重新掃一次日曆——徹底避免同一堂課在兩邊都能被領錢的問題。
