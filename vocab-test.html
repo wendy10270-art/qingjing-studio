@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>📝 生字測驗產生器</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;--bg2:#1a1d2e;--bg3:#232740;
+  --green:#2e7d32;--gl:#4caf50;
+  --blue:#4dabf7;--red:#ef5350;--yellow:#ffa726;
+  --text:#fff;--t2:#9e9e9e;--border:#2d3250;
+  --cell:18mm;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;max-width:620px;margin:0 auto;}
+.screen{display:none}.screen.active{display:block}
+.btn{padding:11px 16px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:transform .12s}
+.btn:active{transform:scale(.96)}
+.btn-g{background:var(--gl);color:#fff}.btn-dim{background:var(--bg3);color:var(--text);border:1px solid var(--border)}
+.btn-red{background:var(--red);color:#fff}.btn-full{width:100%}
+.sec-ttl{font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
+.pg{padding:22px 18px 68px}
+
+.big-ttl{text-align:center;font-size:26px;margin-bottom:2px}
+.big-sub{text-align:center;font-size:11px;color:var(--t2);margin-bottom:18px}
+.ig{margin-bottom:16px}
+.ig label{display:block;font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.ig input,.ig textarea,.ig select{width:100%;padding:11px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;font-family:inherit}
+.ig textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;line-height:1.6;resize:vertical;min-height:150px}
+.ig input:focus,.ig textarea:focus,.ig select:focus{outline:none;border-color:var(--gl)}
+.hint-txt{font-size:11px;color:var(--t2);margin-top:6px;line-height:1.5}
+.count-txt{font-size:11px;color:var(--t2);margin-top:6px}
+
+.seg{display:flex;gap:6px}
+.seg .qb{flex:1;padding:9px 6px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--t2);font-size:13px;cursor:pointer;text-align:center}
+.seg .qb.active{background:var(--gl);color:#fff;border-color:var(--gl)}
+
+.row2{display:flex;gap:10px}
+.row2>.ig{flex:1}
+
+.chk-row{display:flex;align-items:center;gap:9px;padding:11px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;margin-bottom:10px}
+.chk-row input{width:auto;flex:none;accent-color:var(--gl);width:18px;height:18px}
+.chk-row span{font-size:14px;flex:1}
+.chk-row small{display:block;font-size:11px;color:var(--t2);margin-top:2px}
+
+.btnrow{display:flex;gap:9px;margin-top:6px}
+.btnrow .btn{flex:1}
+
+/* ---------- preview / print ---------- */
+.toolbar{display:flex;gap:8px;padding:12px 14px;background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
+.toolbar .btn{flex:1;font-size:13px;padding:10px}
+.paper-wrap{background:var(--bg);padding:18px 10px 60px;overflow-x:auto}
+.paper{width:210mm;max-width:none;margin:0 auto 16px;background:#fff;color:#000;padding:15mm;box-shadow:0 4px 24px rgba(0,0,0,.4)}
+
+.p-title{text-align:center;font-size:22px;font-weight:700;letter-spacing:2px;margin-bottom:14px}
+.p-header{display:flex;flex-wrap:wrap;gap:10px 22px;justify-content:center;border-bottom:1.5px solid #333;padding-bottom:10px;margin-bottom:16px;font-size:14px}
+.p-header span{white-space:nowrap}
+.p-header b{display:inline-block;min-width:60px;border-bottom:1px solid #555;margin-left:2px}
+
+.word-row{display:flex;align-items:flex-end;gap:10px;margin-bottom:9mm;break-inside:avoid;page-break-inside:avoid}
+.row-head{flex:none;width:15mm;padding-bottom:1mm}
+.row-head .num{font-size:14px;font-weight:700}
+.row-head .hint{font-size:10px;color:#555;margin-top:2px;line-height:1.3;word-break:break-word}
+.cells-wrap{flex:1;display:flex;flex-wrap:wrap;align-items:flex-end;gap:6mm 6mm}
+.group{display:flex}
+.cell{width:var(--cell);height:var(--cell);flex:none;position:relative;border:1.3px solid #333;display:flex;align-items:center;justify-content:center}
+.group .cell+.cell{border-left:none}
+.cell .ref{font-family:'BiauKai','DFKai-SB','Kaiti SC','STKaiti','KaiTi',serif;color:#bbb;font-size:calc(var(--cell) * .62);line-height:1}
+.cell.tian::before{content:'';position:absolute;top:0;bottom:0;left:50%;border-left:1px dashed #aaa}
+.cell.tian::after{content:'';position:absolute;left:0;right:0;top:50%;border-top:1px dashed #aaa}
+.cell.mi::before{content:'';position:absolute;top:0;bottom:0;left:50%;border-left:1px dashed #aaa}
+.cell.mi::after{content:'';position:absolute;left:0;right:0;top:50%;border-top:1px dashed #aaa}
+.cell.mi i{position:absolute;inset:0;display:block;font-style:normal}
+.cell.mi i::before{content:'';position:absolute;top:50%;left:50%;width:141%;height:0;border-top:1px dashed #aaa;transform:translate(-50%,-50%) rotate(45deg)}
+.cell.mi i::after{content:'';position:absolute;top:50%;left:50%;width:141%;height:0;border-top:1px dashed #aaa;transform:translate(-50%,-50%) rotate(-45deg)}
+.cell.line{border:none;border-bottom:1.3px solid #333}
+
+.answer-page{page-break-before:always}
+.answer-ttl{text-align:center;font-size:18px;font-weight:700;margin-bottom:16px}
+.answer-list{display:flex;flex-wrap:wrap;gap:10px 26px;font-size:15px;line-height:2.2}
+.answer-list span b{margin-right:4px;color:#666}
+
+.noprint{}
+@media print{
+  body{background:#fff;max-width:none}
+  .noprint{display:none !important}
+  .paper-wrap{padding:0;background:#fff}
+  .paper{width:auto;margin:0;padding:0;box-shadow:none}
+  @page{size:A4;margin:15mm}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ SETUP SCREEN ============ -->
+<div class="screen active" id="screen-setup">
+  <div class="pg">
+    <div class="big-ttl">📝 生字測驗產生器</div>
+    <div class="big-sub">輸入本課生字，產生可列印的測驗 / 練習卷</div>
+
+    <div class="ig">
+      <label>測驗標題</label>
+      <input id="f-title" placeholder="例如：第五課 生字小考" value="生字小考">
+    </div>
+
+    <div class="ig">
+      <label>生字清單（每行一個，選填注音或拼音）</label>
+      <textarea id="f-words" placeholder="遊戲　ㄧㄡˊ ㄒㄧˋ
+快樂　ㄎㄨㄞˋ ㄌㄜˋ
+學校
+朋友　péng yǒu"></textarea>
+      <div class="hint-txt">每行一個生字／詞語。若要附注音或拼音，用 <b>Tab 鍵</b> 或 <b>逗號</b> 隔開，例如：「遊戲,ㄧㄡˊ ㄒㄧˋ」。</div>
+      <div class="count-txt" id="word-count">共 0 個生字</div>
+    </div>
+
+    <div class="ig">
+      <label>模式</label>
+      <div class="seg" id="seg-mode">
+        <div class="qb active" data-mode="test">測驗（聽寫／默寫）</div>
+        <div class="qb" data-mode="practice">練習（描寫）</div>
+      </div>
+    </div>
+
+    <div class="ig">
+      <label>格線樣式</label>
+      <div class="seg" id="seg-grid">
+        <div class="qb active" data-grid="tian">田字格</div>
+        <div class="qb" data-grid="mi">米字格</div>
+        <div class="qb" data-grid="line">無格線</div>
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="ig">
+        <label id="lbl-reps">每字書寫次數</label>
+        <input id="f-reps" type="number" min="1" max="10" value="2">
+      </div>
+      <div class="ig">
+        <label>格子大小</label>
+        <select id="f-size">
+          <option value="14">小</option>
+          <option value="18" selected>中</option>
+          <option value="22">大</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="chk-row">
+      <input type="checkbox" id="f-hint">
+      <span>顯示注音／拼音提示<small>測驗模式若勾選，即為「看提示寫國字」；不勾選則為純聽寫</small></span>
+    </div>
+    <div class="chk-row">
+      <input type="checkbox" id="f-shuffle" checked>
+      <span>隨機排序生字<small>每次產生可重新洗牌，避免孩子死背順序</small></span>
+    </div>
+    <div class="chk-row">
+      <input type="checkbox" id="f-header" checked>
+      <span>顯示表頭<small>班級／姓名／日期／得分欄位</small></span>
+    </div>
+    <div class="chk-row">
+      <input type="checkbox" id="f-answer" checked>
+      <span>附加解答頁<small>方便老師或家長對答案</small></span>
+    </div>
+
+    <div class="btnrow">
+      <div class="btn btn-dim" id="btn-demo">填入範例</div>
+      <div class="btn btn-dim" id="btn-clear">清除</div>
+    </div>
+    <div class="btnrow">
+      <div class="btn btn-g btn-full" id="btn-generate">產生測驗卷 →</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PREVIEW SCREEN ============ -->
+<div class="screen" id="screen-preview">
+  <div class="toolbar noprint">
+    <div class="btn btn-dim" id="btn-back">← 返回編輯</div>
+    <div class="btn btn-dim" id="btn-reshuffle">🔀 重新排序</div>
+    <div class="btn btn-g" id="btn-print">🖨️ 列印</div>
+  </div>
+  <div class="paper-wrap" id="paper-wrap"></div>
+</div>
+
+<script>
+(function(){
+  var $ = function(s,c){ return (c||document).querySelector(s); };
+  var $$ = function(s,c){ return Array.prototype.slice.call((c||document).querySelectorAll(s)); };
+
+  var state = { mode:'test', grid:'tian', currentWords:null };
+
+  var wordsTA = $('#f-words');
+  var wordCount = $('#word-count');
+
+  function parseWords(text){
+    return text.split('\n').map(function(line){ return line.trim(); })
+      .filter(function(l){ return l.length > 0; })
+      .map(function(line){
+        var parts;
+        if(line.indexOf('\t') !== -1) parts = line.split('\t');
+        else if(line.indexOf(',') !== -1) parts = line.split(',');
+        else if(line.indexOf('，') !== -1) parts = line.split('，');
+        else parts = [line];
+        return { word: (parts[0]||'').trim(), hint: (parts[1]||'').trim() };
+      })
+      .filter(function(w){ return w.word.length > 0; });
+  }
+
+  function updateCount(){
+    var n = parseWords(wordsTA.value).length;
+    wordCount.textContent = '共 ' + n + ' 個生字';
+  }
+  wordsTA.addEventListener('input', updateCount);
+
+  $$('#seg-mode .qb').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      $$('#seg-mode .qb').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      state.mode = btn.dataset.mode;
+      $('#lbl-reps').textContent = state.mode === 'practice' ? '練習次數（不含範例字）' : '每字書寫次數';
+    });
+  });
+
+  $$('#seg-grid .qb').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      $$('#seg-grid .qb').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      state.grid = btn.dataset.grid;
+    });
+  });
+
+  $('#btn-demo').addEventListener('click', function(){
+    wordsTA.value = '遊戲\tㄧㄡˊ ㄒㄧˋ\n快樂\tㄎㄨㄞˋ ㄌㄜˋ\n學校\n朋友\tpéng yǒu\n幫忙\tㄅㄤ ㄇㄤˊ';
+    $('#f-title').value = '第五課 生字小考';
+    updateCount();
+  });
+  $('#btn-clear').addEventListener('click', function(){
+    wordsTA.value = '';
+    updateCount();
+  });
+
+  function shuffle(arr){
+    var a = arr.slice();
+    for(var i = a.length - 1; i > 0; i--){
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  function cellHtml(gridStyle, refChar){
+    var inner = refChar ? '<span class="ref">' + escapeHtml(refChar) + '</span>' : '';
+    var extra = gridStyle === 'mi' ? '<i></i>' : '';
+    return '<div class="cell ' + gridStyle + '">' + extra + inner + '</div>';
+  }
+
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+    });
+  }
+
+  function groupHtml(chars, gridStyle, showChar){
+    return '<div class="group">' + chars.map(function(ch){
+      return cellHtml(gridStyle, showChar ? ch : '');
+    }).join('') + '</div>';
+  }
+
+  function render(){
+    var title = $('#f-title').value.trim() || '生字小考';
+    var mode = state.mode;
+    var gridStyle = state.grid;
+    var reps = Math.max(1, parseInt($('#f-reps').value, 10) || 1);
+    var cellSize = $('#f-size').value;
+    var showHint = $('#f-hint').checked;
+    var doShuffle = $('#f-shuffle').checked;
+    var showHeader = $('#f-header').checked;
+    var showAnswer = $('#f-answer').checked;
+
+    var words = parseWords(wordsTA.value);
+    if(words.length === 0){
+      alert('請先輸入至少一個生字');
+      return false;
+    }
+    state.currentWords = doShuffle ? shuffle(words) : words;
+
+    var rowsHtml = state.currentWords.map(function(w, idx){
+      var chars = Array.from(w.word);
+      var groups = '';
+      if(mode === 'practice'){
+        groups += groupHtml(chars, gridStyle, true);
+      }
+      for(var i = 0; i < reps; i++){
+        groups += groupHtml(chars, gridStyle, false);
+      }
+      var hintHtml = (showHint && w.hint) ? '<div class="hint">' + escapeHtml(w.hint) + '</div>' : '';
+      return '<div class="word-row">' +
+        '<div class="row-head"><div class="num">' + (idx + 1) + '.</div>' + hintHtml + '</div>' +
+        '<div class="cells-wrap">' + groups + '</div>' +
+        '</div>';
+    }).join('');
+
+    var headerHtml = showHeader ? (
+      '<div class="p-header">' +
+        '<span>班級：<b>&nbsp;</b></span>' +
+        '<span>姓名：<b>&nbsp;</b></span>' +
+        '<span>日期：<b>&nbsp;</b></span>' +
+        '<span>得分：<b>&nbsp;</b></span>' +
+      '</div>'
+    ) : '';
+
+    var paperHtml =
+      '<div class="paper" style="--cell:' + cellSize + 'mm">' +
+        '<div class="p-title">' + escapeHtml(title) + '</div>' +
+        headerHtml +
+        rowsHtml +
+      '</div>';
+
+    if(showAnswer){
+      var answerItems = state.currentWords.map(function(w, idx){
+        return '<span><b>' + (idx + 1) + '.</b>' + escapeHtml(w.word) + '</span>';
+      }).join('');
+      paperHtml +=
+        '<div class="paper answer-page">' +
+          '<div class="answer-ttl">解答：' + escapeHtml(title) + '</div>' +
+          '<div class="answer-list">' + answerItems + '</div>' +
+        '</div>';
+    }
+
+    $('#paper-wrap').innerHTML = paperHtml;
+    return true;
+  }
+
+  function goPreview(){
+    if(render()){
+      $('#screen-setup').classList.remove('active');
+      $('#screen-preview').classList.add('active');
+      window.scrollTo(0,0);
+    }
+  }
+
+  $('#btn-generate').addEventListener('click', goPreview);
+  $('#btn-back').addEventListener('click', function(){
+    $('#screen-preview').classList.remove('active');
+    $('#screen-setup').classList.add('active');
+  });
+  $('#btn-reshuffle').addEventListener('click', render);
+  $('#btn-print').addEventListener('click', function(){ window.print(); });
+
+  try{
+    var saved = localStorage.getItem('vocabtest_words');
+    if(saved) wordsTA.value = saved;
+    var savedTitle = localStorage.getItem('vocabtest_title');
+    if(savedTitle) $('#f-title').value = savedTitle;
+  }catch(e){}
+  wordsTA.addEventListener('change', function(){
+    try{ localStorage.setItem('vocabtest_words', wordsTA.value); }catch(e){}
+  });
+  $('#f-title').addEventListener('change', function(){
+    try{ localStorage.setItem('vocabtest_title', $('#f-title').value); }catch(e){}
+  });
+
+  updateCount();
+})();
+</script>
+</body>
+</html>
