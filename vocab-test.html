@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>📝 生字測驗產生器</title>
+<link rel="stylesheet" href="vendor/lxgw-wenkai-tc/lxgw-wenkai-tc.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -51,7 +52,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .toolbar{display:flex;gap:8px;padding:12px 14px;background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
 .toolbar .btn{flex:1;font-size:13px;padding:10px}
 .paper-wrap{background:var(--bg);padding:18px 10px 60px;overflow-x:auto}
-.paper{width:210mm;max-width:none;margin:0 auto 16px;background:#fff;color:#000;padding:15mm;box-shadow:0 4px 24px rgba(0,0,0,.4)}
+.paper{width:210mm;max-width:none;margin:0 auto 16px;background:#fff;color:#000;padding:15mm;box-shadow:0 4px 24px rgba(0,0,0,.4);font-family:'LXGW WenKai TC','BiauKai','DFKai-SB','Kaiti TC','Kaiti SC','STKaiti','KaiTi',serif}
 
 .p-title{text-align:center;font-size:22px;font-weight:700;letter-spacing:2px;margin-bottom:14px}
 .p-header{display:flex;flex-wrap:wrap;gap:10px 22px;justify-content:center;border-bottom:1.5px solid #333;padding-bottom:10px;margin-bottom:16px;font-size:14px}
@@ -61,12 +62,12 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .word-row{display:flex;align-items:flex-end;gap:10px;margin-bottom:9mm;break-inside:avoid;page-break-inside:avoid}
 .row-head{flex:none;width:15mm;padding-bottom:1mm}
 .row-head .num{font-size:14px;font-weight:700}
-.row-head .hint{font-size:10px;color:#555;margin-top:2px;line-height:1.3;word-break:break-word}
+.row-head .hint{font-size:10px;color:#555;margin-top:2px;line-height:1.3;word-break:break-word;font-family:'LXGW WenKai TC','BiauKai','DFKai-SB','Kaiti TC','Kaiti SC','STKaiti','KaiTi',serif}
 .cells-wrap{flex:1;display:flex;flex-wrap:wrap;align-items:flex-end;gap:6mm 6mm}
 .group{display:flex}
 .cell{width:var(--cell);height:var(--cell);flex:none;position:relative;border:1.3px solid #333;display:flex;align-items:center;justify-content:center}
 .group .cell+.cell{border-left:none}
-.cell .ref{font-family:'BiauKai','DFKai-SB','Kaiti SC','STKaiti','KaiTi',serif;color:#bbb;font-size:calc(var(--cell) * .62);line-height:1}
+.cell .ref{font-family:'LXGW WenKai TC','BiauKai','DFKai-SB','Kaiti TC','Kaiti SC','STKaiti','KaiTi',serif;color:#bbb;font-size:calc(var(--cell) * .62);line-height:1}
 .cell.tian::before{content:'';position:absolute;top:0;bottom:0;left:50%;border-left:1px dashed #aaa}
 .cell.tian::after{content:'';position:absolute;left:0;right:0;top:50%;border-top:1px dashed #aaa}
 .cell.mi::before{content:'';position:absolute;top:0;bottom:0;left:50%;border-left:1px dashed #aaa}
@@ -75,6 +76,18 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .cell.mi i::before{content:'';position:absolute;top:50%;left:50%;width:141%;height:0;border-top:1px dashed #aaa;transform:translate(-50%,-50%) rotate(45deg)}
 .cell.mi i::after{content:'';position:absolute;top:50%;left:50%;width:141%;height:0;border-top:1px dashed #aaa;transform:translate(-50%,-50%) rotate(-45deg)}
 .cell.line{border:none;border-bottom:1.3px solid #333}
+
+.qa-section-ttl{font-size:15px;font-weight:700;margin-bottom:10mm}
+.qa-grid{display:flex;flex-wrap:wrap;gap:0 7mm;direction:rtl}
+.qa-item{direction:ltr;width:30mm;margin-bottom:8mm}
+.qa-num{font-size:12px;font-weight:700;text-align:center;margin-bottom:2mm}
+.qa-row{display:flex;align-items:flex-start;gap:1.5mm;margin-bottom:1.5mm;justify-content:center}
+.qa-box{width:13mm;height:13mm;border:1.3px solid #333;display:flex;align-items:center;justify-content:center;font-size:9mm;flex:none;font-family:'LXGW WenKai TC','BiauKai','DFKai-SB','Kaiti TC','Kaiti SC','STKaiti','KaiTi',serif}
+.qa-zy{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;font-size:12px;line-height:1.3;min-height:13mm;width:8mm;flex:none;box-sizing:border-box;padding-top:1mm;font-family:'LXGW WenKai TC','BiauKai','DFKai-SB','Kaiti TC','Kaiti SC','STKaiti','KaiTi',serif}
+.qa-zy span{display:block;text-align:center}
+.qa-zy .zy-tone-row{display:flex;justify-content:flex-end;height:0.95em;line-height:1;font-size:0.8em;padding-right:0.1em}
+.qa-zy .zy-tone-row.neutral{justify-content:center;padding-right:0}
+.qa-zy.blank{border:1.3px solid #333}
 
 .answer-page{page-break-before:always}
 .answer-ttl{text-align:center;font-size:18px;font-weight:700;margin-bottom:16px}
@@ -123,10 +136,11 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       <div class="seg" id="seg-mode">
         <div class="qb active" data-mode="test">測驗（聽寫／默寫）</div>
         <div class="qb" data-mode="practice">練習（描寫）</div>
+        <div class="qb" data-mode="match">國字↔注音</div>
       </div>
     </div>
 
-    <div class="ig">
+    <div id="grid-style-block" class="ig">
       <label>格線樣式</label>
       <div class="seg" id="seg-grid">
         <div class="qb active" data-grid="tian">田字格</div>
@@ -135,7 +149,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       </div>
     </div>
 
-    <div class="row2">
+    <div id="reps-size-block" class="row2">
       <div class="ig">
         <label id="lbl-reps">每字書寫次數</label>
         <input id="f-reps" type="number" min="1" max="10" value="2">
@@ -150,10 +164,11 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       </div>
     </div>
 
-    <div class="chk-row">
+    <div id="hint-chk-block" class="chk-row">
       <input type="checkbox" id="f-hint">
       <span>顯示注音／拼音提示<small>測驗模式若勾選，即為「看提示寫國字」；不勾選則為純聽寫</small></span>
     </div>
+    <div id="match-note" class="hint-txt" style="display:none;margin:-4px 0 10px">「國字↔注音」模式：每個生字詞會保留一個字當範例（字與注音都顯示），其餘的字隨機考「看字寫注音」或「看注音寫國字」。缺注音的字會自動查（同上方自動產生注音），請先確認注音正確再產生。</div>
     <div class="chk-row">
       <input type="checkbox" id="f-shuffle" checked>
       <span>隨機排序生字<small>每次產生可重新洗牌，避免孩子死背順序</small></span>
@@ -201,14 +216,31 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 
   var state = { mode:'test', grid:'tian', currentWords:null };
 
-  // 修正 cnchar 詞庫少數已知的多音字誤判（依教育部國語一字多音審定表）
+  // 修正 cnchar 詞庫少數已知的多音字誤判（批次比對測試後手動修正，非官方審定表逐字核對）
   if(window.cnchar){
     cnchar.check = false;
+    cnchar.setSpell('複', 'fu4'); // 補上詞庫缺漏的單字讀音
     var POLY_FIXES = {
       '国语': 'guo2 yu3',
       '血液': 'xue4 ye4',
+      '血管': 'xue4 guan3',
       '宿舍': 'su4 she4',
-      '占卜': 'zhan1 bu3'
+      '占卜': 'zhan1 bu3',
+      '校长': 'xiao4 zhang3',
+      '重复': 'chong2 fu4',
+      '落枕': 'lao4 zhen3',
+      '得到': 'de2 dao4',
+      '得意': 'de2 yi4',
+      '苦闷': 'ku3 men4',
+      '曾经': 'ceng2 jing1',
+      '教育': 'jiao4 yu4',
+      '种类': 'zhong3 lei4',
+      '打倒': 'da3 dao3',
+      '感觉': 'gan3 jue2',
+      '少年': 'shao4 nian2',
+      '解散': 'jie3 san4',
+      '背包': 'bei1 bao1',
+      '挑选': 'tiao1 xuan3'
     };
     Object.keys(POLY_FIXES).forEach(function(k){ cnchar.setPolyPhrase(k, POLY_FIXES[k]); });
   }
@@ -249,12 +281,23 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   }
   wordsTA.addEventListener('input', updateCount);
 
+  function updateModeUI(){
+    var isMatch = state.mode === 'match';
+    $('#grid-style-block').style.display = isMatch ? 'none' : '';
+    $('#reps-size-block').style.display = isMatch ? 'none' : '';
+    $('#hint-chk-block').style.display = isMatch ? 'none' : '';
+    $('#match-note').style.display = isMatch ? '' : 'none';
+    if(!isMatch){
+      $('#lbl-reps').textContent = state.mode === 'practice' ? '練習次數（不含範例字）' : '每字書寫次數';
+    }
+  }
+
   $$('#seg-mode .qb').forEach(function(btn){
     btn.addEventListener('click', function(){
       $$('#seg-mode .qb').forEach(function(b){ b.classList.remove('active'); });
       btn.classList.add('active');
       state.mode = btn.dataset.mode;
-      $('#lbl-reps').textContent = state.mode === 'practice' ? '練習次數（不含範例字）' : '每字書寫次數';
+      updateModeUI();
     });
   });
 
@@ -330,6 +373,52 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     }).join('') + '</div>';
   }
 
+  // 取得一個生字詞每個字對應的注音；缺的話自動查（同自動產生注音）
+  function getCharZhuyinPairs(w){
+    var chars = Array.from(w.word);
+    var hints = w.hint ? w.hint.trim().split(/\s+/).filter(Boolean) : [];
+    if(hints.length !== chars.length){
+      var auto = wordToZhuyin(w.word);
+      hints = auto ? auto.split(' ') : [];
+    }
+    return chars.map(function(ch, i){ return { ch: ch, zy: hints[i] || '' }; });
+  }
+
+  // 注音直式書寫，依教育部「國字注音比例／示例（直式）」：
+  // 聲調符號獨立佔一個較矮的區塊，位於所有注音符號「上方」；
+  // 一聲～四聲靠右對齊，輕聲「˙」則置中對齊，其下方才是由上往下排列的注音符號。
+  function zhuyinVerticalHtml(zy){
+    if(!zy) return '';
+    var chars = Array.from(zy);
+    var toneSet = { 'ˊ':1, 'ˇ':1, 'ˋ':1, '˙':1 };
+    var tone = toneSet[chars[chars.length - 1]] ? chars.pop() : '';
+    var html = '';
+    if(tone){
+      var neutral = tone === '˙';
+      html += '<span class="zy-tone-row' + (neutral ? ' neutral' : '') + '">' + escapeHtml(tone) + '</span>';
+    }
+    html += chars.map(function(ch){ return '<span>' + escapeHtml(ch) + '</span>'; }).join('');
+    return html;
+  }
+
+  // 國字↔注音模式：每個詞留一個字當範例（字＋注音都給），其餘隨機考「看字寫注音」或「看注音寫字」
+  function matchItemHtml(w, idx){
+    var pairs = getCharZhuyinPairs(w);
+    var n = pairs.length;
+    var qIdx = n > 1 ? Math.floor(Math.random() * n) : 0;
+    var blankType = Math.random() < 0.5 ? 'char' : 'zhuyin';
+    var rowsHtml = pairs.map(function(p, i){
+      var isQ = (i === qIdx);
+      var showChar = !(isQ && blankType === 'char');
+      var showZhu = !(isQ && blankType === 'zhuyin');
+      return '<div class="qa-row">' +
+        '<div class="qa-box">' + (showChar ? escapeHtml(p.ch) : '') + '</div>' +
+        '<div class="qa-zy' + (showZhu ? '' : ' blank') + '">' + (showZhu ? zhuyinVerticalHtml(p.zy) : '') + '</div>' +
+        '</div>';
+    }).join('');
+    return '<div class="qa-item"><div class="qa-num">' + (idx + 1) + '</div>' + rowsHtml + '</div>';
+  }
+
   function render(){
     var title = $('#f-title').value.trim() || '生字小考';
     var mode = state.mode;
@@ -348,22 +437,6 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     }
     state.currentWords = doShuffle ? shuffle(words) : words;
 
-    var rowsHtml = state.currentWords.map(function(w, idx){
-      var chars = Array.from(w.word);
-      var groups = '';
-      if(mode === 'practice'){
-        groups += groupHtml(chars, gridStyle, true);
-      }
-      for(var i = 0; i < reps; i++){
-        groups += groupHtml(chars, gridStyle, false);
-      }
-      var hintHtml = (showHint && w.hint) ? '<div class="hint">' + escapeHtml(w.hint) + '</div>' : '';
-      return '<div class="word-row">' +
-        '<div class="row-head"><div class="num">' + (idx + 1) + '.</div>' + hintHtml + '</div>' +
-        '<div class="cells-wrap">' + groups + '</div>' +
-        '</div>';
-    }).join('');
-
     var headerHtml = showHeader ? (
       '<div class="p-header">' +
         '<span>班級：<b>&nbsp;</b></span>' +
@@ -373,17 +446,53 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       '</div>'
     ) : '';
 
-    var paperHtml =
-      '<div class="paper" style="--cell:' + cellSize + 'mm">' +
-        '<div class="p-title">' + escapeHtml(title) + '</div>' +
-        headerHtml +
-        rowsHtml +
-      '</div>';
+    var paperHtml, answerItems;
 
-    if(showAnswer){
-      var answerItems = state.currentWords.map(function(w, idx){
+    if(mode === 'match'){
+      var n = state.currentWords.length;
+      var qaItems = state.currentWords.map(function(w, idx){ return matchItemHtml(w, idx); }).join('');
+      paperHtml =
+        '<div class="paper">' +
+          '<div class="p-title">' + escapeHtml(title) + '</div>' +
+          headerHtml +
+          '<div class="qa-section-ttl">一、國字注音：（每字一分，共 ' + n + ' 分）</div>' +
+          '<div class="qa-grid">' + qaItems + '</div>' +
+        '</div>';
+      answerItems = state.currentWords.map(function(w, idx){
+        var pairs = getCharZhuyinPairs(w);
+        var text = pairs.map(function(p){ return p.ch + p.zy; }).join(' ');
+        return '<span><b>' + (idx + 1) + '.</b>' + escapeHtml(text) + '</span>';
+      }).join('');
+    } else {
+      var rowsHtml = state.currentWords.map(function(w, idx){
+        var chars = Array.from(w.word);
+        var groups = '';
+        if(mode === 'practice'){
+          groups += groupHtml(chars, gridStyle, true);
+        }
+        for(var i = 0; i < reps; i++){
+          groups += groupHtml(chars, gridStyle, false);
+        }
+        var hintHtml = (showHint && w.hint) ? '<div class="hint">' + escapeHtml(w.hint) + '</div>' : '';
+        return '<div class="word-row">' +
+          '<div class="row-head"><div class="num">' + (idx + 1) + '.</div>' + hintHtml + '</div>' +
+          '<div class="cells-wrap">' + groups + '</div>' +
+          '</div>';
+      }).join('');
+
+      paperHtml =
+        '<div class="paper" style="--cell:' + cellSize + 'mm">' +
+          '<div class="p-title">' + escapeHtml(title) + '</div>' +
+          headerHtml +
+          rowsHtml +
+        '</div>';
+
+      answerItems = state.currentWords.map(function(w, idx){
         return '<span><b>' + (idx + 1) + '.</b>' + escapeHtml(w.word) + '</span>';
       }).join('');
+    }
+
+    if(showAnswer){
       paperHtml +=
         '<div class="paper answer-page">' +
           '<div class="answer-ttl">解答：' + escapeHtml(title) + '</div>' +
