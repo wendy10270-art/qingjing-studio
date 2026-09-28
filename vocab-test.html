@@ -112,6 +112,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 朋友　péng yǒu"></textarea>
       <div class="hint-txt">每行一個生字／詞語。若要附注音或拼音，用 <b>Tab 鍵</b> 或 <b>逗號</b> 隔開，例如：「遊戲,ㄧㄡˊ ㄒㄧˋ」。</div>
       <div class="count-txt" id="word-count">共 0 個生字</div>
+      <div class="btnrow">
+        <div class="btn btn-dim btn-full" id="btn-auto-zhuyin">🔤 自動產生注音（缺的欄位）</div>
+      </div>
+      <div class="hint-txt">⚠️ 自動注音為系統判斷，多音字（如：還、長、血、和…）可能不準確，請務必核對後再列印；已手動填寫的欄位不會被覆蓋。</div>
     </div>
 
     <div class="ig">
@@ -183,12 +187,44 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   <div class="paper-wrap" id="paper-wrap"></div>
 </div>
 
+<script src="vendor/cnchar.min.js"></script>
+<script src="vendor/cnchar.trad.min.js"></script>
+<script src="vendor/cnchar.poly.min.js"></script>
+<script type="module">
+  import { p2z } from './vendor/pinyin-to-zhuyin.esm.js';
+  window.__p2z = function(py){ return p2z(py, { tonemarks: true, inputHasToneMarks: true }); };
+</script>
 <script>
 (function(){
   var $ = function(s,c){ return (c||document).querySelector(s); };
   var $$ = function(s,c){ return Array.prototype.slice.call((c||document).querySelectorAll(s)); };
 
   var state = { mode:'test', grid:'tian', currentWords:null };
+
+  // 修正 cnchar 詞庫少數已知的多音字誤判（依教育部國語一字多音審定表）
+  if(window.cnchar){
+    cnchar.check = false;
+    var POLY_FIXES = {
+      '国语': 'guo2 yu3',
+      '血液': 'xue4 ye4',
+      '宿舍': 'su4 she4',
+      '占卜': 'zhan1 bu3'
+    };
+    Object.keys(POLY_FIXES).forEach(function(k){ cnchar.setPolyPhrase(k, POLY_FIXES[k]); });
+  }
+
+  function wordToZhuyin(word){
+    if(!window.cnchar || !window.__p2z) return null;
+    var pys = cnchar.spell(word, 'tone', 'array');
+    var out = [];
+    for(var i = 0; i < pys.length; i++){
+      if(/[一-鿿]/.test(pys[i])) return null; // 有字無法辨識拼音
+      var zy = window.__p2z(pys[i]);
+      if(!zy) return null;
+      out.push(zy);
+    }
+    return out.join(' ');
+  }
 
   var wordsTA = $('#f-words');
   var wordCount = $('#word-count');
@@ -238,6 +274,33 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   $('#btn-clear').addEventListener('click', function(){
     wordsTA.value = '';
     updateCount();
+  });
+
+  $('#btn-auto-zhuyin').addEventListener('click', function(){
+    if(!window.cnchar){
+      alert('注音字典載入失敗，請確認 vendor 資料夾與本檔案放在一起，並重新整理頁面後再試一次。');
+      return;
+    }
+    var words = parseWords(wordsTA.value);
+    if(words.length === 0){
+      alert('請先輸入生字');
+      return;
+    }
+    var filled = 0, failed = [];
+    words.forEach(function(w){
+      if(w.hint) return; // 不覆蓋已手動填寫的注音
+      var zy = wordToZhuyin(w.word);
+      if(zy){ w.hint = zy; filled++; }
+      else{ failed.push(w.word); }
+    });
+    wordsTA.value = words.map(function(w){
+      return w.hint ? (w.word + '\t' + w.hint) : w.word;
+    }).join('\n');
+    updateCount();
+    try{ localStorage.setItem('vocabtest_words', wordsTA.value); }catch(e){}
+    var msg = '已自動填入 ' + filled + ' 個注音。\n\n⚠️ 多音字可能判斷錯誤，請務必逐一核對後再列印！';
+    if(failed.length) msg += '\n\n以下字無法自動辨識，請手動輸入注音：' + failed.join('、');
+    alert(msg);
   });
 
   function shuffle(arr){
