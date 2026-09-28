@@ -80,9 +80,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .qa-grid{display:flex;flex-wrap:wrap;gap:0 7mm;direction:rtl}
 .qa-item{direction:ltr;width:30mm;margin-bottom:8mm}
 .qa-num{font-size:12px;font-weight:700;text-align:center;margin-bottom:2mm}
-.qa-row{display:flex;align-items:center;gap:2mm;margin-bottom:1.5mm;justify-content:center}
+.qa-row{display:flex;align-items:center;gap:1.5mm;margin-bottom:1.5mm;justify-content:center}
 .qa-box{width:13mm;height:13mm;border:1.3px solid #333;display:flex;align-items:center;justify-content:center;font-size:9mm;flex:none;font-family:'BiauKai','DFKai-SB','Kaiti SC','STKaiti','KaiTi',serif}
-.qa-zy{font-size:10.5px;line-height:1.15;min-width:9mm;white-space:pre-line}
+.qa-zy{display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;line-height:1.25;height:13mm;width:6mm;flex:none}
+.qa-zy span{display:block}
 
 .answer-page{page-break-before:always}
 .answer-ttl{text-align:center;font-size:18px;font-weight:700;margin-bottom:16px}
@@ -379,6 +380,14 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     return chars.map(function(ch, i){ return { ch: ch, zy: hints[i] || '' }; });
   }
 
+  // 注音直式書寫：每個符號（含聲調）各自獨立一行，由上往下排列
+  function zhuyinVerticalHtml(zy){
+    if(!zy) return '';
+    return Array.from(zy).map(function(ch){
+      return '<span>' + escapeHtml(ch) + '</span>';
+    }).join('');
+  }
+
   // 國字↔注音模式：每個詞留一個字當範例（字＋注音都給），其餘隨機考「看字寫注音」或「看注音寫字」
   function matchItemHtml(w, idx){
     var pairs = getCharZhuyinPairs(w);
@@ -391,7 +400,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       var showZhu = !(isQ && blankType === 'zhuyin');
       return '<div class="qa-row">' +
         '<div class="qa-box">' + (showChar ? escapeHtml(p.ch) : '') + '</div>' +
-        '<div class="qa-zy">' + (showZhu ? escapeHtml(p.zy) : '') + '</div>' +
+        '<div class="qa-zy">' + (showZhu ? zhuyinVerticalHtml(p.zy) : '') + '</div>' +
         '</div>';
     }).join('');
     return '<div class="qa-item"><div class="qa-num">' + (idx + 1) + '</div>' + rowsHtml + '</div>';
