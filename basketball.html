@@ -796,7 +796,7 @@ function getPin(){return localStorage.getItem('bball_pin')||'';}
 function isLocked(){return !!getPin()&&localStorage.getItem('bball_unlocked')!=='1';}
 function enterApp(){
   if(!A.roster.length){showScreen('setupScreen');renderRL('rList');}
-  else{initUI();showScreen('gameScreen');}
+  else{initUI();showScreen('histScreen');}
 }
 function tryUnlock(){
   const el=document.getElementById('pinIn');
