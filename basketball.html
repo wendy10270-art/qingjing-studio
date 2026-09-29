@@ -162,6 +162,20 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 /* team fouls under scoreboard */
 .tf{font-size:10px;color:var(--t2);margin-top:2px}
 
+/* shot chart */
+.shx{margin:10px 14px 0;background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.shx-sum{padding:10px 12px;font-size:12px;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px}
+.shx-sum::-webkit-details-marker{display:none}
+.shx-sum::before{content:'▸';font-size:10px;transition:transform .15s}
+.shx[open] .shx-sum::before{transform:rotate(90deg)}
+.shx-body{padding:4px 12px 14px;border-top:1px solid var(--border)}
+.shx-hint{font-size:11px;color:var(--gl);text-align:center;margin:8px 0 6px;font-weight:600}
+.shx-hint.dim{color:var(--t2);font-weight:400}
+.court-svg{width:100%;height:auto;border-radius:8px;display:block;cursor:crosshair;touch-action:manipulation;background:#d9822b}
+.shx-legend{display:flex;justify-content:center;gap:16px;margin-top:8px;font-size:11px;color:var(--t2)}
+.lg-mk{color:var(--gl);font-weight:900}
+.lg-x{color:var(--red);font-weight:900}
+
 /* dialog */
 .dov{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:250}
 .dov.show{display:flex}
@@ -507,6 +521,72 @@ function confirmNG(){
 }
 
 // ═══════════════════════════════════════════════════
+// SHOT CHART
+// ═══════════════════════════════════════════════════
+const SHOT_AIDS=['2pt','2miss','3pt','3miss'];
+function courtLinesSVG(){
+  return `
+    <rect x="0" y="0" width="300" height="320" fill="#d9822b"/>
+    <rect x="1" y="1" width="298" height="318" fill="none" stroke="#fff" stroke-width="3"/>
+    <rect x="110" y="0" width="80" height="135" fill="#1a5276" stroke="#fff" stroke-width="2"/>
+    <circle cx="150" cy="135" r="40" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="5,4"/>
+    <path d="M18,0 L18,100 A135,135 0 0,0 282,100 L282,0" fill="none" stroke="#fff" stroke-width="2"/>
+    <line x1="116" y1="16" x2="184" y2="16" stroke="#fff" stroke-width="3"/>
+    <circle cx="150" cy="27" r="9" fill="none" stroke="#fff" stroke-width="2"/>`;
+}
+function shotMarkersSVG(log,limit){
+  const shots=(log||[]).filter(e=>e.loc).slice(0,limit||99);
+  return shots.map(e=>{
+    const cx=(e.loc.x/100*300).toFixed(1),cy=(e.loc.y/100*320).toFixed(1);
+    if(e.ms)return `<g stroke="#ef5350" stroke-width="2.5"><line x1="${cx-5}" y1="${cy-5}" x2="${+cx+5}" y2="${+cy+5}"/><line x1="${cx-5}" y1="${+cy+5}" x2="${+cx+5}" y2="${cy-5}"/></g>`;
+    return `<circle cx="${cx}" cy="${cy}" r="5.5" fill="#4caf50" stroke="#fff" stroke-width="1.5"/>`;
+  }).join('');
+}
+function courtTapXY(evt,svgEl){
+  const rect=svgEl.getBoundingClientRect();
+  const x=Math.max(0,Math.min(100,(evt.clientX-rect.left)/rect.width*100));
+  const y=Math.max(0,Math.min(100,(evt.clientY-rect.top)/rect.height*100));
+  return {x,y};
+}
+function tagLastShotLocation(evt){
+  const g=A.cur;if(!g)return;
+  const idx=g.log.findIndex(e=>SHOT_AIDS.includes(e.aid)&&!e.loc);
+  if(idx===-1){toast('最近沒有投籃可標記','warn');return;}
+  const svg=document.getElementById('shotCourt');if(!svg)return;
+  g.log[idx].loc=courtTapXY(evt,svg);
+  save();
+  const body=document.getElementById('shxBody');if(body)body.innerHTML=shotSectionHTML(g);
+  toast('已標記投籃位置');
+}
+function shotSectionHTML(g){
+  const pending=g.log.find(e=>SHOT_AIDS.includes(e.aid)&&!e.loc);
+  const hint=pending?`<div class="shx-hint">📍 點球場上的位置來標記「${pending.tx}」</div>`
+    :'<div class="shx-hint dim">投籃後，這裡會提示你標記位置</div>';
+  return `${hint}
+    <svg viewBox="0 0 300 320" class="court-svg" id="shotCourt" onclick="tagLastShotLocation(event)">
+      ${courtLinesSVG()}${shotMarkersSVG(g.log)}
+    </svg>
+    <div class="shx-legend"><span class="lg-mk">●</span> 命中　<span class="lg-x">✕</span> 未進</div>`;
+}
+function buildShotCard(log){
+  const shots=(log||[]).filter(e=>e.loc);
+  if(!shots.length)return '';
+  const made=shots.filter(e=>!e.ms).length;
+  return `<details class="pcard pcard-tot" open>
+    <summary class="pcard-sum">
+      <span class="pc-badge tot">🎯</span>
+      <span class="pc-name">投籃位置圖</span>
+      <span class="pc-line">命中 <b>${made}</b>/${shots.length}</span>
+      <span class="pc-chev">▾</span>
+    </summary>
+    <div class="pcard-body">
+      <svg viewBox="0 0 300 320" class="court-svg" style="cursor:default">${courtLinesSVG()}${shotMarkersSVG(log,shots.length)}</svg>
+      <div class="shx-legend"><span class="lg-mk">●</span> 命中　<span class="lg-x">✕</span> 未進</div>
+    </div>
+  </details>`;
+}
+
+// ═══════════════════════════════════════════════════
 // GAME SCREEN
 // ═══════════════════════════════════════════════════
 function initUI(){renderGame();renderStats();renderHist();}
@@ -561,6 +641,12 @@ function renderGame(){
           <button class="actb act-oth" onclick="actSel('foul')">犯規</button>
         </div>
       </div>
+    </div>
+    <details class="shx">
+      <summary class="shx-sum">🎯 投籃位置圖（選填，記錄我方投籃落點）</summary>
+      <div class="shx-body" id="shxBody">${shotSectionHTML(g)}</div>
+    </details>
+    <div class="sec">
       <div style="margin-top:10px">
         <div class="sec-ttl">對手記錄</div>
         <div class="ob">
@@ -708,6 +794,8 @@ function refreshLiveUI(pn){
   }
   const tfEl=document.getElementById('ourTF');
   if(tfEl)tfEl.textContent=`犯規 ${sumFoul(g.players)}`;
+  const shxBody=document.getElementById('shxBody');
+  if(shxBody)shxBody.innerHTML=shotSectionHTML(g);
 }
 
 function renderLog(){
@@ -786,7 +874,7 @@ function renderStats(){
   document.getElementById('statsMeta').textContent=`${A.teamName} vs ${g.opp} · ${g.date}`;
   const w=g.ourPts>g.oppPts?'✅':g.ourPts<g.oppPts?'❌':'';
   document.getElementById('statsScore').innerHTML=`${g.ourPts}<span style="color:var(--t2);font-size:22px"> : </span>${g.oppPts} ${w}`;
-  document.getElementById('statsTbl').innerHTML=buildTbl(g.players);
+  document.getElementById('statsTbl').innerHTML=buildShotCard(g.log)+buildTbl(g.players);
 }
 
 // ═══════════════════════════════════════════════════
@@ -814,7 +902,7 @@ function viewGame(i){
   document.getElementById('hdMeta').textContent=`${A.teamName} vs ${g.opp} · ${g.date}`;
   const w=g.ourPts>g.oppPts?'✅':g.ourPts<g.oppPts?'❌':'';
   document.getElementById('hdScore').innerHTML=`${g.ourPts}<span style="color:var(--t2);font-size:22px"> : </span>${g.oppPts} ${w}`;
-  document.getElementById('hdTbl').innerHTML=buildTbl(g.players);
+  document.getElementById('hdTbl').innerHTML=buildShotCard(g.log)+buildTbl(g.players);
   showScreen('hdScreen');
 }
 function delGame(i){
@@ -856,7 +944,8 @@ function fmtLine(g){
 function genURL(g){
   try{
     const d={team:A.teamName,date:g.date,opp:g.opp,our:g.ourPts,opp2:g.oppPts,
-      players:g.players.map(p=>({n:p.n,name:p.name,s:p.s}))};
+      players:g.players.map(p=>({n:p.n,name:p.name,s:p.s})),
+      shots:(g.log||[]).filter(e=>e.loc).map(e=>({loc:e.loc,ms:e.ms}))};
     return window.location.href.split('#')[0]+'#v='+btoa(unescape(encodeURIComponent(JSON.stringify(d))));
   }catch(e){return null;}
 }
@@ -1015,7 +1104,7 @@ function renderFBLive(data){
   document.getElementById('svM').innerHTML=`${g.ourPts} : ${g.oppPts} ${w}`;
   document.getElementById('svM').style.color='';
   document.getElementById('svD').textContent=`Q${g.quarter||1} · ${g.date||''}`;
-  document.getElementById('svTbl').innerHTML=buildTbl(g.players||[]);
+  document.getElementById('svTbl').innerHTML=buildShotCard(g.log||[])+buildTbl(g.players||[]);
 }
 
 // ═══════════════════════════════════════════════════
@@ -1030,7 +1119,7 @@ function checkSV(){
     document.getElementById('svT').textContent=`${d.team} vs ${d.opp}`;
     document.getElementById('svM').textContent=`${d.our} : ${d.opp2} ${w}`;
     document.getElementById('svD').textContent=d.date;
-    document.getElementById('svTbl').innerHTML=buildTbl(d.players);
+    document.getElementById('svTbl').innerHTML=buildShotCard(d.shots||[])+buildTbl(d.players);
     showScreen('svScreen');return true;
   }catch(e){return false;}
 }
