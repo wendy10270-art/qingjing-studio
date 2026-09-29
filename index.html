@@ -1873,6 +1873,11 @@ function save(){
 }
 
 let syncTimer=null, _lastSaveMs=0;
+// _myLastWriteTs：我自己上一筆寫入成功後，Firebase 回傳的伺服器時間戳（見 doFirebaseWrite）。
+// SSE 收到推播時，只有推播帶的 lastUpdated 剛好等於這個值，才代表「這就是我自己那筆寫入
+// 的回音」，可以安全跳過；不能用「距離我上次存檔是否 <4 秒」這種粗略時間判斷──兩台裝置
+// 在 4 秒內都各自存檔是常見場景，用時間窗判斷會連別台裝置真正的新變更也一起跳過。
+let _myLastWriteTs=0;
 // _localLastUpdated：本地最後一次儲存的時間戳
 let _localLastUpdated=parseInt(localStorage.getItem('qjf_localTs')||'0');
 // _schChanged：標記「課表（SCH）是否被明確修改」
@@ -1903,19 +1908,139 @@ function _applyServerTs(resolved){
 let _pendingWrite=localStorage.getItem('qjf_pendingWrite')==='1';
 function _setPendingWrite(v){_pendingWrite=v;localStorage.setItem('qjf_pendingWrite',v?'1':'0');}
 let _writeRetryTimer=null;
-function doFirebaseWrite(){
-  const writesSch=_schChanged;
-  db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync:',e));
-  const payload=writesSch
-    ?{s:S, r:R, sch:encSchKeys(SCH), t:T, l:L, lastUpdated:{'.sv':'timestamp'}}
-    :{s:S, r:R, t:T, l:L, lastUpdated:{'.sv':'timestamp'}};
-  db.ref('qingjing')[writesSch?'set':'patch'](payload).then(resolved=>{
+
+// ──────────────────────────────────────────────────────────────────────────
+// 多裝置整包覆蓋防呆（2026-09-29 事故：學員續課排隊方案被另一台裝置的簽到操作蓋掉）
+// 問題根因：doFirebaseWrite() 每次都把本機記憶體的 S/R/T/L（+LEDGER）整包覆蓋寫進雲端
+// 對應節點。工作室常同時有兩台裝置在用（前台平板＋老闆手機/電腦），只要兩台裝置在
+// 幾秒內都各自存檔，先寫入那台的變更會被後寫入那台「稍舊的本機整包陣列」蓋掉——
+// 即使兩邊改的是完全不同的學員（例如 A 幫學員甲登記續課排隊、B 幫學員乙簽到），
+// B 存檔時本機記憶體裡根本沒有 A 剛寫入的那筆，一樣會整包覆蓋掉，且完全沒有錯誤訊息。
+// 修法：doFirebaseWrite() 送出整包覆蓋之前，先重讀一次雲端目前最新的 s/r/t/l/流水帳，
+// 跟本機逐筆（以每筆固定的 id）比對「這筆本機內容跟上次同步時是否相同」──沒改過的
+// 一律採用雲端最新版本，只有真的被這次操作動到（或本機新增）的那幾筆才用本機版本蓋過
+// 雲端。這樣兩台裝置幾乎同時各自改不同筆資料時，雙方的變更都能保留下來。
+// ──────────────────────────────────────────────────────────────────────────
+// _lastSyncedSnapshot：目前「本機知道已經跟雲端一致」的逐筆快照，key 是各陣列項目的
+// id，value 是 JSON.stringify 後的內容，用來判斷某一筆資料本機是否從上次同步後改過。
+let _lastSyncedSnapshot={s:new Map(),r:new Map(),t:new Map(),l:new Map(),ledger:new Map()};
+function _snapshotArray(arr){
+  const m=new Map();
+  (Array.isArray(arr)?arr:[]).forEach(item=>{if(item&&item.id!=null)m.set(item.id,JSON.stringify(item));});
+  return m;
+}
+// 本機的 s/r/t/l/ledger 確定跟雲端最新內容一致時（剛成功寫入、或剛從雲端載入套用）呼叫，
+// 更新這份「合併基準」快照。partial 只帶要更新的那幾個 key，其餘保持不動。
+function _updateSyncedSnapshot(partial){
+  if(!partial)return;
+  if(partial.s!==undefined)_lastSyncedSnapshot.s=_snapshotArray(partial.s);
+  if(partial.r!==undefined)_lastSyncedSnapshot.r=_snapshotArray(partial.r);
+  if(partial.t!==undefined)_lastSyncedSnapshot.t=_snapshotArray(partial.t);
+  if(partial.l!==undefined)_lastSyncedSnapshot.l=_snapshotArray(partial.l);
+  if(partial.ledger!==undefined)_lastSyncedSnapshot.ledger=_snapshotArray(partial.ledger);
+}
+// 逐筆合併本機陣列跟雲端最新陣列（以 id 為單位）：
+// - 本機這筆跟 snapshotMap 記錄的「上次同步基準」相同 → 本機沒改過這筆 → 採用雲端版本
+// - 本機這筆跟基準不同（本機這次改過），或 snapshotMap 裡根本沒有（本機新增的）→ 用本機版本
+// - 本機刪除的項目（基準有、本機現在沒有）：只有雲端那筆也還跟基準一樣（沒被別的裝置動過）
+//   才真的讓刪除生效；如果雲端那筆已經跟基準不同（別的裝置剛好也改了這筆），視為衝突，
+//   保守起見保留雲端最新版本，不讓「本機的刪除」意外把別人剛寫入的更新也吃掉
+function _mergeArrayById(localArr,remoteArr,snapshotMap){
+  const remote=Array.isArray(remoteArr)?remoteArr:[];
+  const local=Array.isArray(localArr)?localArr:[];
+  const remoteMap=new Map();
+  remote.forEach(item=>{if(item&&item.id!=null)remoteMap.set(item.id,item);});
+  const localMap=new Map();
+  local.forEach(item=>{if(item&&item.id!=null)localMap.set(item.id,item);});
+  const result=new Map(remoteMap);
+  localMap.forEach((item,id)=>{
+    const snapJson=(snapshotMap instanceof Map)?snapshotMap.get(id):undefined;
+    if(snapJson===undefined||snapJson!==JSON.stringify(item))result.set(id,item);
+  });
+  if(snapshotMap instanceof Map){
+    snapshotMap.forEach((snapJson,id)=>{
+      if(!localMap.has(id)&&remoteMap.has(id)&&JSON.stringify(remoteMap.get(id))===snapJson)result.delete(id);
+    });
+  }
+  // 防呆：S/R/T/L/流水帳每筆理論上都有 id，萬一真的出現沒有 id 的項目，不要憑空丟掉
+  const noIdItems=[...local.filter(x=>x&&x.id==null),...remote.filter(x=>x&&x.id==null)];
+  return[...Array.from(result.values()),...noIdItems];
+}
+// doFirebaseWrite() 真正送出整包覆蓋之前呼叫：讀一次雲端目前最新的 s/r/t/l/流水帳，
+// 跟本機逐筆合併。任何一邊讀取失敗就退回舊行為（直接用本機資料，不合併）——寧可保留
+// 舊的整包覆蓋風險，也不能讓存檔卡住或整個失敗。
+async function _mergeWithRemoteBeforeWrite(){
+  // 跟 loadFromFirebase/loadLedgerFromFB 用同一套 5 秒逾時保護：網路異常時 GET 不能無限期
+  // 掛著，否則 doFirebaseWrite 會卡住不動，_pendingWrite 永遠清不掉、同步狀態永遠卡在
+  // 「同步中」，逾時就直接當作這次讀取失敗，退回本機資料直接寫入
+  const mkTimeout=()=>new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000));
+  const[mainRes,ledgerRes]=await Promise.allSettled([
+    Promise.race([db.ref('qingjing').once('value'),mkTimeout()]),
+    Promise.race([db.ref('qingjing_ledger').once('value'),mkTimeout()])
+  ]);
+  let remote=null,remoteLedger=null;
+  if(mainRes.status==='fulfilled')remote=mainRes.value.val();
+  else console.warn('存檔前讀取雲端最新 s/r/t/l 失敗，這次改用本機資料直接寫入（無法確認是否會覆蓋其他裝置剛寫入的變更）：',mainRes.reason);
+  if(ledgerRes.status==='fulfilled')remoteLedger=ledgerRes.value.val();
+  else console.warn('存檔前讀取雲端最新流水帳失敗，這次改用本機資料直接寫入：',ledgerRes.reason);
+  const useRemoteMain=mainRes.status==='fulfilled'&&remote&&typeof remote==='object';
+  const useRemoteLedger=ledgerRes.status==='fulfilled'&&Array.isArray(remoteLedger);
+  return{
+    s:useRemoteMain?_mergeArrayById(S,remote.s,_lastSyncedSnapshot.s):S,
+    r:useRemoteMain?_mergeArrayById(R,remote.r,_lastSyncedSnapshot.r):R,
+    t:useRemoteMain?_mergeArrayById(T,remote.t,_lastSyncedSnapshot.t):T,
+    l:useRemoteMain?_mergeArrayById(L,remote.l,_lastSyncedSnapshot.l):L,
+    ledger:useRemoteLedger?_mergeArrayById(LEDGER,remoteLedger,_lastSyncedSnapshot.ledger):LEDGER
+  };
+}
+// _writeInFlight/_writeQueued：doFirebaseWrite() 現在是 async（送出整包覆蓋之前要先
+// await 一次合併用的 GET），中間有網路來回的空檔。如果使用者在這個空檔內又觸發了新的
+// save()（debounce 800ms 已經到期、進到這一輪 doFirebaseWrite 之後才又存檔），可能會有
+// 第二個 doFirebaseWrite() 呼叫在第一個還沒寫完時就開始跑，兩者交錯讀寫同一份全域
+// S/R/T/L 物件。用這組旗標把寫入序列化成一次一個：跑到一半又被呼叫，只記一個「稍後
+// 再補跑一次」，不要真的疊加執行，確保每次合併永遠是根據「上一次寫入完全結束後」的
+// 最新本機資料來做，不會兩邊搶著改全域陣列。
+let _writeInFlight=false,_writeQueued=false;
+async function doFirebaseWrite(){
+  if(_writeInFlight){_writeQueued=true;return;}
+  _writeInFlight=true;
+  try{
+    const writesSch=_schChanged;
+    const beforeMergeJson=JSON.stringify({s:S,r:R,t:T,l:L,ledger:LEDGER});
+    const merged=await _mergeWithRemoteBeforeWrite();
+    S=merged.s;R=merged.r;T=merged.t;L=merged.l;LEDGER=merged.ledger;
+    // 合併結果可能吃進了其他裝置剛寫入、本機原本還不知道的變更，先補回本地備份，避免
+    // 使用者接下來看到的畫面跟即將真正寫入雲端的內容不一致
+    const mergedInOtherDeviceChanges=JSON.stringify({s:S,r:R,t:T,l:L,ledger:LEDGER})!==beforeMergeJson;
+    localStorage.setItem('qjf_s',JSON.stringify(S));
+    localStorage.setItem('qjf_r',JSON.stringify(R));
+    localStorage.setItem('qjf_t',JSON.stringify(T));
+    localStorage.setItem('qjf_l',JSON.stringify(L));
+    localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
+    const payload=writesSch
+      ?{s:S, r:R, sch:encSchKeys(SCH), t:T, l:L, lastUpdated:{'.sv':'timestamp'}}
+      :{s:S, r:R, t:T, l:L, lastUpdated:{'.sv':'timestamp'}};
+    db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync:',e));
+    const resolved=await db.ref('qingjing')[writesSch?'set':'patch'](payload);
     if(writesSch)_schChanged=false; // 確認寫入成功才清掉，失敗的話下次重試還是會把 sch 一起送
     _applyServerTs(resolved);
+    _myLastWriteTs=_localLastUpdated; // 記住這是「我自己剛寫入」拿到的時間戳，SSE 收到同一個值時判定為自己的回音
+    _updateSyncedSnapshot({s:S,r:R,t:T,l:L,ledger:LEDGER}); // 這份內容現在就是雲端的最新真相，更新合併基準
     _setPendingWrite(false);
     if(_writeRetryTimer){clearTimeout(_writeRetryTimer);_writeRetryTimer=null;}
     showSyncStatus('synced');
-  }).catch(e=>{
+    if(mergedInOtherDeviceChanges){
+      // 合併時吃進了其他裝置剛寫入、本機畫面還沒顯示過的變更，刷新畫面避免顯示過時資料
+      try{
+        renderTeachers();
+        if(document.getElementById('ap-wage')?.classList.contains('active')&&document.getElementById('wageSubDaily')?.style.display!=='none')renderDaily();
+        if(document.getElementById('ap-ledger')?.classList.contains('active'))renderLedger();
+        if(document.getElementById('ap-mgr')?.classList.contains('active'))renderMgrList();
+        refreshOpenCard();
+        showToast('🔄 資料已從其他裝置同步');
+      }catch(e){console.warn('合併後刷新畫面失敗:',e);}
+    }
+  }catch(e){
     showSyncStatus('error');
     console.warn('Firebase sync error:',e);
     // 寫入失敗：_pendingWrite 保持 true，本機資料在下次成功寫入前都當作「未確認」，
@@ -1923,7 +2048,10 @@ function doFirebaseWrite(){
     // 不需要使用者手動再操作一次才會發現資料其實沒同步成功
     if(_writeRetryTimer)clearTimeout(_writeRetryTimer);
     _writeRetryTimer=setTimeout(doFirebaseWrite,15000);
-  });
+  }finally{
+    _writeInFlight=false;
+    if(_writeQueued){_writeQueued=false;doFirebaseWrite();}
+  }
 }
 function syncToFirebase(){
   clearTimeout(syncTimer);
@@ -2018,6 +2146,7 @@ function loadFromFirebase(callback){
         localStorage.setItem('qjf_sch',JSON.stringify(SCH));
         localStorage.setItem('qjf_t',JSON.stringify(T));
         localStorage.setItem('qjf_l',JSON.stringify(L));
+        _updateSyncedSnapshot({s:S,r:R,t:T,l:L}); // 本機現在跟雲端一致，更新多裝置合併基準
         console.log('✓ 從 Firebase 載入資料（較新），更新時間:',new Date(data.lastUpdated).toLocaleTimeString());
       } else {
         console.log('⚠ 本地資料較新（本地:'+new Date(_localLastUpdated).toLocaleTimeString()+' / Firebase:'+new Date(data.lastUpdated).toLocaleTimeString()+'），略過 Firebase 覆蓋');
@@ -2030,6 +2159,7 @@ function loadFromFirebase(callback){
       localStorage.setItem('qjf_sch',JSON.stringify(SCH));
       localStorage.setItem('qjf_t',JSON.stringify(T));
       localStorage.setItem('qjf_l',JSON.stringify(L));
+      _updateSyncedSnapshot({s:S,r:R,t:T,l:L}); // 本機現在跟雲端一致，更新多裝置合併基準
       console.log('✓ 從 Firebase 載入資料（舊格式）');
     } else {
       console.log('ℹ Firebase 無資料，使用本機資料');
@@ -2048,6 +2178,7 @@ function loadLedgerFromFB(callback){
     if(d&&Array.isArray(d)&&d.length>0){
       LEDGER=d;
       localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
+      _updateSyncedSnapshot({ledger:LEDGER}); // 本機現在跟雲端一致，更新多裝置合併基準
     }
     if(callback)callback();
   }).catch(e=>{console.warn('Ledger load error:',e);if(callback)callback();});
@@ -2208,6 +2339,7 @@ function applyRemoteData(data){
   localStorage.setItem('qjf_sch',JSON.stringify(SCH));
   localStorage.setItem('qjf_t',JSON.stringify(T));
   localStorage.setItem('qjf_l',JSON.stringify(L));
+  _updateSyncedSnapshot({s:S,r:R,t:T,l:L}); // 本機現在跟雲端一致，更新多裝置合併基準
   renderTeachers();
   if((document.getElementById('ap-wage')?.classList.contains('active')&&document.getElementById('wageSubDaily')?.style.display!=='none'))renderDaily();
   if(document.getElementById('ap-ledger')?.classList.contains('active'))renderLedger();
@@ -2226,13 +2358,19 @@ async function startFbListener(){
         const msg=JSON.parse(e.data);
         if(!msg||!msg.data)return;
         if(!initDone){initDone=true;return;} // 跳過首次連線的完整資料（已有最新資料）
-        if(Date.now()-_lastSaveMs<4000)return; // 跳過自己剛儲存的更新
+        // 只跳過「這則推播就是我自己剛才那筆寫入的回音」（推播帶的 lastUpdated 剛好等於
+        // 我剛寫入後拿到的那個值，見 _myLastWriteTs），不能用「距離我上次存檔是否 <4 秒」
+        // 這種粗略時間判斷──兩台裝置在 4 秒內都各自存檔是常見場景，用時間窗判斷會連
+        // 別台裝置真正的新變更也一起跳過，本機記憶體停留在舊快照，下次自己存檔時就會
+        // 整包蓋掉對方剛寫入的資料（2026-09-29 事故的根因之一）
+        if(msg.data.lastUpdated&&msg.data.lastUpdated===_myLastWriteTs)return;
         applyRemoteData(msg.data);
       }catch(err){}
     });
     _fbEs.addEventListener('patch',e=>{
       try{
-        if(Date.now()-_lastSaveMs<4000)return;
+        const msg=JSON.parse(e.data);
+        if(msg&&msg.data&&msg.data.lastUpdated&&msg.data.lastUpdated===_myLastWriteTs)return; // 理由同上
         // patch 是部分更新，重新拉完整資料
         loadFromFirebase(()=>{renderTeachers();refreshOpenCard();showToast('🔄 資料已從其他裝置同步');});
       }catch(err){}
@@ -7327,7 +7465,9 @@ function confirmRenew(){
     payMethod:isUnpaid?'':renewPayMethod, payDate:isUnpaid?'':payDate,
     actualPayment:isUnpaid?0:finalActual, bonus:isUnpaid?0:bonus,
     paymentStatus:isUnpaid?'unpaid':'paid',
-    pendingAmount:isUnpaid?renewSelPrice:undefined, pendingType:'renew'
+    pendingType:'renew',
+    // 只有待收款時才需要 pendingAmount，付清時直接不放這個 key（不要塞 undefined 進物件）
+    ...(isUnpaid?{pendingAmount:renewSelPrice}:{})
   };
   const remainNow=(s.total||0)-(s.used||0);
   const willQueue=remainNow>0;
@@ -7590,7 +7730,8 @@ function confirmHomePurchase(){
       payMethod:isUnpaid?'':_hpPayMethod,payDate:isUnpaid?'':payDate,
       actualPayment:isUnpaid?0:finalActual,
       note,bonus:isUnpaid?0:bonus,bonusNote:'',paymentStatus:isUnpaid?'unpaid':'paid',
-      pendingAmount:isUnpaid?_hpSelPrice:undefined,pendingType:isUnpaid?'new':undefined,
+      // 只有待收款時才需要 pendingAmount/pendingType，付清時直接不放這兩個 key（不要塞 undefined 進物件）
+      ...(isUnpaid?{pendingAmount:_hpSelPrice,pendingType:'new'}:{}),
       installment:false,installEvery:null,expiryDate:'',healthNotes:''
     };
     S.push(newStu);
@@ -7606,7 +7747,9 @@ function confirmHomePurchase(){
       payMethod:isUnpaid?'':_hpPayMethod,payDate:isUnpaid?'':payDate,
       actualPayment:isUnpaid?0:finalActual,bonus:isUnpaid?0:bonus,
       paymentStatus:isUnpaid?'unpaid':'paid',
-      pendingAmount:isUnpaid?_hpSelPrice:undefined,pendingType:'renew'};
+      pendingType:'renew',
+      // 只有待收款時才需要 pendingAmount，付清時直接不放這個 key（不要塞 undefined 進物件）
+      ...(isUnpaid?{pendingAmount:_hpSelPrice}:{})};
     _hpWillQueue=((s.total||0)-(s.used||0))>0;
     if(_hpWillQueue){ queueRenewPackage(s,np); }
     else { _archiveActivePeriod(s); _applyPackageToCard(s,np); if(paperUsed>0)genPaperSigninRecords(s.id,paperUsed,payDate); }
@@ -7712,13 +7855,18 @@ function addLedgerEntry(entry){
   entry.createdAt=entry.payDate||todayStr();
   LEDGER.push(entry);
   localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
-  // 同步到 Firebase
-  db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync error:',e));
+  // 同步到 Firebase：改走 syncToFirebase()／doFirebaseWrite() 那條「先跟雲端合併、
+  // 才整包送出」的保護路徑，不要在這裡直接整包覆蓋 qingjing_ledger——這裡如果跟
+  // doFirebaseWrite() 一樣直接整包蓋，兩台裝置幾乎同時各自入帳時，一樣會互相蓋掉
+  // 對方剛記的那筆（跟 S 陣列整包覆蓋是同一種根因）。有些呼叫端（例如首頁體驗課
+  // 收費）之後不會再呼叫 save()，所以這裡還是要自己踢一次同步，不能省略。
+  syncToFirebase();
 }
 
 function saveLedger(){
   localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
-  db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync error:',e));
+  // 理由同 addLedgerEntry：改走合併保護過的 syncToFirebase()，不要直接整包覆蓋
+  syncToFirebase();
 }
 function saveExpenses(){
   localStorage.setItem('qjf_expenses',JSON.stringify(EXPENSES));
