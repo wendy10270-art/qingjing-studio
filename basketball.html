@@ -7,10 +7,10 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0f1117;--bg2:#1a1d2e;--bg3:#232740;
-  --green:#2e7d32;--gl:#4caf50;
-  --blue:#4dabf7;--red:#ef5350;--yellow:#ffa726;
-  --text:#fff;--t2:#9e9e9e;--border:#2d3250;
+  --bg:#f2f4f8;--bg2:#ffffff;--bg3:#e9ecf2;
+  --gl:#2e7d32;
+  --blue:#1976d2;--red:#d32f2f;--yellow:#e65100;
+  --text:#1a1d2e;--t2:#667085;--border:#dde1e8;
 }
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;max-width:480px;margin:0 auto;}
 .screen{display:none}.screen.active{display:block}
@@ -111,7 +111,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .sb-btn{flex:1;padding:9px 5px;border-radius:8px;border:none;cursor:pointer;font-size:12px;font-weight:600}
 .sb-btn:active{opacity:.8}
 .sb-line{background:#06c755;color:#fff}
-.sb-link{background:var(--blue);color:#000}
+.sb-link{background:var(--blue);color:#fff}
 
 /* history */
 .hh{padding:13px 14px 8px;display:flex;align-items:center;justify-content:space-between}
@@ -194,7 +194,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 /* toast */
 .toast{position:fixed;top:66px;left:50%;transform:translateX(-50%) translateY(-8px);background:var(--gl);color:#fff;padding:8px 18px;border-radius:16px;font-size:12px;font-weight:600;z-index:300;opacity:0;transition:all .25s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-.toast.err{background:var(--red)}.toast.warn{background:var(--yellow);color:#000}
+.toast.err{background:var(--red)}.toast.warn{background:var(--yellow);color:#fff}
 /* firebase */
 .fb-guide{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:11px;color:var(--t2);line-height:1.9;margin-bottom:10px}
 .fb-guide strong{color:var(--text)}
