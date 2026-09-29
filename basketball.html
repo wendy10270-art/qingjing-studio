@@ -131,8 +131,39 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .gs{font-size:20px;font-weight:900;margin-left:auto;white-space:nowrap}
 .gs.win{color:var(--gl)}.gs.loss{color:var(--red)}.gs.draw{color:var(--yellow)}
 .gdel{background:none;border:none;color:var(--t2);font-size:17px;cursor:pointer;padding:4px;margin-left:4px}
-.es{text-align:center;padding:36px 20px;color:var(--t2);font-size:13px}
+.es{text-align:center;padding:48px 24px;color:var(--t2);font-size:13px}
 .ei{font-size:38px;margin-bottom:8px}
+.es-icon{width:80px;height:80px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:34px;margin:0 auto 16px}
+.es-ttl{font-size:17px;font-weight:700;color:var(--text);margin-bottom:6px}
+.es-sub{font-size:13px;color:var(--t2);margin-bottom:18px;line-height:1.5}
+
+/* floating action button */
+.fab{position:fixed;bottom:80px;right:max(20px,calc(50vw - 220px));width:54px;height:54px;border-radius:50%;background:var(--gl);color:#fff;font-size:26px;border:none;box-shadow:0 4px 14px rgba(0,0,0,.25);cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:45}
+.fab:active{transform:scale(.92)}
+
+/* calendar */
+.cal-nav{display:flex;align-items:center;justify-content:space-between;padding:2px 14px 10px}
+.cal-nav-btn{background:var(--bg3);border:none;width:32px;height:32px;border-radius:8px;font-size:16px;color:var(--text);cursor:pointer}
+.cal-nav-btn:active{background:var(--border)}
+.cal-month-lbl{font-size:15px;font-weight:700;cursor:pointer}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:0 14px;margin-bottom:8px}
+.cal-wd{text-align:center;font-size:11px;color:var(--t2);padding-bottom:2px;font-weight:600}
+.cal-cell{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;font-size:13px;cursor:pointer;color:var(--text)}
+.cal-cell:active{background:var(--bg3)}
+.cal-cell.other{color:var(--border);cursor:default}
+.cal-cell.today{font-weight:700;box-shadow:inset 0 0 0 1.5px var(--blue)}
+.cal-cell.sel{background:var(--gl);color:#fff}
+.cal-dots{display:flex;gap:2px;margin-top:2px;height:5px}
+.cal-dot{width:5px;height:5px;border-radius:50%}
+.cal-dot.win{background:var(--gl)}
+.cal-dot.loss{background:var(--red)}
+.cal-dot.draw{background:var(--yellow)}
+.cal-dot.sch{background:var(--blue)}
+.cal-cell.sel .cal-dot{background:#fff}
+.cal-legend{display:flex;gap:14px;padding:0 14px 12px;font-size:11px;color:var(--t2);flex-wrap:wrap}
+.cal-legend span{display:flex;align-items:center;gap:4px}
+.cal-legend i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.cal-agenda-ttl{padding:0 14px 6px;font-size:12px;color:var(--t2);font-weight:600}
 
 /* bottom nav */
 .bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--bg2);border-top:1px solid var(--border);display:flex;z-index:50}
@@ -351,24 +382,29 @@ textarea:focus{outline:none;border-color:var(--gl)}
   </div>
 </div>
 
-<!-- ── HISTORY LIST ── -->
+<!-- ── CALENDAR ── -->
 <div class="screen" id="histScreen">
   <div class="pg">
     <div class="hh">
-      <div style="font-size:16px;font-weight:700" data-i18n="histTitle">📅 歷史賽事</div>
+      <div style="font-size:16px;font-weight:700" data-i18n="histTitle">📅 行事曆</div>
       <button class="btn btn-g" data-i18n="newGameBtn" style="padding:7px 13px;font-size:13px" onclick="openNGD()">＋ 新比賽</button>
     </div>
-    <div class="ob" style="margin:0 14px 10px">
-      <div class="obtn sel" id="histTabDone" onclick="setHistTab('done')" data-i18n="tabCompleted">已完成</div>
-      <div class="obtn" id="histTabSch" onclick="setHistTab('sch')" data-i18n="tabSchedule">賽程</div>
+    <div class="cal-nav">
+      <button class="cal-nav-btn" onclick="calShift(-1)">‹</button>
+      <div class="cal-month-lbl" id="calMonthLbl" onclick="calGoToday()"></div>
+      <button class="cal-nav-btn" onclick="calShift(1)">›</button>
     </div>
-    <div class="hl" id="histList"></div>
-    <div id="schWrap" style="display:none">
-      <div style="padding:0 14px 10px">
-        <button class="btn btn-full btn-dim" onclick="openSchD()" data-i18n="addScheduleBtn">🗓️ 新增賽程</button>
-      </div>
-      <div class="hl" id="schList"></div>
+    <div class="cal-grid" id="calWd"></div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="cal-legend">
+      <span><i style="background:var(--gl)"></i><span data-i18n="calLegendWin">勝</span></span>
+      <span><i style="background:var(--red)"></i><span data-i18n="calLegendLoss">敗</span></span>
+      <span><i style="background:var(--yellow)"></i><span data-i18n="calLegendDraw">平</span></span>
+      <span><i style="background:var(--blue)"></i><span data-i18n="calLegendSch">賽程</span></span>
     </div>
+    <div class="cal-agenda-ttl" id="calAgendaTtl"></div>
+    <div class="hl" id="calAgenda"></div>
+    <button class="fab" id="addSchFab" onclick="openSchD()" data-i18n-title="addScheduleBtn" title="🗓️ 新增賽程">＋</button>
   </div>
   <div class="bnav">
     <button class="nb" id="nG3" onclick="go('game')"><span class="ni">🏀</span><span data-i18n="navGame">比賽</span></button>
@@ -518,6 +554,8 @@ let selP=null; // currently selected player number for quick-record
 let shotFilterP=null; // shot chart player filter (null = all players)
 let pbpQFilter='all'; // play-by-play quarter filter
 let pbpNewestFirst=true; // play-by-play sort order
+let calYear=new Date().getFullYear(),calMonth=new Date().getMonth(); // calendar screen: month being viewed
+let calSelDate=null; // calendar screen: selected day (YYYY-MM-DD), defaults to today on first render
 // cur = {id,date,opp,ourPts,oppPts,quarter,players:[{n,name,s}],log:[]}
 
 // ═══════════════════════════════════════════════════
@@ -528,11 +566,11 @@ const I18N={
   zh:{
     appTitle:'🏀 籃球比賽統計表',appSub:'快速點按記錄 · 多場存檔 · 一鍵分享',
     teamNameLbl:'我方隊名',teamNamePh:'例：小虎隊',addRosterLbl:'新增球員名單',namePh:'姓名',
-    saveStart:'儲存並開始 →',
+    saveStart:'儲存隊伍 →',
     howToTitle:'怎麼記錄比賽',
     howToBody:'兩步驟：先點上排「<span style="color:var(--gl)">選球員</span>」，再點下方動作按鈕（投籃、籃板、助攻…），按鈕會一直套用在你選的球員身上，直到你換選別人。',
     howToVoice:'也可以用語音輸入（比賽畫面展開「語音輔助記錄」），但現場吵雜時建議直接用按鈕比較準。語音指令僅支援中文。',
-    navGame:'比賽',navStats:'統計',navHist:'歷史',navTeam:'球隊',
+    navGame:'比賽',navStats:'統計',navHist:'行事曆',navTeam:'球隊',
     newGameTitle:'🏀 開始新比賽',oppPh:'對手隊名（例：雄鷹隊）',cancel:'取消',start:'開始',
     noGame:'尚無進行中的比賽',newGameBtn:'＋ 新比賽',
     selPlayerStep:'1. 先選球員',foulShort:'犯規',
@@ -559,11 +597,13 @@ const I18N={
     adminPinLbl:'設定 / 修改密碼',adminPinPh:'留空＝不設密碼',adminPinSave:'儲存密碼',
     adminPinSetOn:'✓ 已設定密碼保護',adminPinSetOff:'✗ 尚未設定密碼',adminLockNow:'🔒 立即鎖定',
     toastPinSaved:'密碼已儲存',toastPinCleared:'已取消密碼保護',toastLocked:'已鎖定',
-    tabCompleted:'已完成',tabSchedule:'賽程',addScheduleBtn:'🗓️ 新增賽程',
+    addScheduleBtn:'🗓️ 新增賽程',
     addScheduleTitle:'🗓️ 新增賽程',schDateLbl:'日期',schTimeLbl:'時間（選填）',schVenuePh:'地點（選填）',
-    saveBtn:'儲存',noSchedule:'尚無安排的賽程',startRecording:'開始記錄',upcomingTitle:'📅 即將到來的賽事',
+    saveBtn:'儲存',startRecording:'開始記錄',upcomingTitle:'📅 即將到來的賽事',
     toastNeedDateOpp:'請輸入日期和對手',confirmDelSch:'確定刪除這筆賽程？',toastSchAdded:'已加入賽程',
-    histTitle:'📅 歷史賽事',backToHist:'← 返回歷史',shareThisGame:'📤 分享這場統計',shareLiveLinkShort:'📡 即時連結',
+    noGameSub:'點下方按鈕開始記錄',
+    calLegendWin:'勝',calLegendLoss:'敗',calLegendDraw:'平',calLegendSch:'賽程',calNoEvents:'這天沒有安排的賽事',
+    histTitle:'📅 行事曆',backToHist:'← 返回行事曆',shareThisGame:'📤 分享這場統計',shareLiveLinkShort:'📡 即時連結',
     teamMgmt:'⚙️ 球隊管理',teamNameFieldLbl:'隊名',saveTeamName:'儲存隊名',rosterTitle:'球員名單',
     dataMgmt:'資料管理',clearAllBtn:'🗑 清除所有資料',
     cloudSync:'☁️ 雲端同步（Firebase）',cloudNotConnected:'✗ 未連接雲端',cloudConnected:'✓ 已連接 · 代碼：',
@@ -577,7 +617,7 @@ const I18N={
     liveUpdating:'LIVE 即時更新',producedBy:'由「籃球比賽統計表」產生',
     langLbl:'App 語言 / Language',curLangZh:'目前：中文',curLangEn:'目前：English',
     noGameStats:'目前無進行中比賽',startGameFirst:'請先開始一場比賽',noRoster:'尚無球員',
-    noHist:'尚無歷史賽事',histAutoSave:'完成比賽後自動存入',teamTotal:'全隊合計',
+    teamTotal:'全隊合計',
     statPts:'得分',statReb:'籃板',statAst:'助攻',
     statOreb:'進攻籃板',statDreb:'防守籃板',statStl:'抄截',statBlk:'蓋帽',statTo:'失誤',statFoul:'犯規',
     stat2p:'2分球',stat3p:'3分球',statFt:'罰球',
@@ -620,11 +660,11 @@ const I18N={
   en:{
     appTitle:'🏀 Basketball Stat Tracker',appSub:'Quick-tap tracking · Multi-game history · One-tap share',
     teamNameLbl:'Our Team Name',teamNamePh:'e.g. Tigers',addRosterLbl:'Add Players',namePh:'Name',
-    saveStart:'Save & Start →',
+    saveStart:'Save Team →',
     howToTitle:'How to record',
     howToBody:'Two steps: tap <span style="color:var(--gl)">a player</span> in the top row, then tap an action button below — it keeps applying to that player until you pick someone else.',
     howToVoice:'Voice input is also available (expand "Voice Assist" on the game screen), but on a noisy court the buttons are more reliable. Voice commands are Chinese only.',
-    navGame:'Game',navStats:'Stats',navHist:'History',navTeam:'Team',
+    navGame:'Game',navStats:'Stats',navHist:'Calendar',navTeam:'Team',
     newGameTitle:'🏀 Start New Game',oppPh:'Opponent name (e.g. Eagles)',cancel:'Cancel',start:'Start',
     noGame:'No game in progress',newGameBtn:'＋ New Game',
     selPlayerStep:'1. Select a player',foulShort:'Fouls',
@@ -651,11 +691,13 @@ const I18N={
     adminPinLbl:'Set / change password',adminPinPh:'Leave blank = no password',adminPinSave:'Save password',
     adminPinSetOn:'✓ Password protection on',adminPinSetOff:'✗ No password set',adminLockNow:'🔒 Lock now',
     toastPinSaved:'Password saved',toastPinCleared:'Password protection removed',toastLocked:'Locked',
-    tabCompleted:'Completed',tabSchedule:'Schedule',addScheduleBtn:'🗓️ Add Fixture',
+    addScheduleBtn:'🗓️ Add Fixture',
     addScheduleTitle:'🗓️ Add Fixture',schDateLbl:'Date',schTimeLbl:'Time (optional)',schVenuePh:'Venue (optional)',
-    saveBtn:'Save',noSchedule:'No fixtures scheduled yet',startRecording:'Start Recording',upcomingTitle:'📅 Upcoming Fixtures',
+    saveBtn:'Save',startRecording:'Start Recording',upcomingTitle:'📅 Upcoming Fixtures',
     toastNeedDateOpp:'Enter a date and opponent',confirmDelSch:'Delete this fixture?',toastSchAdded:'Fixture added',
-    histTitle:'📅 Game History',backToHist:'← Back to History',shareThisGame:'📤 Share this game',shareLiveLinkShort:'📡 Live link',
+    noGameSub:'Tap the button below to start recording',
+    calLegendWin:'Win',calLegendLoss:'Loss',calLegendDraw:'Draw',calLegendSch:'Fixture',calNoEvents:'No events on this day',
+    histTitle:'📅 Calendar',backToHist:'← Back to Calendar',shareThisGame:'📤 Share this game',shareLiveLinkShort:'📡 Live link',
     teamMgmt:'⚙️ Team Settings',teamNameFieldLbl:'Team Name',saveTeamName:'Save Team Name',rosterTitle:'Roster',
     dataMgmt:'Data',clearAllBtn:'🗑 Clear All Data',
     cloudSync:'☁️ Cloud Sync (Firebase)',cloudNotConnected:'✗ Not connected',cloudConnected:'✓ Connected · Code: ',
@@ -669,7 +711,7 @@ const I18N={
     liveUpdating:'LIVE',producedBy:'Made with "Basketball Stat Tracker"',
     langLbl:'App 語言 / Language',curLangZh:'Current: 中文',curLangEn:'Current: English',
     noGameStats:'No game in progress',startGameFirst:'Start a game first',noRoster:'No players yet',
-    noHist:'No games yet',histAutoSave:'Games are saved here once finished',teamTotal:'Team Total',
+    teamTotal:'Team Total',
     statPts:'Points',statReb:'Rebounds',statAst:'Assists',
     statOreb:'Off. Reb.',statDreb:'Def. Reb.',statStl:'Steals',statBlk:'Blocks',statTo:'Turnovers',statFoul:'Fouls',
     stat2p:'2PT',stat3p:'3PT',statFt:'FT',
@@ -715,6 +757,7 @@ function setLang(l){localStorage.setItem('bball_lang',l);location.reload();}
 function applyI18N(){
   document.querySelectorAll('[data-i18n]').forEach(el=>{el.innerHTML=t(el.getAttribute('data-i18n'));});
   document.querySelectorAll('[data-i18n-ph]').forEach(el=>{el.placeholder=t(el.getAttribute('data-i18n-ph'));});
+  document.querySelectorAll('[data-i18n-title]').forEach(el=>{el.title=t(el.getAttribute('data-i18n-title'));});
   const cl=document.getElementById('curLangTxt');if(cl)cl.textContent=(LANG==='en'?t('curLangEn'):t('curLangZh'));
   const zb=document.getElementById('langZhBtn'),eb=document.getElementById('langEnBtn');
   if(zb&&eb){zb.classList.toggle('sel',LANG==='zh');eb.classList.toggle('sel',LANG==='en');}
@@ -852,7 +895,7 @@ function saveSetup(){
   const nm=document.getElementById('teamName').value.trim();
   if(!A.roster.length){toast(t('toastNeedRosterFirst'),'err');return;}
   A.teamName=nm||'我方';save();
-  if(!A.cur){openNGD();}else{initUI();go('game');}
+  initUI();go('game');toast(t('toastSaved'));
 }
 function saveTeam(){
   const nm=document.getElementById('teamEdit').value.trim();
@@ -892,13 +935,6 @@ function confirmNG(){
 // ═══════════════════════════════════════════════════
 // SCHEDULE (future fixtures — separate from recorded games)
 // ═══════════════════════════════════════════════════
-function setHistTab(tab){
-  document.getElementById('histTabDone').classList.toggle('sel',tab==='done');
-  document.getElementById('histTabSch').classList.toggle('sel',tab==='sch');
-  document.getElementById('histList').style.display=tab==='done'?'block':'none';
-  document.getElementById('schWrap').style.display=tab==='sch'?'block':'none';
-  if(tab==='sch')renderSchedule();
-}
 function openSchD(){
   document.getElementById('schDate').value='';document.getElementById('schTime').value='';
   document.getElementById('schOpp').value='';document.getElementById('schVenue').value='';
@@ -913,12 +949,15 @@ function addSchedule(){
   if(!date||!opp){toast(t('toastNeedDateOpp'),'err');return;}
   A.schedule=A.schedule||[];
   A.schedule.push({id:''+Date.now(),date,time,opp,venue});
-  save();closeSchD();renderSchedule();toast(t('toastSchAdded'));
+  save();closeSchD();
+  const jd=new Date(date+'T00:00:00');
+  calYear=jd.getFullYear();calMonth=jd.getMonth();calSelDate=date;
+  renderCalendar();toast(t('toastSchAdded'));
 }
 function delSchedule(id){
   if(!confirm(t('confirmDelSch')))return;
   A.schedule=(A.schedule||[]).filter(s=>s.id!==id);
-  save();renderSchedule();toast(t('toastDeleted'));
+  save();renderCalendar();toast(t('toastDeleted'));
 }
 function startFromSchedule(id){
   const s=(A.schedule||[]).find(x=>x.id===id);if(!s)return;
@@ -936,22 +975,94 @@ function fmtSchDate(dateStr){
 function sortedSchedule(list){
   return (list||[]).slice().sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
 }
-function renderSchedule(){
-  const el=document.getElementById('schList');if(!el)return;
-  const list=sortedSchedule(A.schedule);
-  if(!list.length){
-    el.innerHTML=`<div class="es"><div class="ei">🗓️</div><div>${t('noSchedule')}</div></div>`;
+
+// ═══════════════════════════════════════════════════
+// CALENDAR (unifies completed games + upcoming schedule on a month grid)
+// ═══════════════════════════════════════════════════
+function toISODate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function calEventsFor(iso){
+  const games=[];
+  A.hist.forEach((g,i)=>{
+    const gd=new Date(+g.id);
+    if(!isNaN(gd)&&toISODate(gd)===iso)games.push({g,i});
+  });
+  const sch=(A.schedule||[]).filter(s=>s.date===iso);
+  return {games,sch};
+}
+function calShift(delta){
+  calMonth+=delta;
+  if(calMonth<0){calMonth=11;calYear--;}
+  else if(calMonth>11){calMonth=0;calYear++;}
+  renderCalendar();
+}
+function calGoToday(){
+  const now=new Date();
+  calYear=now.getFullYear();calMonth=now.getMonth();calSelDate=toISODate(now);
+  renderCalendar();
+}
+function calSelectDate(iso){calSelDate=iso;renderCalendar();}
+function renderCalendar(){
+  if(!calSelDate)calSelDate=toISODate(new Date());
+  const first=new Date(calYear,calMonth,1);
+  const startWd=first.getDay();
+  const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+  const daysInPrevMonth=new Date(calYear,calMonth,0).getDate();
+  document.getElementById('calMonthLbl').textContent=LANG==='en'
+    ? first.toLocaleDateString('en-US',{month:'long',year:'numeric'})
+    : `${calYear}年${calMonth+1}月`;
+  const wdArr=LANG==='en'?['Su','Mo','Tu','We','Th','Fr','Sa']:['日','一','二','三','四','五','六'];
+  document.getElementById('calWd').innerHTML=wdArr.map(w=>`<div class="cal-wd">${w}</div>`).join('');
+
+  const todayISO=toISODate(new Date());
+  let cells='';
+  for(let i=startWd-1;i>=0;i--)cells+=`<div class="cal-cell other">${daysInPrevMonth-i}</div>`;
+  for(let d=1;d<=daysInMonth;d++){
+    const iso=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const{games,sch}=calEventsFor(iso);
+    const kinds=new Set();
+    games.forEach(({g})=>kinds.add(g.ourPts>g.oppPts?'win':g.ourPts<g.oppPts?'loss':'draw'));
+    if(sch.length)kinds.add('sch');
+    const dots=kinds.size?`<div class="cal-dots">${[...kinds].map(k=>`<span class="cal-dot ${k}"></span>`).join('')}</div>`:'';
+    const cls=['cal-cell'];
+    if(iso===todayISO)cls.push('today');
+    if(iso===calSelDate)cls.push('sel');
+    cells+=`<div class="${cls.join(' ')}" onclick="calSelectDate('${iso}')">${d}${dots}</div>`;
+  }
+  const trailing=(7-((startWd+daysInMonth)%7))%7;
+  for(let d=1;d<=trailing;d++)cells+=`<div class="cal-cell other">${d}</div>`;
+  document.getElementById('calGrid').innerHTML=cells;
+
+  renderCalAgenda();
+}
+function renderCalAgenda(){
+  const ttlEl=document.getElementById('calAgendaTtl'),el=document.getElementById('calAgenda');
+  if(!calSelDate){ttlEl.textContent='';el.innerHTML='';return;}
+  ttlEl.textContent=fmtSchDate(calSelDate);
+  const{games,sch}=calEventsFor(calSelDate);
+  if(!games.length&&!sch.length){
+    el.innerHTML=`<div class="es" style="padding:20px 24px 28px"><div class="es-icon" style="width:56px;height:56px;font-size:24px">🏀</div><div class="es-sub" style="margin-bottom:0">${t('calNoEvents')}</div></div>`;
     return;
   }
-  el.innerHTML=list.map(s=>`
-    <div class="gi" style="cursor:default;align-items:center">
+  let html='';
+  sch.forEach(s=>{
+    html+=`<div class="gi" style="cursor:default;align-items:center">
       <div style="flex:1">
-        <div class="gd">${fmtSchDate(s.date)}${s.time?` · ${s.time}`:''}${s.venue?` · ${s.venue}`:''}</div>
+        <div class="gd">${s.time?s.time:''}${s.venue?(s.time?' · ':'')+s.venue:''}</div>
         <div class="gm">${A.teamName} vs ${s.opp}</div>
       </div>
       <button class="btn btn-g" style="padding:7px 10px;font-size:11px;flex-shrink:0" onclick="startFromSchedule('${s.id}')">${t('startRecording')}</button>
       <button class="gdel" onclick="delSchedule('${s.id}')">🗑</button>
-    </div>`).join('');
+    </div>`;
+  });
+  games.forEach(({g,i})=>{
+    const w=g.ourPts>g.oppPts,l=g.ourPts<g.oppPts;
+    html+=`<div class="gi" onclick="viewGame(${i})">
+      <div style="flex:1"><div class="gd">${g.date}</div><div class="gm">${A.teamName} vs ${g.opp}</div></div>
+      <div class="gs ${w?'win':l?'loss':'draw'}">${g.ourPts}:${g.oppPts}</div>
+      <button class="gdel" onclick="event.stopPropagation();delGame(${i})">🗑</button>
+    </div>`;
+  });
+  el.innerHTML=html;
 }
 function buildScheduleCard(schedule,teamName){
   teamName=teamName||A.teamName;
@@ -1204,13 +1315,14 @@ function refreshPBP(){
 // ═══════════════════════════════════════════════════
 // GAME SCREEN
 // ═══════════════════════════════════════════════════
-function initUI(){renderGame();renderStats();renderHist();}
+function initUI(){renderGame();renderStats();renderCalendar();}
 
 function renderGame(){
   const el=document.getElementById('gameContent');
   if(!A.cur){
-    el.innerHTML=`<div class="es" style="padding-top:60px"><div class="ei">🏀</div>
-      <div style="font-size:16px;font-weight:700;margin-bottom:8px">${t('noGame')}</div>
+    el.innerHTML=`<div class="es" style="padding-top:15vh"><div class="es-icon">🏀</div>
+      <div class="es-ttl">${t('noGame')}</div>
+      <div class="es-sub">${t('noGameSub')}</div>
       <button class="btn btn-g" style="padding:13px 22px;font-size:15px" onclick="openNGD()">${t('newGameBtn')}</button></div>`;
     return;
   }
@@ -1546,22 +1658,6 @@ function buildStatsCards(g,teamName){
 // ═══════════════════════════════════════════════════
 // HISTORY
 // ═══════════════════════════════════════════════════
-function renderHist(){
-  const el=document.getElementById('histList');
-  if(!A.hist.length){
-    el.innerHTML=`<div class="es"><div class="ei">📅</div><div>${t('noHist')}</div><div style="font-size:11px;margin-top:4px">${t('histAutoSave')}</div></div>`;
-    return;
-  }
-  el.innerHTML=A.hist.map((g,i)=>{
-    const w=g.ourPts>g.oppPts,l=g.ourPts<g.oppPts;
-    return`<div class="gi" onclick="viewGame(${i})">
-      <div style="flex:1"><div class="gd">${g.date}</div><div class="gm">${A.teamName} vs ${g.opp}</div></div>
-      <div class="gs ${w?'win':l?'loss':'draw'}">${g.ourPts}:${g.oppPts}</div>
-      <button class="gdel" onclick="event.stopPropagation();delGame(${i})">🗑</button>
-    </div>`;
-  }).join('');
-}
-
 let _hg=null;
 function viewGame(i){
   const g=A.hist[i];if(!g)return;_hg=g;
@@ -1572,7 +1668,7 @@ function viewGame(i){
   showScreen('hdScreen');
 }
 function delGame(i){
-  if(confirm(t('confirmDelGame'))){A.hist.splice(i,1);save();renderHist();toast(t('toastDeleted'));}
+  if(confirm(t('confirmDelGame'))){A.hist.splice(i,1);save();renderCalendar();toast(t('toastDeleted'));}
 }
 function hdShareLine(){if(_hg)shareLineText(_hg);}
 function hdShareLink(){if(_hg)shareLinkURL(_hg);}
@@ -1920,7 +2016,7 @@ function go(tab){
     renderStats();showScreen('statsScreen');
     ['nS','nS2','nS3'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('active');});
   }else if(tab==='hist'){
-    renderHist();renderSchedule();showScreen('histScreen');
+    renderCalendar();showScreen('histScreen');
     ['nH','nH2','nH3'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('active');});
   }else if(tab==='team'){
     document.getElementById('teamEdit').value=A.teamName==='我方'?'':A.teamName;
