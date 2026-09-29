@@ -270,6 +270,21 @@ textarea:focus{outline:none;border-color:var(--gl)}
   </div>
 </div>
 
+<!-- New schedule dialog -->
+<div class="dov" id="schD">
+  <div class="di">
+    <div class="di-ttl" data-i18n="addScheduleTitle">🗓️ 新增賽程</div>
+    <div class="ig"><label data-i18n="schDateLbl">日期</label><input type="date" id="schDate"></div>
+    <div class="ig"><label data-i18n="schTimeLbl">時間（選填）</label><input type="time" id="schTime"></div>
+    <input type="text" id="schOpp" data-i18n-ph="oppPh" placeholder="對手隊名（例：雄鷹隊）">
+    <input type="text" id="schVenue" data-i18n-ph="schVenuePh" placeholder="地點（選填）">
+    <div class="di-btns">
+      <button class="btn btn-dim" data-i18n="cancel" onclick="closeSchD()">取消</button>
+      <button class="btn btn-g" data-i18n="saveBtn" onclick="addSchedule()">儲存</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── SETUP ── -->
 <div class="screen active" id="setupScreen">
   <div class="sw">
@@ -323,8 +338,9 @@ textarea:focus{outline:none;border-color:var(--gl)}
         <button class="btn btn-full" data-i18n="shareLiveLink" style="background:#673ab7;color:#fff;padding:9px;font-size:12px" onclick="doShareFB()">📡 即時連結（家長可看到即時比分和統計）</button>
       </div>
     </div>
-    <div style="padding:0 14px 14px">
-      <button class="btn btn-full" data-i18n="finishGame" style="background:#ff6b35;color:#fff" onclick="openNGD()">💾 完成本場 · 開始下一場</button>
+    <div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-full" data-i18n="endGameBtn" style="background:#ff6b35;color:#fff" onclick="endGame()">🏁 結束比賽</button>
+      <button class="btn btn-full btn-dim" data-i18n="startNextBtn" onclick="openNGD()">➕ 開始下一場</button>
     </div>
   </div>
   <div class="bnav">
@@ -342,7 +358,17 @@ textarea:focus{outline:none;border-color:var(--gl)}
       <div style="font-size:16px;font-weight:700" data-i18n="histTitle">📅 歷史賽事</div>
       <button class="btn btn-g" data-i18n="newGameBtn" style="padding:7px 13px;font-size:13px" onclick="openNGD()">＋ 新比賽</button>
     </div>
+    <div class="ob" style="margin:0 14px 10px">
+      <div class="obtn sel" id="histTabDone" onclick="setHistTab('done')" data-i18n="tabCompleted">已完成</div>
+      <div class="obtn" id="histTabSch" onclick="setHistTab('sch')" data-i18n="tabSchedule">賽程</div>
+    </div>
     <div class="hl" id="histList"></div>
+    <div id="schWrap" style="display:none">
+      <div style="padding:0 14px 10px">
+        <button class="btn btn-full btn-dim" onclick="openSchD()" data-i18n="addScheduleBtn">🗓️ 新增賽程</button>
+      </div>
+      <div class="hl" id="schList"></div>
+    </div>
   </div>
   <div class="bnav">
     <button class="nb" id="nG3" onclick="go('game')"><span class="ni">🏀</span><span data-i18n="navGame">比賽</span></button>
@@ -403,6 +429,17 @@ textarea:focus{outline:none;border-color:var(--gl)}
         </div>
       </div>
       <div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--border)">
+        <div class="sec-ttl" data-i18n="adminPinTitle">🔒 管理密碼</div>
+        <div id="pinStatus" style="font-size:12px;color:var(--t2);margin-bottom:8px"></div>
+        <div style="font-size:11px;color:var(--t2);line-height:1.7;margin-bottom:10px" data-i18n="adminPinNote">設定後，這支手機（或其他裝置）打開這個網址都需要輸入密碼才能記錄／管理資料。分享給家長看的連結不受影響，家長不需要密碼。</div>
+        <div class="ig">
+          <label data-i18n="adminPinLbl">設定 / 修改密碼</label>
+          <input type="password" id="adminPinIn" data-i18n-ph="adminPinPh" placeholder="留空＝不設密碼">
+        </div>
+        <button class="btn btn-g btn-full" data-i18n="adminPinSave" onclick="savePin()" style="margin-bottom:8px">儲存密碼</button>
+        <button class="btn btn-dim btn-full" id="lockNowBtn" data-i18n="adminLockNow" onclick="lockNow()" style="display:none">🔒 立即鎖定</button>
+      </div>
+      <div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--border)">
         <div class="sec-ttl" data-i18n="dataMgmt">資料管理</div>
         <button class="btn btn-red btn-full" data-i18n="clearAllBtn" onclick="clearAll()">🗑 清除所有資料</button>
       </div>
@@ -458,6 +495,20 @@ textarea:focus{outline:none;border-color:var(--gl)}
   </div>
 </div>
 
+<!-- ── ADMIN LOCK ── -->
+<div class="screen" id="lockScreen">
+  <div class="sw" style="padding-top:22vh">
+    <div style="text-align:center;font-size:44px;margin-bottom:10px">🔒</div>
+    <div class="big-ttl" style="font-size:20px" data-i18n="lockTitle">管理密碼</div>
+    <div class="big-sub" data-i18n="lockSub">輸入密碼以進入記錄／管理畫面</div>
+    <div class="ig">
+      <input type="password" id="pinIn" data-i18n-ph="lockPh" placeholder="密碼" style="text-align:center;font-size:20px;letter-spacing:4px">
+    </div>
+    <button class="btn btn-g btn-full" style="padding:14px" onclick="tryUnlock()" data-i18n="unlockBtn">解鎖</button>
+    <div id="lockErr" style="text-align:center;color:var(--red);font-size:12px;margin-top:10px"></div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════════
 // DATA
@@ -500,7 +551,18 @@ const I18N={
     continuousOn:'🔁 連續模式',continuousOff:'⏹ 停止連續',
     recentTitle:'最近記錄',undo:'↩ 撤銷',
     shareToParents:'📤 分享統計給其他家長',shareLine:'📋 複製 LINE 文字',shareLink:'🔗 分享連結',
-    shareLiveLink:'📡 即時連結（家長可看到即時比分和統計）',finishGame:'💾 完成本場 · 開始下一場',
+    shareLiveLink:'📡 即時連結（家長可看到即時比分和統計）',
+    endGameBtn:'🏁 結束比賽',startNextBtn:'➕ 開始下一場',
+    confirmEndGame:'確定要結束這場比賽嗎？結束後會存到歷史紀錄。',toastGameEnded:'比賽已結束並存檔',
+    lockTitle:'管理密碼',lockSub:'輸入密碼以進入記錄／管理畫面',lockPh:'密碼',unlockBtn:'解鎖',
+    lockWrongPin:'密碼錯誤',adminPinTitle:'🔒 管理密碼',adminPinNote:'設定後，這支手機（或其他裝置）打開這個網址都需要輸入密碼才能記錄／管理資料。分享給家長看的連結不受影響，家長不需要密碼。',
+    adminPinLbl:'設定 / 修改密碼',adminPinPh:'留空＝不設密碼',adminPinSave:'儲存密碼',
+    adminPinSetOn:'✓ 已設定密碼保護',adminPinSetOff:'✗ 尚未設定密碼',adminLockNow:'🔒 立即鎖定',
+    toastPinSaved:'密碼已儲存',toastPinCleared:'已取消密碼保護',toastLocked:'已鎖定',
+    tabCompleted:'已完成',tabSchedule:'賽程',addScheduleBtn:'🗓️ 新增賽程',
+    addScheduleTitle:'🗓️ 新增賽程',schDateLbl:'日期',schTimeLbl:'時間（選填）',schVenuePh:'地點（選填）',
+    saveBtn:'儲存',noSchedule:'尚無安排的賽程',startRecording:'開始記錄',upcomingTitle:'📅 即將到來的賽事',
+    toastNeedDateOpp:'請輸入日期和對手',confirmDelSch:'確定刪除這筆賽程？',toastSchAdded:'已加入賽程',
     histTitle:'📅 歷史賽事',backToHist:'← 返回歷史',shareThisGame:'📤 分享這場統計',shareLiveLinkShort:'📡 即時連結',
     teamMgmt:'⚙️ 球隊管理',teamNameFieldLbl:'隊名',saveTeamName:'儲存隊名',rosterTitle:'球員名單',
     dataMgmt:'資料管理',clearAllBtn:'🗑 清除所有資料',
@@ -581,7 +643,18 @@ const I18N={
     continuousOn:'🔁 Continuous',continuousOff:'⏹ Stop Continuous',
     recentTitle:'Recent Activity',undo:'↩ Undo',
     shareToParents:'📤 Share stats with parents',shareLine:'📋 Copy LINE text',shareLink:'🔗 Share link',
-    shareLiveLink:'📡 Live link (parents see live score & stats)',finishGame:'💾 Finish game · Start next',
+    shareLiveLink:'📡 Live link (parents see live score & stats)',
+    endGameBtn:'🏁 End Game',startNextBtn:'➕ Start Next Game',
+    confirmEndGame:'End this game? It will be saved to history.',toastGameEnded:'Game ended and saved',
+    lockTitle:'Admin Password',lockSub:'Enter the password to record / manage data',lockPh:'Password',unlockBtn:'Unlock',
+    lockWrongPin:'Wrong password',adminPinTitle:'🔒 Admin Password',adminPinNote:'Once set, this phone (or any other device) will need the password to open the record/manage screens. Links you share with parents are unaffected — they never need a password.',
+    adminPinLbl:'Set / change password',adminPinPh:'Leave blank = no password',adminPinSave:'Save password',
+    adminPinSetOn:'✓ Password protection on',adminPinSetOff:'✗ No password set',adminLockNow:'🔒 Lock now',
+    toastPinSaved:'Password saved',toastPinCleared:'Password protection removed',toastLocked:'Locked',
+    tabCompleted:'Completed',tabSchedule:'Schedule',addScheduleBtn:'🗓️ Add Fixture',
+    addScheduleTitle:'🗓️ Add Fixture',schDateLbl:'Date',schTimeLbl:'Time (optional)',schVenuePh:'Venue (optional)',
+    saveBtn:'Save',noSchedule:'No fixtures scheduled yet',startRecording:'Start Recording',upcomingTitle:'📅 Upcoming Fixtures',
+    toastNeedDateOpp:'Enter a date and opponent',confirmDelSch:'Delete this fixture?',toastSchAdded:'Fixture added',
     histTitle:'📅 Game History',backToHist:'← Back to History',shareThisGame:'📤 Share this game',shareLiveLinkShort:'📡 Live link',
     teamMgmt:'⚙️ Team Settings',teamNameFieldLbl:'Team Name',saveTeamName:'Save Team Name',rosterTitle:'Roster',
     dataMgmt:'Data',clearAllBtn:'🗑 Clear All Data',
@@ -650,7 +723,7 @@ function applyI18N(){
 function load(){
   try{
     const s=localStorage.getItem('bball2');
-    if(s){A=JSON.parse(s);return;}
+    if(s){A=JSON.parse(s);A.schedule=A.schedule||[];return;}
     // migrate old format
     const old=localStorage.getItem('bball');
     if(old){
@@ -664,8 +737,55 @@ function load(){
       }
     }
   }catch(e){}
+  A.schedule=A.schedule||[];
 }
 function save(){try{localStorage.setItem('bball2',JSON.stringify(A));}catch(e){}fbSave();}
+
+// ═══════════════════════════════════════════════════
+// ADMIN LOCK
+// kept entirely out of A / localStorage 'bball2' so it's never pushed to
+// Firebase or embedded in a share link — those stay purely read-only data.
+// ═══════════════════════════════════════════════════
+function getPin(){return localStorage.getItem('bball_pin')||'';}
+function isLocked(){return !!getPin()&&localStorage.getItem('bball_unlocked')!=='1';}
+function enterApp(){
+  if(!A.roster.length){showScreen('setupScreen');renderRL('rList');}
+  else{initUI();showScreen('gameScreen');}
+}
+function tryUnlock(){
+  const el=document.getElementById('pinIn');
+  const v=el?el.value:'';
+  if(v===getPin()){
+    localStorage.setItem('bball_unlocked','1');
+    if(el)el.value='';
+    document.getElementById('lockErr').textContent='';
+    enterApp();
+  }else{
+    document.getElementById('lockErr').textContent=t('lockWrongPin');
+  }
+}
+function lockNow(){
+  localStorage.removeItem('bball_unlocked');
+  const el=document.getElementById('pinIn');if(el)el.value='';
+  showScreen('lockScreen');
+  toast(t('toastLocked'));
+}
+function savePin(){
+  const el=document.getElementById('adminPinIn');
+  const v=(el?el.value:'').trim();
+  if(v){localStorage.setItem('bball_pin',v);toast(t('toastPinSaved'));}
+  else{localStorage.removeItem('bball_pin');toast(t('toastPinCleared'));}
+  localStorage.setItem('bball_unlocked','1'); // whoever is setting it right now stays unlocked
+  if(el)el.value='';
+  updPinUI();
+}
+function updPinUI(){
+  const has=!!getPin();
+  const st=document.getElementById('pinStatus');
+  if(st){st.textContent=has?t('adminPinSetOn'):t('adminPinSetOff');st.style.color=has?'var(--gl)':'var(--t2)';}
+  const lockBtn=document.getElementById('lockNowBtn');
+  if(lockBtn)lockBtn.style.display=has?'block':'none';
+}
 function newS(){return{pts:0,twoM:0,twoA:0,threeM:0,threeA:0,ftM:0,ftA:0,reb:0,oreb:0,ast:0,stl:0,blk:0,foul:0,to:0};}
 function fmt(){
   const d=new Date();
@@ -749,8 +869,9 @@ function clearAll(){
 // ═══════════════════════════════════════════════════
 // NEW GAME DIALOG
 // ═══════════════════════════════════════════════════
-function openNGD(){document.getElementById('nopp').value='';document.getElementById('ngd').classList.add('show');setTimeout(()=>document.getElementById('nopp').focus(),200);}
-function closeNGD(){document.getElementById('ngd').classList.remove('show');}
+function openNGD(prefillOpp){document.getElementById('nopp').value=prefillOpp||'';document.getElementById('ngd').classList.add('show');setTimeout(()=>document.getElementById('nopp').focus(),200);}
+function closeNGD(){document.getElementById('ngd').classList.remove('show');_startingFromSchId=null;}
+let _startingFromSchId=null;
 function confirmNG(){
   const opp=document.getElementById('nopp').value.trim()||'對手';
   if(A.cur&&(A.cur.ourPts||A.cur.oppPts||A.cur.log.length)){
@@ -760,8 +881,104 @@ function confirmNG(){
   A.cur={id:''+Date.now(),date:fmt(),opp,ourPts:0,oppPts:0,oppFoul:0,
     oppReb:0,oppAst:0,oppTov:0,ourTimeouts:5,oppTimeouts:5,quarter:1,
     players:A.roster.map(r=>({n:r.n,name:r.name,s:newS()})),log:[]};
+  if(_startingFromSchId){
+    A.schedule=(A.schedule||[]).filter(s=>s.id!==_startingFromSchId);
+    _startingFromSchId=null;
+  }
   selP=null;shotFilterP=null;pbpQFilter='all';pbpNewestFirst=true;
   save();closeNGD();initUI();go('game');toast(`${t('toastNewGame')}${opp}`);
+}
+
+// ═══════════════════════════════════════════════════
+// SCHEDULE (future fixtures — separate from recorded games)
+// ═══════════════════════════════════════════════════
+function setHistTab(tab){
+  document.getElementById('histTabDone').classList.toggle('sel',tab==='done');
+  document.getElementById('histTabSch').classList.toggle('sel',tab==='sch');
+  document.getElementById('histList').style.display=tab==='done'?'block':'none';
+  document.getElementById('schWrap').style.display=tab==='sch'?'block':'none';
+  if(tab==='sch')renderSchedule();
+}
+function openSchD(){
+  document.getElementById('schDate').value='';document.getElementById('schTime').value='';
+  document.getElementById('schOpp').value='';document.getElementById('schVenue').value='';
+  document.getElementById('schD').classList.add('show');
+}
+function closeSchD(){document.getElementById('schD').classList.remove('show');}
+function addSchedule(){
+  const date=document.getElementById('schDate').value;
+  const time=document.getElementById('schTime').value;
+  const opp=document.getElementById('schOpp').value.trim();
+  const venue=document.getElementById('schVenue').value.trim();
+  if(!date||!opp){toast(t('toastNeedDateOpp'),'err');return;}
+  A.schedule=A.schedule||[];
+  A.schedule.push({id:''+Date.now(),date,time,opp,venue});
+  save();closeSchD();renderSchedule();toast(t('toastSchAdded'));
+}
+function delSchedule(id){
+  if(!confirm(t('confirmDelSch')))return;
+  A.schedule=(A.schedule||[]).filter(s=>s.id!==id);
+  save();renderSchedule();toast(t('toastDeleted'));
+}
+function startFromSchedule(id){
+  const s=(A.schedule||[]).find(x=>x.id===id);if(!s)return;
+  _startingFromSchId=id;
+  openNGD(s.opp);
+}
+function fmtSchDate(dateStr){
+  try{
+    const d=new Date(dateStr+'T00:00:00');
+    const wdArr=LANG==='en'?['Sun','Mon','Tue','Wed','Thu','Fri','Sat']:['日','一','二','三','四','五','六'];
+    const wd=wdArr[d.getDay()];
+    return LANG==='en'?`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} (${wd})`:`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}（${wd}）`;
+  }catch(e){return dateStr;}
+}
+function sortedSchedule(list){
+  return (list||[]).slice().sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+}
+function renderSchedule(){
+  const el=document.getElementById('schList');if(!el)return;
+  const list=sortedSchedule(A.schedule);
+  if(!list.length){
+    el.innerHTML=`<div class="es"><div class="ei">🗓️</div><div>${t('noSchedule')}</div></div>`;
+    return;
+  }
+  el.innerHTML=list.map(s=>`
+    <div class="gi" style="cursor:default;align-items:center">
+      <div style="flex:1">
+        <div class="gd">${fmtSchDate(s.date)}${s.time?` · ${s.time}`:''}${s.venue?` · ${s.venue}`:''}</div>
+        <div class="gm">${A.teamName} vs ${s.opp}</div>
+      </div>
+      <button class="btn btn-g" style="padding:7px 10px;font-size:11px;flex-shrink:0" onclick="startFromSchedule('${s.id}')">${t('startRecording')}</button>
+      <button class="gdel" onclick="delSchedule('${s.id}')">🗑</button>
+    </div>`).join('');
+}
+function buildScheduleCard(schedule,teamName){
+  teamName=teamName||A.teamName;
+  const list=sortedSchedule(schedule);
+  if(!list.length)return'';
+  const rows=list.map(s=>`
+    <div class="pi" style="cursor:default;align-items:flex-start">
+      <div class="pb" style="background:var(--blue);flex-shrink:0">🗓</div>
+      <div class="pn">
+        <div style="font-weight:700">${fmtSchDate(s.date)}${s.time?` · ${s.time}`:''}</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">${teamName} vs ${s.opp}${s.venue?' · '+s.venue:''}</div>
+      </div>
+    </div>`).join('');
+  return `<div class="pcard pcard-tot" style="padding:10px 12px">
+    <div class="pc-name" style="margin-bottom:8px">${t('upcomingTitle')}</div>
+    ${rows}
+  </div>`;
+}
+
+function endGame(){
+  const g=A.cur;if(!g)return;
+  if(!confirm(t('confirmEndGame')))return;
+  A.hist.unshift({...g,status:'done'});
+  if(A.hist.length>60)A.hist.pop();
+  A.cur=null;
+  selP=null;shotFilterP=null;pbpQFilter='all';pbpNewestFirst=true;
+  save();initUI();go('hist');toast(t('toastGameEnded'));
 }
 
 // ═══════════════════════════════════════════════════
@@ -1395,7 +1612,8 @@ function genURL(g){
     const d={team:A.teamName,date:g.date,opp:g.opp,ourPts:g.ourPts,oppPts:g.oppPts,
       oppFoul:g.oppFoul||0,oppReb:g.oppReb||0,oppAst:g.oppAst||0,oppTov:g.oppTov||0,quarter:g.quarter||1,
       players:g.players.map(p=>({n:p.n,name:p.name,s:p.s})),
-      log:(g.log||[]).map(e=>({q:e.q,ic:e.ic,tx:e.tx,pt:e.pt,our:e.our,aid:e.aid,oppts:e.oppts,loc:e.loc,ms:e.ms}))};
+      log:(g.log||[]).map(e=>({q:e.q,ic:e.ic,tx:e.tx,pt:e.pt,our:e.our,aid:e.aid,oppts:e.oppts,loc:e.loc,ms:e.ms})),
+      schedule:A.schedule||[]};
     return window.location.href.split('#')[0]+'#v='+btoa(unescape(encodeURIComponent(JSON.stringify(d))));
   }catch(e){return null;}
 }
@@ -1543,18 +1761,19 @@ function checkFBView(){
 
 function renderFBLive(data){
   const g=data.cur;
-  document.getElementById('svT').textContent=(data.teamName||t('svDefaultTeam'))+(g?` vs ${g.opp}`:'');
+  const teamName=data.teamName||t('svDefaultTeam');
+  document.getElementById('svT').textContent=teamName+(g?` vs ${g.opp}`:'');
   if(!g){
     document.getElementById('svM').textContent=t('svNotStarted');
     document.getElementById('svD').textContent='';
-    document.getElementById('svTbl').innerHTML='';
+    document.getElementById('svTbl').innerHTML=buildScheduleCard(data.schedule,teamName);
     return;
   }
   const w=g.ourPts>g.oppPts?'✅':g.ourPts<g.oppPts?'❌':'';
   document.getElementById('svM').innerHTML=`${g.ourPts} : ${g.oppPts} ${w}`;
   document.getElementById('svM').style.color='';
   document.getElementById('svD').textContent=`Q${g.quarter||1} · ${g.date||''}`;
-  document.getElementById('svTbl').innerHTML=buildStatsCards(g,data.teamName||t('svDefaultTeam'));
+  document.getElementById('svTbl').innerHTML=buildStatsCards(g,teamName)+buildScheduleCard(data.schedule,teamName);
 }
 
 // ═══════════════════════════════════════════════════
@@ -1569,7 +1788,7 @@ function checkSV(){
     document.getElementById('svT').textContent=`${d.team} vs ${d.opp}`;
     document.getElementById('svM').textContent=`${d.ourPts} : ${d.oppPts} ${w}`;
     document.getElementById('svD').textContent=d.date;
-    document.getElementById('svTbl').innerHTML=buildStatsCards(d,d.team);
+    document.getElementById('svTbl').innerHTML=buildStatsCards(d,d.team)+buildScheduleCard(d.schedule,d.team);
     showScreen('svScreen');return true;
   }catch(e){return false;}
 }
@@ -1701,14 +1920,14 @@ function go(tab){
     renderStats();showScreen('statsScreen');
     ['nS','nS2','nS3'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('active');});
   }else if(tab==='hist'){
-    renderHist();showScreen('histScreen');
+    renderHist();renderSchedule();showScreen('histScreen');
     ['nH','nH2','nH3'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('active');});
   }else if(tab==='team'){
     document.getElementById('teamEdit').value=A.teamName==='我方'?'':A.teamName;
     renderRL('rListEdit');
     const savedCfg=localStorage.getItem('bball_fb_cfg');
     const cfgEl=document.getElementById('fbCfgTx');if(cfgEl&&savedCfg)cfgEl.value=savedCfg;
-    updFBUI();
+    updFBUI();updPinUI();
     showScreen('teamScreen');
   }
 }
@@ -1731,6 +1950,7 @@ document.getElementById('inpName').addEventListener('keydown',e=>{if(e.key==='En
 document.getElementById('eNum').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('eName').focus();});
 document.getElementById('eName').addEventListener('keydown',e=>{if(e.key==='Enter')addRosterEdit();});
 document.getElementById('nopp').addEventListener('keydown',e=>{if(e.key==='Enter')confirmNG();});
+document.getElementById('pinIn').addEventListener('keydown',e=>{if(e.key==='Enter')tryUnlock();});
 
 // ═══════════════════════════════════════════════════
 // INIT
@@ -1739,8 +1959,8 @@ load();
 applyI18N();
 loadFBConfig(); // async — syncs in background after local data is ready
 if(!checkSV()&&!checkFBView()){
-  if(!A.roster.length){showScreen('setupScreen');renderRL('rList');}
-  else{initUI();showScreen('gameScreen');}
+  if(isLocked()){showScreen('lockScreen');}
+  else{enterApp();}
 }
 </script>
 </body>
