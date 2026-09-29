@@ -1,0 +1,18 @@
+{
+  "name": "籃球比賽統計表",
+  "short_name": "籃球記錄",
+  "description": "自主校隊友誼賽記錄用：快速記錄得分、籃板、助攻，一鍵分享給家長",
+  "start_url": "./basketball.html",
+  "scope": "./basketball.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f2f4f8",
+  "theme_color": "#2e7d32",
+  "lang": "zh-TW",
+  "icons": [
+    {"src": "bball-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "bball-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable"},
+    {"src": "bball-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "bball-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
