@@ -131,8 +131,15 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .gs{font-size:20px;font-weight:900;margin-left:auto;white-space:nowrap}
 .gs.win{color:var(--gl)}.gs.loss{color:var(--red)}.gs.draw{color:var(--yellow)}
 .gdel{background:none;border:none;color:var(--t2);font-size:17px;cursor:pointer;padding:4px;margin-left:4px}
-.es{text-align:center;padding:36px 20px;color:var(--t2);font-size:13px}
+.es{text-align:center;padding:48px 24px;color:var(--t2);font-size:13px}
 .ei{font-size:38px;margin-bottom:8px}
+.es-icon{width:80px;height:80px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:34px;margin:0 auto 16px}
+.es-ttl{font-size:17px;font-weight:700;color:var(--text);margin-bottom:6px}
+.es-sub{font-size:13px;color:var(--t2);margin-bottom:18px;line-height:1.5}
+
+/* floating action button */
+.fab{position:fixed;bottom:80px;right:max(20px,calc(50vw - 220px));width:54px;height:54px;border-radius:50%;background:var(--gl);color:#fff;font-size:26px;border:none;box-shadow:0 4px 14px rgba(0,0,0,.25);cursor:pointer;align-items:center;justify-content:center;z-index:45}
+.fab:active{transform:scale(.92)}
 
 /* bottom nav */
 .bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--bg2);border-top:1px solid var(--border);display:flex;z-index:50}
@@ -364,11 +371,9 @@ textarea:focus{outline:none;border-color:var(--gl)}
     </div>
     <div class="hl" id="histList"></div>
     <div id="schWrap" style="display:none">
-      <div style="padding:0 14px 10px">
-        <button class="btn btn-full btn-dim" onclick="openSchD()" data-i18n="addScheduleBtn">🗓️ 新增賽程</button>
-      </div>
       <div class="hl" id="schList"></div>
     </div>
+    <button class="fab" id="addSchFab" style="display:none" onclick="openSchD()" data-i18n-title="addScheduleBtn" title="🗓️ 新增賽程">＋</button>
   </div>
   <div class="bnav">
     <button class="nb" id="nG3" onclick="go('game')"><span class="ni">🏀</span><span data-i18n="navGame">比賽</span></button>
@@ -528,7 +533,7 @@ const I18N={
   zh:{
     appTitle:'🏀 籃球比賽統計表',appSub:'快速點按記錄 · 多場存檔 · 一鍵分享',
     teamNameLbl:'我方隊名',teamNamePh:'例：小虎隊',addRosterLbl:'新增球員名單',namePh:'姓名',
-    saveStart:'儲存並開始 →',
+    saveStart:'儲存隊伍 →',
     howToTitle:'怎麼記錄比賽',
     howToBody:'兩步驟：先點上排「<span style="color:var(--gl)">選球員</span>」，再點下方動作按鈕（投籃、籃板、助攻…），按鈕會一直套用在你選的球員身上，直到你換選別人。',
     howToVoice:'也可以用語音輸入（比賽畫面展開「語音輔助記錄」），但現場吵雜時建議直接用按鈕比較準。語音指令僅支援中文。',
@@ -563,6 +568,7 @@ const I18N={
     addScheduleTitle:'🗓️ 新增賽程',schDateLbl:'日期',schTimeLbl:'時間（選填）',schVenuePh:'地點（選填）',
     saveBtn:'儲存',noSchedule:'尚無安排的賽程',startRecording:'開始記錄',upcomingTitle:'📅 即將到來的賽事',
     toastNeedDateOpp:'請輸入日期和對手',confirmDelSch:'確定刪除這筆賽程？',toastSchAdded:'已加入賽程',
+    noScheduleSub:'點右下角「＋」新增第一筆賽程',noGameSub:'點下方按鈕開始記錄',
     histTitle:'📅 歷史賽事',backToHist:'← 返回歷史',shareThisGame:'📤 分享這場統計',shareLiveLinkShort:'📡 即時連結',
     teamMgmt:'⚙️ 球隊管理',teamNameFieldLbl:'隊名',saveTeamName:'儲存隊名',rosterTitle:'球員名單',
     dataMgmt:'資料管理',clearAllBtn:'🗑 清除所有資料',
@@ -620,7 +626,7 @@ const I18N={
   en:{
     appTitle:'🏀 Basketball Stat Tracker',appSub:'Quick-tap tracking · Multi-game history · One-tap share',
     teamNameLbl:'Our Team Name',teamNamePh:'e.g. Tigers',addRosterLbl:'Add Players',namePh:'Name',
-    saveStart:'Save & Start →',
+    saveStart:'Save Team →',
     howToTitle:'How to record',
     howToBody:'Two steps: tap <span style="color:var(--gl)">a player</span> in the top row, then tap an action button below — it keeps applying to that player until you pick someone else.',
     howToVoice:'Voice input is also available (expand "Voice Assist" on the game screen), but on a noisy court the buttons are more reliable. Voice commands are Chinese only.',
@@ -655,6 +661,7 @@ const I18N={
     addScheduleTitle:'🗓️ Add Fixture',schDateLbl:'Date',schTimeLbl:'Time (optional)',schVenuePh:'Venue (optional)',
     saveBtn:'Save',noSchedule:'No fixtures scheduled yet',startRecording:'Start Recording',upcomingTitle:'📅 Upcoming Fixtures',
     toastNeedDateOpp:'Enter a date and opponent',confirmDelSch:'Delete this fixture?',toastSchAdded:'Fixture added',
+    noScheduleSub:'Tap the "+" button below right to add your first fixture',noGameSub:'Tap the button below to start recording',
     histTitle:'📅 Game History',backToHist:'← Back to History',shareThisGame:'📤 Share this game',shareLiveLinkShort:'📡 Live link',
     teamMgmt:'⚙️ Team Settings',teamNameFieldLbl:'Team Name',saveTeamName:'Save Team Name',rosterTitle:'Roster',
     dataMgmt:'Data',clearAllBtn:'🗑 Clear All Data',
@@ -715,6 +722,7 @@ function setLang(l){localStorage.setItem('bball_lang',l);location.reload();}
 function applyI18N(){
   document.querySelectorAll('[data-i18n]').forEach(el=>{el.innerHTML=t(el.getAttribute('data-i18n'));});
   document.querySelectorAll('[data-i18n-ph]').forEach(el=>{el.placeholder=t(el.getAttribute('data-i18n-ph'));});
+  document.querySelectorAll('[data-i18n-title]').forEach(el=>{el.title=t(el.getAttribute('data-i18n-title'));});
   const cl=document.getElementById('curLangTxt');if(cl)cl.textContent=(LANG==='en'?t('curLangEn'):t('curLangZh'));
   const zb=document.getElementById('langZhBtn'),eb=document.getElementById('langEnBtn');
   if(zb&&eb){zb.classList.toggle('sel',LANG==='zh');eb.classList.toggle('sel',LANG==='en');}
@@ -852,7 +860,7 @@ function saveSetup(){
   const nm=document.getElementById('teamName').value.trim();
   if(!A.roster.length){toast(t('toastNeedRosterFirst'),'err');return;}
   A.teamName=nm||'我方';save();
-  if(!A.cur){openNGD();}else{initUI();go('game');}
+  initUI();go('game');toast(t('toastSaved'));
 }
 function saveTeam(){
   const nm=document.getElementById('teamEdit').value.trim();
@@ -897,6 +905,7 @@ function setHistTab(tab){
   document.getElementById('histTabSch').classList.toggle('sel',tab==='sch');
   document.getElementById('histList').style.display=tab==='done'?'block':'none';
   document.getElementById('schWrap').style.display=tab==='sch'?'block':'none';
+  document.getElementById('addSchFab').style.display=tab==='sch'?'flex':'none';
   if(tab==='sch')renderSchedule();
 }
 function openSchD(){
@@ -940,7 +949,7 @@ function renderSchedule(){
   const el=document.getElementById('schList');if(!el)return;
   const list=sortedSchedule(A.schedule);
   if(!list.length){
-    el.innerHTML=`<div class="es"><div class="ei">🗓️</div><div>${t('noSchedule')}</div></div>`;
+    el.innerHTML=`<div class="es"><div class="es-icon">🗓️</div><div class="es-ttl">${t('noSchedule')}</div><div class="es-sub">${t('noScheduleSub')}</div></div>`;
     return;
   }
   el.innerHTML=list.map(s=>`
@@ -1209,8 +1218,9 @@ function initUI(){renderGame();renderStats();renderHist();}
 function renderGame(){
   const el=document.getElementById('gameContent');
   if(!A.cur){
-    el.innerHTML=`<div class="es" style="padding-top:60px"><div class="ei">🏀</div>
-      <div style="font-size:16px;font-weight:700;margin-bottom:8px">${t('noGame')}</div>
+    el.innerHTML=`<div class="es" style="padding-top:15vh"><div class="es-icon">🏀</div>
+      <div class="es-ttl">${t('noGame')}</div>
+      <div class="es-sub">${t('noGameSub')}</div>
       <button class="btn btn-g" style="padding:13px 22px;font-size:15px" onclick="openNGD()">${t('newGameBtn')}</button></div>`;
     return;
   }
@@ -1549,7 +1559,7 @@ function buildStatsCards(g,teamName){
 function renderHist(){
   const el=document.getElementById('histList');
   if(!A.hist.length){
-    el.innerHTML=`<div class="es"><div class="ei">📅</div><div>${t('noHist')}</div><div style="font-size:11px;margin-top:4px">${t('histAutoSave')}</div></div>`;
+    el.innerHTML=`<div class="es"><div class="es-icon">📅</div><div class="es-ttl">${t('noHist')}</div><div class="es-sub">${t('histAutoSave')}</div></div>`;
     return;
   }
   el.innerHTML=A.hist.map((g,i)=>{
