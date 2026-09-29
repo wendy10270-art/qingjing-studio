@@ -404,6 +404,17 @@ textarea:focus{outline:none;border-color:var(--gl)}
         </div>
       </div>
       <div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--border)">
+        <div class="sec-ttl" data-i18n="adminPinTitle">🔒 管理密碼</div>
+        <div id="pinStatus" style="font-size:12px;color:var(--t2);margin-bottom:8px"></div>
+        <div style="font-size:11px;color:var(--t2);line-height:1.7;margin-bottom:10px" data-i18n="adminPinNote">設定後，這支手機（或其他裝置）打開這個網址都需要輸入密碼才能記錄／管理資料。分享給家長看的連結不受影響，家長不需要密碼。</div>
+        <div class="ig">
+          <label data-i18n="adminPinLbl">設定 / 修改密碼</label>
+          <input type="password" id="adminPinIn" data-i18n-ph="adminPinPh" placeholder="留空＝不設密碼">
+        </div>
+        <button class="btn btn-g btn-full" data-i18n="adminPinSave" onclick="savePin()" style="margin-bottom:8px">儲存密碼</button>
+        <button class="btn btn-dim btn-full" id="lockNowBtn" data-i18n="adminLockNow" onclick="lockNow()" style="display:none">🔒 立即鎖定</button>
+      </div>
+      <div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--border)">
         <div class="sec-ttl" data-i18n="dataMgmt">資料管理</div>
         <button class="btn btn-red btn-full" data-i18n="clearAllBtn" onclick="clearAll()">🗑 清除所有資料</button>
       </div>
@@ -459,6 +470,20 @@ textarea:focus{outline:none;border-color:var(--gl)}
   </div>
 </div>
 
+<!-- ── ADMIN LOCK ── -->
+<div class="screen" id="lockScreen">
+  <div class="sw" style="padding-top:22vh">
+    <div style="text-align:center;font-size:44px;margin-bottom:10px">🔒</div>
+    <div class="big-ttl" style="font-size:20px" data-i18n="lockTitle">管理密碼</div>
+    <div class="big-sub" data-i18n="lockSub">輸入密碼以進入記錄／管理畫面</div>
+    <div class="ig">
+      <input type="password" id="pinIn" data-i18n-ph="lockPh" placeholder="密碼" style="text-align:center;font-size:20px;letter-spacing:4px">
+    </div>
+    <button class="btn btn-g btn-full" style="padding:14px" onclick="tryUnlock()" data-i18n="unlockBtn">解鎖</button>
+    <div id="lockErr" style="text-align:center;color:var(--red);font-size:12px;margin-top:10px"></div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════════
 // DATA
@@ -504,6 +529,11 @@ const I18N={
     shareLiveLink:'📡 即時連結（家長可看到即時比分和統計）',
     endGameBtn:'🏁 結束比賽',startNextBtn:'➕ 開始下一場',
     confirmEndGame:'確定要結束這場比賽嗎？結束後會存到歷史紀錄。',toastGameEnded:'比賽已結束並存檔',
+    lockTitle:'管理密碼',lockSub:'輸入密碼以進入記錄／管理畫面',lockPh:'密碼',unlockBtn:'解鎖',
+    lockWrongPin:'密碼錯誤',adminPinTitle:'🔒 管理密碼',adminPinNote:'設定後，這支手機（或其他裝置）打開這個網址都需要輸入密碼才能記錄／管理資料。分享給家長看的連結不受影響，家長不需要密碼。',
+    adminPinLbl:'設定 / 修改密碼',adminPinPh:'留空＝不設密碼',adminPinSave:'儲存密碼',
+    adminPinSetOn:'✓ 已設定密碼保護',adminPinSetOff:'✗ 尚未設定密碼',adminLockNow:'🔒 立即鎖定',
+    toastPinSaved:'密碼已儲存',toastPinCleared:'已取消密碼保護',toastLocked:'已鎖定',
     histTitle:'📅 歷史賽事',backToHist:'← 返回歷史',shareThisGame:'📤 分享這場統計',shareLiveLinkShort:'📡 即時連結',
     teamMgmt:'⚙️ 球隊管理',teamNameFieldLbl:'隊名',saveTeamName:'儲存隊名',rosterTitle:'球員名單',
     dataMgmt:'資料管理',clearAllBtn:'🗑 清除所有資料',
@@ -587,6 +617,11 @@ const I18N={
     shareLiveLink:'📡 Live link (parents see live score & stats)',
     endGameBtn:'🏁 End Game',startNextBtn:'➕ Start Next Game',
     confirmEndGame:'End this game? It will be saved to history.',toastGameEnded:'Game ended and saved',
+    lockTitle:'Admin Password',lockSub:'Enter the password to record / manage data',lockPh:'Password',unlockBtn:'Unlock',
+    lockWrongPin:'Wrong password',adminPinTitle:'🔒 Admin Password',adminPinNote:'Once set, this phone (or any other device) will need the password to open the record/manage screens. Links you share with parents are unaffected — they never need a password.',
+    adminPinLbl:'Set / change password',adminPinPh:'Leave blank = no password',adminPinSave:'Save password',
+    adminPinSetOn:'✓ Password protection on',adminPinSetOff:'✗ No password set',adminLockNow:'🔒 Lock now',
+    toastPinSaved:'Password saved',toastPinCleared:'Password protection removed',toastLocked:'Locked',
     histTitle:'📅 Game History',backToHist:'← Back to History',shareThisGame:'📤 Share this game',shareLiveLinkShort:'📡 Live link',
     teamMgmt:'⚙️ Team Settings',teamNameFieldLbl:'Team Name',saveTeamName:'Save Team Name',rosterTitle:'Roster',
     dataMgmt:'Data',clearAllBtn:'🗑 Clear All Data',
@@ -671,6 +706,52 @@ function load(){
   }catch(e){}
 }
 function save(){try{localStorage.setItem('bball2',JSON.stringify(A));}catch(e){}fbSave();}
+
+// ═══════════════════════════════════════════════════
+// ADMIN LOCK
+// kept entirely out of A / localStorage 'bball2' so it's never pushed to
+// Firebase or embedded in a share link — those stay purely read-only data.
+// ═══════════════════════════════════════════════════
+function getPin(){return localStorage.getItem('bball_pin')||'';}
+function isLocked(){return !!getPin()&&localStorage.getItem('bball_unlocked')!=='1';}
+function enterApp(){
+  if(!A.roster.length){showScreen('setupScreen');renderRL('rList');}
+  else{initUI();showScreen('gameScreen');}
+}
+function tryUnlock(){
+  const el=document.getElementById('pinIn');
+  const v=el?el.value:'';
+  if(v===getPin()){
+    localStorage.setItem('bball_unlocked','1');
+    if(el)el.value='';
+    document.getElementById('lockErr').textContent='';
+    enterApp();
+  }else{
+    document.getElementById('lockErr').textContent=t('lockWrongPin');
+  }
+}
+function lockNow(){
+  localStorage.removeItem('bball_unlocked');
+  const el=document.getElementById('pinIn');if(el)el.value='';
+  showScreen('lockScreen');
+  toast(t('toastLocked'));
+}
+function savePin(){
+  const el=document.getElementById('adminPinIn');
+  const v=(el?el.value:'').trim();
+  if(v){localStorage.setItem('bball_pin',v);toast(t('toastPinSaved'));}
+  else{localStorage.removeItem('bball_pin');toast(t('toastPinCleared'));}
+  localStorage.setItem('bball_unlocked','1'); // whoever is setting it right now stays unlocked
+  if(el)el.value='';
+  updPinUI();
+}
+function updPinUI(){
+  const has=!!getPin();
+  const st=document.getElementById('pinStatus');
+  if(st){st.textContent=has?t('adminPinSetOn'):t('adminPinSetOff');st.style.color=has?'var(--gl)':'var(--t2)';}
+  const lockBtn=document.getElementById('lockNowBtn');
+  if(lockBtn)lockBtn.style.display=has?'block':'none';
+}
 function newS(){return{pts:0,twoM:0,twoA:0,threeM:0,threeA:0,ftM:0,ftA:0,reb:0,oreb:0,ast:0,stl:0,blk:0,foul:0,to:0};}
 function fmt(){
   const d=new Date();
@@ -1723,7 +1804,7 @@ function go(tab){
     renderRL('rListEdit');
     const savedCfg=localStorage.getItem('bball_fb_cfg');
     const cfgEl=document.getElementById('fbCfgTx');if(cfgEl&&savedCfg)cfgEl.value=savedCfg;
-    updFBUI();
+    updFBUI();updPinUI();
     showScreen('teamScreen');
   }
 }
@@ -1746,6 +1827,7 @@ document.getElementById('inpName').addEventListener('keydown',e=>{if(e.key==='En
 document.getElementById('eNum').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('eName').focus();});
 document.getElementById('eName').addEventListener('keydown',e=>{if(e.key==='Enter')addRosterEdit();});
 document.getElementById('nopp').addEventListener('keydown',e=>{if(e.key==='Enter')confirmNG();});
+document.getElementById('pinIn').addEventListener('keydown',e=>{if(e.key==='Enter')tryUnlock();});
 
 // ═══════════════════════════════════════════════════
 // INIT
@@ -1754,8 +1836,8 @@ load();
 applyI18N();
 loadFBConfig(); // async — syncs in background after local data is ready
 if(!checkSV()&&!checkFBView()){
-  if(!A.roster.length){showScreen('setupScreen');renderRL('rList');}
-  else{initUI();showScreen('gameScreen');}
+  if(isLocked()){showScreen('lockScreen');}
+  else{enterApp();}
 }
 </script>
 </body>
