@@ -1119,6 +1119,7 @@ const db={
       <div id="nPayStatus_paid" onclick="setPayStatus(&#39;paid&#39;)" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--gold);background:var(--gold4);text-align:center;cursor:pointer"><div style="font-size:17px;margin-bottom:3px">✓</div><div style="font-size:14px;font-weight:500;color:var(--gold)">已付款</div></div>
       <div id="nPayStatus_unpaid" onclick="setPayStatus(&#39;unpaid&#39;)" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--white);text-align:center;cursor:pointer"><div style="font-size:17px;margin-bottom:3px">⏳</div><div style="font-size:14px;font-weight:500;color:var(--ink3)">尚未付款</div></div>
     </div>
+    <div id="nUnpaidHint" style="display:none;font-size:13px;color:var(--orange);line-height:1.5;background:var(--orange2);border:1.5px solid var(--orange3);border-radius:9px;padding:9px 12px;margin:-2px 0 12px">暫不入帳（待收款）：只開課卡讓學員能簽到，先不記流水帳、不算續課獎金。收到錢後在學員列表按「收款完成」補記。</div>
     <div id="nPayMethodSection">
     <label>繳款方式</label>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px" id="payMethods">
@@ -1394,7 +1395,16 @@ const db={
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;margin-top:8px;border-top:1px solid var(--gold2)"><span style="font-size:15px;font-weight:500;color:var(--gold)">實際入帳</span><span style="font-family:&#39;Noto Serif TC&#39;,serif;font-size:21px;color:var(--gold)" id="renewPsTotal">—</span></div>
     </div>
     <label>入帳日期</label><input type="date" id="renewPayDate" class="native-date-inp">
+    <label>實際入帳金額（自動計算，可手動覆蓋）</label>
+    <input type="number" id="renewActualPayment" placeholder="選擇付款方式後自動帶入" style="margin-bottom:12px">
     <label>備註（選填）</label><input type="text" id="renewNote" placeholder="例：第二期、折扣…">
+    <div style="background:var(--bg);border-radius:10px;padding:12px 14px;margin-bottom:12px">
+      <label style="margin-bottom:6px;color:var(--ink2)">紙本已簽到堂數（選填）</label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input type="number" id="renewPaperUsed" placeholder="0" min="0" style="width:80px;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:16px;outline:none;text-align:center">
+        <span style="font-size:14px;color:var(--ink3)">堂（系統會自動標記為紙本簽到）</span>
+      </div>
+    </div>
     <div onclick="toggleRenewUnpaid()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:9px 12px;background:var(--orange2);border-radius:9px;border:1.5px solid var(--orange3);margin:4px 0 12px">
       <input type="checkbox" id="renewUnpaid" style="width:18px;height:18px;accent-color:var(--orange)">
       <span style="font-size:13px;color:var(--orange);line-height:1.4">暫不入帳（待收款）<br><span style="font-size:13px;color:var(--ink3)">只開新課卡讓她能簽到，先不記流水帳、不算續課獎金。收到錢後在學員列表按「收款完成」補記。</span></span>
@@ -1467,6 +1477,8 @@ const db={
           <div style="font-size:13px;color:var(--gold);margin-top:8px">填入後會覆蓋上方選擇的方案</div>
         </div>
       </div>
+      <label>師資課費（每堂，自動帶入）</label>
+      <input type="number" id="hpFee" placeholder="800">
       <div style="height:1px;background:var(--bg2);margin:10px 0 14px"></div>
       <label>繳款方式</label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px" id="hpPayMethods">
@@ -1481,7 +1493,20 @@ const db={
         <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;margin-top:8px;border-top:1px solid var(--gold2)"><span style="font-size:15px;font-weight:500;color:var(--gold)">實際入帳</span><span style="font-family:'Noto Serif TC',serif;font-size:21px;color:var(--gold)" id="hpPsTotal">—</span></div>
       </div>
       <label>入帳日期</label><input type="date" id="hpPayDate" class="native-date-inp">
+      <label>實際入帳金額（自動計算，可手動覆蓋）</label>
+      <input type="number" id="hpActualPayment" placeholder="選擇付款方式後自動帶入" style="margin-bottom:12px">
       <label>備註（選填）</label><input type="text" id="hpNote" placeholder="例：首購、折扣…">
+      <div style="background:var(--bg);border-radius:10px;padding:12px 14px;margin-bottom:12px">
+        <label style="margin-bottom:6px;color:var(--ink2)">紙本已簽到堂數（選填）</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="number" id="hpPaperUsed" placeholder="0" min="0" style="width:80px;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-size:16px;outline:none;text-align:center">
+          <span style="font-size:14px;color:var(--ink3)">堂（系統會自動標記為紙本簽到）</span>
+        </div>
+      </div>
+      <div onclick="toggleHpUnpaid()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:9px 12px;background:var(--orange2);border-radius:9px;border:1.5px solid var(--orange3);margin:4px 0 12px">
+        <input type="checkbox" id="hpUnpaid" style="width:18px;height:18px;accent-color:var(--orange)">
+        <span style="font-size:13px;color:var(--orange);line-height:1.4">暫不入帳（待收款）<br><span style="font-size:13px;color:var(--ink3)">只開課卡讓學員能簽到，先不記流水帳、不算續課獎金。收到錢後在學員列表按「收款完成」補記。</span></span>
+      </div>
       <button class="btn-full bf-ink" style="background:var(--teal);margin-top:4px" onclick="confirmHomePurchase()">確認購課</button>
       <button class="btn-full bf-soft" style="margin-top:9px" onclick="hpBackToSearch()">← 返回</button>
     </div>
@@ -1817,6 +1842,18 @@ function dualWriteDeleteStudent(sid){
   if(!USE_NEW_RECORD_STORE||!sid)return;
   try{ newStoreDeleteStudent(sid).catch(e=>console.warn('[雙寫] newStoreDeleteStudent 失敗（不影響存檔）',e)); }
   catch(e){ console.warn('[雙寫] newStoreDeleteStudent 失敗（不影響存檔）',e); }
+}
+// 「紙本已簽到堂數」共用：新增學員／續課／購課登記三處都可能登記入帳前
+// 已經在紙本上簽到過幾堂，統一在這裡補建對應的簽到記錄（R），避免三處各刻一份。
+// 呼叫端要自己決定 sid 當下對應的是哪一張「現在啟用中」的課卡（排隊中、還沒啟用的
+// 下一期不要呼叫這支，起始堂數請直接放進該期物件的 used，等真正切換到那一期再說）。
+function genPaperSigninRecords(sid,n,dateStr){
+  if(!sid||!n||n<=0)return;
+  for(let i=1;i<=n;i++){
+    const rec={id:'r'+Date.now()+i,sid,date:dateStr||todayStr(),time:'--:--',session:i,note:'紙本簽到',sig:null,isUpgraded:false,isSub:false};
+    R.push(rec);
+    dualWriteAddRecord(rec);
+  }
 }
 
 function save(){
@@ -5822,17 +5859,17 @@ function setPayStatus(status){
   const paid=document.getElementById('nPayStatus_paid');
   const unpaid=document.getElementById('nPayStatus_unpaid');
   const paySection=document.getElementById('nPayMethodSection');
-  const dateSection=document.getElementById('nPayDateSection');
+  const hint=document.getElementById('nUnpaidHint');
   if(status==='paid'){
     if(paid){paid.style.borderColor='var(--gold)';paid.style.background='var(--gold4)';}
     if(unpaid){unpaid.style.borderColor='var(--border)';unpaid.style.background='var(--white)';}
     if(paySection)paySection.style.display='block';
-    if(dateSection)dateSection.style.display='block';
+    if(hint)hint.style.display='none';
   } else {
     if(unpaid){unpaid.style.borderColor='var(--orange)';unpaid.style.background='var(--orange2)';}
     if(paid){paid.style.borderColor='var(--border)';paid.style.background='var(--white)';}
     if(paySection)paySection.style.display='none';
-    if(dateSection)dateSection.style.display='none';
+    if(hint)hint.style.display='block';
   }
 }
 
@@ -5873,15 +5910,6 @@ function toggleInstallment(){
 }
 
 
-// ── 首頁簡化版新增學員（隱藏師資費） ──
-function openAddSimple(){
-  openAdd();
-  setTimeout(()=>{
-    const w=document.getElementById('nFeeWrapper');
-    if(w)w.style.display='none';
-    document.getElementById('addOv').dataset.simple='1';
-  },50);
-}
 let _pendingAddName='';
 function openAddWithName(){
   openAdd();
@@ -5946,7 +5974,6 @@ const nFeeEl=document.getElementById('nFee');if(nFeeEl){nFeeEl.style.display='';
 document.querySelectorAll('#addOv label').forEach(l=>{l.style.display='';});}
 function closeAddOut(e){if(e.target===document.getElementById('addOv'))closeAddOv()}
 function addStu(){
-  const isSimple=document.getElementById('addOv')?.dataset.simple==='1';
   const name=document.getElementById('nName').value.trim();
   const phone=document.getElementById('nPhone').value.trim();
   const teacher=document.getElementById('nTeacher').value;
@@ -5971,15 +5998,11 @@ function addStu(){
   const paperUsed=parseInt(document.getElementById('nPaperUsed')?.value)||0;
   const isInstallment=document.getElementById('nInstallment')?.checked||false;
   const installEvery=parseInt(document.getElementById('nInstallmentEvery')?.value)||5;
-  S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:paperUsed,price:selPrice,fee,payMethod:isPaid?selPayMethod:'',payDate:isPaid?payDate:'',actualPayment:finalActual,note,bonus:isPaid?Math.round(finalActual*0.03):0,bonusNote:'',paymentStatus:isPaid?'paid':'unpaid',installment:isInstallment,installEvery:isInstallment?installEvery:null,expiryDate:getDateSel('nExpiry')||'',healthNotes:document.getElementById('nHealthNotes')?.value.trim()||''});
+  S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:paperUsed,price:selPrice,fee,payMethod:isPaid?selPayMethod:'',payDate:isPaid?payDate:'',actualPayment:finalActual,note,bonus:isPaid?Math.round(finalActual*0.03):0,bonusNote:'',paymentStatus:isPaid?'paid':'unpaid',pendingAmount:isPaid?undefined:selPrice,pendingType:isPaid?undefined:'purchase',installment:isInstallment,installEvery:isInstallment?installEvery:null,expiryDate:getDateSel('nExpiry')||'',healthNotes:document.getElementById('nHealthNotes')?.value.trim()||''});
   // 產生紙本簽到記錄
   if(paperUsed>0){
     const newStu=S[S.length-1];
-    for(let i=1;i<=paperUsed;i++){
-      const paperRec={id:'r'+Date.now()+i,sid:newStu.id,date:newStu.payDate||todayStr(),time:'--:--',session:i,note:'紙本簽到',sig:null,isUpgraded:false,isSub:false};
-      R.push(paperRec);
-      dualWriteAddRecord(paperRec);
-    }
+    genPaperSigninRecords(newStu.id,paperUsed,newStu.payDate||todayStr());
     dualWriteIncrementUsed(newStu.id,paperUsed);
   }
   // 新學員整包物件（含上面紙本簽到已套用的 used）雙寫進新結構，避免只靠
@@ -7112,6 +7135,8 @@ function openRenewStu(sid){
     +(s.queued&&s.queued.length?'<br><span style="color:#3D47C4">📦 已有 '+s.queued.length+' 期排隊中</span>':'');
   document.getElementById('renewNote').value='';
   setDateSel('renewPayDate',todayStr());
+  const renewAP0=document.getElementById('renewActualPayment');if(renewAP0)renewAP0.value='';
+  const renewPU0=document.getElementById('renewPaperUsed');if(renewPU0)renewPU0.value='';
   document.getElementById('renewSelDisp').classList.remove('show');
   document.getElementById('renewPaySummary').style.display='none';
   document.querySelectorAll('#renewPayMethods>div').forEach(p=>{p.style.borderColor='var(--border)';p.style.background='var(--white)'});
@@ -7183,6 +7208,7 @@ function updateRenewCustomPaySummary(){
       document.getElementById('renewPsPlanPrice').textContent='$'+price.toLocaleString();
       document.getElementById('renewPsTotal').textContent='$'+pay.amount.toLocaleString();
     }
+    const renewAP=document.getElementById('renewActualPayment');if(renewAP)renewAP.value=pay.amount;
   }
 }
 
@@ -7202,6 +7228,7 @@ function renewUpdPaySummary(){
   if(pay.feeLabel){feeRow.style.display='flex';document.getElementById('renewPsFeeLabel').textContent=pay.feeLabel;document.getElementById('renewPsFeeAmount').textContent=(pay.feeAmount>0?'+':'')+' $'+Math.abs(pay.feeAmount).toLocaleString();}
   else{feeRow.style.display='none';}
   document.getElementById('renewPsTotal').textContent='$'+pay.amount.toLocaleString();
+  const renewAP=document.getElementById('renewActualPayment');if(renewAP)renewAP.value=pay.amount;
 }
 
 // ── 課卡「排隊」機制 ──
@@ -7290,12 +7317,15 @@ function confirmRenew(){
   const fee=parseInt(document.getElementById('renewFee').value)||getDefaultFee(s.teacher,renewSelPlan);
   const payDate=getDateSel('renewPayDate');
   const note=document.getElementById('renewNote').value.trim();
+  const paperUsed=parseInt(document.getElementById('renewPaperUsed')?.value)||0;
   const pay=isUnpaid?{amount:0}:calcPayment(renewSelPrice,renewPayMethod);
+  const manualActual=parseInt(document.getElementById('renewActualPayment')?.value)||0;
+  const finalActual=isUnpaid?0:(manualActual||pay.amount);
   const bonus=Math.round(renewSelPrice*0.03);
   const np={
-    course:renewSelPlan, total:renewSelN, used:0, price:renewSelPrice, fee, note,
+    course:renewSelPlan, total:renewSelN, used:paperUsed, price:renewSelPrice, fee, note,
     payMethod:isUnpaid?'':renewPayMethod, payDate:isUnpaid?'':payDate,
-    actualPayment:isUnpaid?0:pay.amount, bonus:isUnpaid?0:bonus,
+    actualPayment:isUnpaid?0:finalActual, bonus:isUnpaid?0:bonus,
     paymentStatus:isUnpaid?'unpaid':'paid',
     pendingAmount:isUnpaid?renewSelPrice:undefined, pendingType:'renew'
   };
@@ -7307,10 +7337,13 @@ function confirmRenew(){
   }else{
     _archiveActivePeriod(s);
     _applyPackageToCard(s,np);
+    // 紙本已簽到堂數：只有在新一期「現在」就啟用時才補簽到記錄；
+    // 若是排到下一期，起始堂數已存進 np.used，等真正切換到那一期再由當時的資料反映。
+    if(paperUsed>0)genPaperSigninRecords(s.id,paperUsed,payDate||todayStr());
   }
   // 流水帳：購課收入是「現在」發生的，不論有沒有排隊
   if(!isUnpaid){
-    addLedgerEntry({type:'renew',sid:s.id,name:s.name,teacher:s.teacher,course:renewSelPlan,total:renewSelN,price:renewSelPrice,actualPayment:pay.amount,payMethod:renewPayMethod,payDate,bonus,bonusPaid:false});
+    addLedgerEntry({type:'renew',sid:s.id,name:s.name,teacher:s.teacher,course:renewSelPlan,total:renewSelN,price:renewSelPrice,actualPayment:finalActual,payMethod:renewPayMethod,payDate,bonus,bonusPaid:false});
   }
   save();renderMgrList();renderTeachers();
   if(typeof curSid!=='undefined'&&curSid===s.id&&document.getElementById('sc-card')?.classList.contains('active'))renderCard(s.id);
@@ -7439,8 +7472,13 @@ function hpShowStep2(){
   const hpCP=document.getElementById('hpCustomPlan');if(hpCP)hpCP.checked=false;
   const hpCPD=document.getElementById('hpCustomPlanDetail');if(hpCPD)hpCPD.style.display='none';
   ['hpCustomTotal','hpCustomPrice'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const hpFeeEl=document.getElementById('hpFee');if(hpFeeEl)hpFeeEl.value='';
+  const hpAP=document.getElementById('hpActualPayment');if(hpAP)hpAP.value='';
+  const hpPU=document.getElementById('hpPaperUsed');if(hpPU)hpPU.value='';
+  const hpUP=document.getElementById('hpUnpaid');if(hpUP)hpUP.checked=false;
+  toggleHpUnpaid();
   // today as default pay date
-  const pd=document.getElementById('hpPayDate');if(pd)pd.value=todayStr().replace(/\//g,'-');
+  setDateSel('hpPayDate',todayStr());
   document.getElementById('hpNote').value='';
   // build plan picker — same structure as renewPlanPicker
   const pp=document.getElementById('hpPlanPicker');
@@ -7457,6 +7495,7 @@ function hpPickRatio(e,el,planName,ratio,type){
   document.querySelectorAll('#hpPlanPicker .session-row').forEach(s=>{s.classList.remove('show');s.innerHTML='';});
   const sp=document.getElementById('hpsp-'+planName);sp.classList.add('show');
   sp.innerHTML=PLANS[planName].sessions[ratio].map(s=>`<div class="sc" onclick="hpPickSession(this,${s.n},${s.price})"><div class="sc-n">${s.n}</div><div class="sc-lbl">${s.lbl}</div><div class="sc-price">$${s.price.toLocaleString()}</div></div>`).join('');
+  const hpFeeEl=document.getElementById('hpFee');if(hpFeeEl)hpFeeEl.value=getDefaultFee(_hpTmpTeacher,_hpSelPlan);
   hpUpdDisp();hpUpdPaySummary();
 }
 
@@ -7478,6 +7517,17 @@ function hpToggleCustomPlan(){
   if(detail)detail.style.display=cb?.checked?'block':'none';
 }
 
+function toggleHpUnpaid(){
+  const on=document.getElementById('hpUnpaid')?.checked||false;
+  const pm=document.getElementById('hpPayMethods');
+  const ps=document.getElementById('hpPaySummary');
+  const pd=document.getElementById('hpPayDate');
+  if(pm)pm.style.opacity=on?'.4':'1';
+  if(pm)pm.style.pointerEvents=on?'none':'auto';
+  if(on&&ps)ps.style.display='none';
+  if(pd)pd.disabled=on;
+}
+
 function updateHpCustomPaySummary(){
   const isCustom=document.getElementById('hpCustomPlan')?.checked;
   if(!isCustom)return;
@@ -7489,6 +7539,7 @@ function updateHpCustomPaySummary(){
       document.getElementById('hpPsPrice').textContent='$'+price.toLocaleString();
       document.getElementById('hpPsTotal').textContent='$'+pay.amount.toLocaleString();
     }
+    const hpAP=document.getElementById('hpActualPayment');if(hpAP)hpAP.value=pay.amount;
   }
 }
 
@@ -7508,6 +7559,7 @@ function hpUpdPaySummary(){
   if(pay.feeLabel){feeRow.style.display='flex';document.getElementById('hpPsFeeLabel').textContent=pay.feeLabel;document.getElementById('hpPsFeeAmt').textContent=(pay.feeAmount>0?'+':'')+' $'+Math.abs(pay.feeAmount).toLocaleString();}
   else{feeRow.style.display='none';}
   document.getElementById('hpPsTotal').textContent='$'+pay.amount.toLocaleString();
+  const hpAP=document.getElementById('hpActualPayment');if(hpAP)hpAP.value=pay.amount;
 }
 
 function confirmHomePurchase(){
@@ -7518,12 +7570,15 @@ function confirmHomePurchase(){
   if(!isCustomPlan&&(!_hpSelPlan||!_hpSelN)){showToast('請選擇課程方案','r');return;}
   if(isCustomPlan&&(!_hpSelPlan||!customTotal)){showToast('請先選擇課程類型，再填自訂堂數','r');return;}
   if(isCustomPlan){_hpSelN=customTotal;_hpSelPrice=customPrice||_hpSelPrice;}
-  if(!_hpPayMethod){showToast('請選擇繳款方式','r');return;}
-  const fee=getDefaultFee(_hpTmpTeacher,_hpSelPlan);
-  const payDateRaw=document.getElementById('hpPayDate').value;
-  const payDate=payDateRaw?payDateRaw.replace(/-/g,'/'):todayStr();
+  const isUnpaid=document.getElementById('hpUnpaid')?.checked||false;
+  if(!isUnpaid&&!_hpPayMethod){showToast('請選擇繳款方式','r');return;}
+  const fee=parseInt(document.getElementById('hpFee')?.value)||getDefaultFee(_hpTmpTeacher,_hpSelPlan);
+  const payDate=getDateSel('hpPayDate')||todayStr();
   const note=document.getElementById('hpNote').value.trim();
-  const pay=calcPayment(_hpSelPrice,_hpPayMethod);
+  const paperUsed=parseInt(document.getElementById('hpPaperUsed')?.value)||0;
+  const pay=isUnpaid?{amount:0}:calcPayment(_hpSelPrice,_hpPayMethod);
+  const manualActual=parseInt(document.getElementById('hpActualPayment')?.value)||0;
+  const finalActual=isUnpaid?0:(manualActual||pay.amount);
   const bonus=Math.round(_hpSelPrice*0.03);
   let stuName='';
   if(_hpIsNew){
@@ -7531,31 +7586,39 @@ function confirmHomePurchase(){
     const newStu={
       id:'s'+Date.now(),name:_hpTmpName,phone:_hpTmpPhone,
       course:_hpSelPlan,teacher:_hpTmpTeacher,
-      total:_hpSelN,used:0,price:_hpSelPrice,fee,
-      payMethod:_hpPayMethod,payDate,actualPayment:pay.amount,
-      note,bonus,bonusNote:'',paymentStatus:'paid',
+      total:_hpSelN,used:paperUsed,price:_hpSelPrice,fee,
+      payMethod:isUnpaid?'':_hpPayMethod,payDate:isUnpaid?'':payDate,
+      actualPayment:isUnpaid?0:finalActual,
+      note,bonus:isUnpaid?0:bonus,bonusNote:'',paymentStatus:isUnpaid?'unpaid':'paid',
+      pendingAmount:isUnpaid?_hpSelPrice:undefined,pendingType:isUnpaid?'new':undefined,
       installment:false,installEvery:null,expiryDate:'',healthNotes:''
     };
     S.push(newStu);
+    if(paperUsed>0)genPaperSigninRecords(newStu.id,paperUsed,payDate);
     dualWriteSetStudent(newStu.id,newStu);
-    addLedgerEntry({type:'new',sid:newStu.id,name:newStu.name,teacher:newStu.teacher,course:_hpSelPlan,total:_hpSelN,price:_hpSelPrice,actualPayment:pay.amount,payMethod:_hpPayMethod,payDate,bonus,bonusPaid:false,note});
+    if(!isUnpaid)addLedgerEntry({type:'new',sid:newStu.id,name:newStu.name,teacher:newStu.teacher,course:_hpSelPlan,total:_hpSelN,price:_hpSelPrice,actualPayment:finalActual,payMethod:_hpPayMethod,payDate,bonus,bonusPaid:false,note});
     stuName=newStu.name;
   } else {
     const s=S.find(x=>x.id===_hpStuId);if(!s)return;
     stuName=s.name;
     // 續課：目前這張還沒上完 → 新一期排隊；上完了才直接覆蓋
-    const np={course:_hpSelPlan,total:_hpSelN,used:0,price:_hpSelPrice,fee,note,
-      payMethod:_hpPayMethod,payDate,actualPayment:pay.amount,bonus,paymentStatus:'paid'};
+    const np={course:_hpSelPlan,total:_hpSelN,used:paperUsed,price:_hpSelPrice,fee,note,
+      payMethod:isUnpaid?'':_hpPayMethod,payDate:isUnpaid?'':payDate,
+      actualPayment:isUnpaid?0:finalActual,bonus:isUnpaid?0:bonus,
+      paymentStatus:isUnpaid?'unpaid':'paid',
+      pendingAmount:isUnpaid?_hpSelPrice:undefined,pendingType:'renew'};
     _hpWillQueue=((s.total||0)-(s.used||0))>0;
     if(_hpWillQueue){ queueRenewPackage(s,np); }
-    else { _archiveActivePeriod(s); _applyPackageToCard(s,np); }
-    addLedgerEntry({type:'renew',sid:s.id,name:s.name,teacher:s.teacher,course:_hpSelPlan,total:_hpSelN,price:_hpSelPrice,actualPayment:pay.amount,payMethod:_hpPayMethod,payDate,bonus,bonusPaid:false,note});
+    else { _archiveActivePeriod(s); _applyPackageToCard(s,np); if(paperUsed>0)genPaperSigninRecords(s.id,paperUsed,payDate); }
+    if(!isUnpaid)addLedgerEntry({type:'renew',sid:s.id,name:s.name,teacher:s.teacher,course:_hpSelPlan,total:_hpSelN,price:_hpSelPrice,actualPayment:finalActual,payMethod:_hpPayMethod,payDate,bonus,bonusPaid:false,note});
   }
-  save();renderTeachers();
+  save();renderMgrList();renderTeachers();
   closeOvById('purchaseOv');
   showToast(_hpWillQueue
     ? ('✓ '+stuName+' 購課完成！'+_hpSelN+'堂已排到下一期，目前課卡上完自動啟用')
-    : ('✓ '+stuName+' 購課完成！'+_hpSelN+'堂 $'+pay.amount.toLocaleString()));
+    : isUnpaid
+      ? ('✓ '+stuName+' 已登記（待收款）— 收到錢記得按「收款完成」')
+      : ('✓ '+stuName+' 購課完成！'+_hpSelN+'堂 $'+finalActual.toLocaleString()));
 }
 
 // ── 約下次上課（成功畫面）──
