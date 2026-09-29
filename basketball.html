@@ -323,8 +323,9 @@ textarea:focus{outline:none;border-color:var(--gl)}
         <button class="btn btn-full" data-i18n="shareLiveLink" style="background:#673ab7;color:#fff;padding:9px;font-size:12px" onclick="doShareFB()">📡 即時連結（家長可看到即時比分和統計）</button>
       </div>
     </div>
-    <div style="padding:0 14px 14px">
-      <button class="btn btn-full" data-i18n="finishGame" style="background:#ff6b35;color:#fff" onclick="openNGD()">💾 完成本場 · 開始下一場</button>
+    <div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-full" data-i18n="endGameBtn" style="background:#ff6b35;color:#fff" onclick="endGame()">🏁 結束比賽</button>
+      <button class="btn btn-full btn-dim" data-i18n="startNextBtn" onclick="openNGD()">➕ 開始下一場</button>
     </div>
   </div>
   <div class="bnav">
@@ -500,7 +501,9 @@ const I18N={
     continuousOn:'🔁 連續模式',continuousOff:'⏹ 停止連續',
     recentTitle:'最近記錄',undo:'↩ 撤銷',
     shareToParents:'📤 分享統計給其他家長',shareLine:'📋 複製 LINE 文字',shareLink:'🔗 分享連結',
-    shareLiveLink:'📡 即時連結（家長可看到即時比分和統計）',finishGame:'💾 完成本場 · 開始下一場',
+    shareLiveLink:'📡 即時連結（家長可看到即時比分和統計）',
+    endGameBtn:'🏁 結束比賽',startNextBtn:'➕ 開始下一場',
+    confirmEndGame:'確定要結束這場比賽嗎？結束後會存到歷史紀錄。',toastGameEnded:'比賽已結束並存檔',
     histTitle:'📅 歷史賽事',backToHist:'← 返回歷史',shareThisGame:'📤 分享這場統計',shareLiveLinkShort:'📡 即時連結',
     teamMgmt:'⚙️ 球隊管理',teamNameFieldLbl:'隊名',saveTeamName:'儲存隊名',rosterTitle:'球員名單',
     dataMgmt:'資料管理',clearAllBtn:'🗑 清除所有資料',
@@ -581,7 +584,9 @@ const I18N={
     continuousOn:'🔁 Continuous',continuousOff:'⏹ Stop Continuous',
     recentTitle:'Recent Activity',undo:'↩ Undo',
     shareToParents:'📤 Share stats with parents',shareLine:'📋 Copy LINE text',shareLink:'🔗 Share link',
-    shareLiveLink:'📡 Live link (parents see live score & stats)',finishGame:'💾 Finish game · Start next',
+    shareLiveLink:'📡 Live link (parents see live score & stats)',
+    endGameBtn:'🏁 End Game',startNextBtn:'➕ Start Next Game',
+    confirmEndGame:'End this game? It will be saved to history.',toastGameEnded:'Game ended and saved',
     histTitle:'📅 Game History',backToHist:'← Back to History',shareThisGame:'📤 Share this game',shareLiveLinkShort:'📡 Live link',
     teamMgmt:'⚙️ Team Settings',teamNameFieldLbl:'Team Name',saveTeamName:'Save Team Name',rosterTitle:'Roster',
     dataMgmt:'Data',clearAllBtn:'🗑 Clear All Data',
@@ -762,6 +767,16 @@ function confirmNG(){
     players:A.roster.map(r=>({n:r.n,name:r.name,s:newS()})),log:[]};
   selP=null;shotFilterP=null;pbpQFilter='all';pbpNewestFirst=true;
   save();closeNGD();initUI();go('game');toast(`${t('toastNewGame')}${opp}`);
+}
+
+function endGame(){
+  const g=A.cur;if(!g)return;
+  if(!confirm(t('confirmEndGame')))return;
+  A.hist.unshift({...g,status:'done'});
+  if(A.hist.length>60)A.hist.pop();
+  A.cur=null;
+  selP=null;shotFilterP=null;pbpQFilter='all';pbpNewestFirst=true;
+  save();initUI();go('hist');toast(t('toastGameEnded'));
 }
 
 // ═══════════════════════════════════════════════════
