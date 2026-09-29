@@ -41,7 +41,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .add-row input:first-child{width:70px;flex-shrink:0}
 .pl{margin:9px 0}
 .pi{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;display:flex;align-items:center;margin-bottom:5px}
-.pb{background:var(--gl);color:#fff;width:27px;height:27px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;margin-right:9px;flex-shrink:0}
+.pb-wrap{position:relative;flex-shrink:0;margin-right:9px}
+.pb{background:var(--gl);color:#fff;width:27px;height:27px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex-shrink:0;cursor:pointer;background-size:cover;background-position:center}
+.pb-rm{position:absolute;bottom:-2px;right:-2px;width:14px;height:14px;border-radius:50%;background:var(--red);color:#fff;font-size:9px;line-height:14px;text-align:center;cursor:pointer;border:1.5px solid var(--bg2)}
+.psel-photo{width:32px;height:32px;border-radius:50%;margin:0 auto 3px;background-size:cover;background-position:center;background-color:var(--bg3)}
 .pn{flex:1;font-size:14px}
 .xb{background:none;border:none;color:var(--t2);font-size:16px;cursor:pointer;padding:4px 6px}
 
@@ -567,6 +570,8 @@ textarea:focus{outline:none;border-color:var(--gl)}
   </div>
 </div>
 
+<input type="file" id="photoFileIn" accept="image/*" style="display:none" onchange="onPhotoFileChosen(this)">
+
 <script>
 // ═══════════════════════════════════════════════════
 // DATA
@@ -651,6 +656,7 @@ const I18N={
     toastNoActiveGame:'無進行中比賽',toastNoUndo:'沒有可撤銷的動作',toastUndone:'已撤銷',
     toastShotTagged:'已標記投籃位置',toastNoShotToTag:'最近沒有投籃可標記',
     toastNeedNumName:'請輸入號碼和姓名',toastDupNum:'號碼重複',toastNeedRosterFirst:'請先新增球員',
+    toastPhotoSaved:'照片已儲存',toastPhotoFail:'照片讀取失敗，請換一張試試',toastPhotoTooBig:'照片存不下，請清一些空間或換一張',
     toastSaved:'已儲存',confirmClearAll:'確定清除所有資料？',toastCleared:'已清除',
     confirmDelGame:'確定刪除這場紀錄？',toastDeleted:'已刪除',
     toastCopiedLine:'已複製！貼到 LINE 群組即可',toastCopyManually:'請手動複製',
@@ -746,6 +752,7 @@ const I18N={
     toastNoActiveGame:'No game in progress',toastNoUndo:'Nothing to undo',toastUndone:'Undone',
     toastShotTagged:'Shot location tagged',toastNoShotToTag:'No recent shot to tag',
     toastNeedNumName:'Enter a number and name',toastDupNum:'Number already used',toastNeedRosterFirst:'Add players first',
+    toastPhotoSaved:'Photo saved',toastPhotoFail:'Could not read that photo, try another',toastPhotoTooBig:'Not enough storage for that photo, free up space or try another',
     toastSaved:'Saved',confirmClearAll:'Clear all data?',toastCleared:'Cleared',
     confirmDelGame:'Delete this game record?',toastDeleted:'Deleted',
     toastCopiedLine:'Copied! Paste into your LINE group',toastCopyManually:'Please copy manually',
@@ -915,13 +922,63 @@ function addRosterEdit(){
   document.getElementById('eNum').value='';document.getElementById('eName').value='';
   save();renderRL('rList');renderRL('rListEdit');
 }
-function delR(n){A.roster=A.roster.filter(p=>p.n!==n);save();renderRL('rList');renderRL('rListEdit');}
+function delR(n){A.roster=A.roster.filter(p=>p.n!==n);delete PHOTOS[n];savePhotos();save();renderRL('rList');renderRL('rListEdit');}
 function renderRL(id){
   const el=document.getElementById(id);if(!el)return;
-  el.innerHTML=A.roster.map(p=>`
-    <div class="pi"><div class="pb">${p.n}</div><div class="pn">${p.name}</div>
-    <button class="xb" onclick="delR(${p.n})">✕</button></div>`).join('')
+  el.innerHTML=A.roster.map(p=>{
+    const photo=PHOTOS[p.n];
+    const avatar=photo?`<div class="pb" style="background-image:url('${photo}')" onclick="pickPhoto(${p.n})"></div>`:`<div class="pb" onclick="pickPhoto(${p.n})">${p.n}</div>`;
+    const rm=photo?`<div class="pb-rm" onclick="removePhoto(${p.n},event)">✕</div>`:'';
+    return `<div class="pi"><div class="pb-wrap">${avatar}${rm}</div><div class="pn">${p.name}</div>
+    <button class="xb" onclick="delR(${p.n})">✕</button></div>`;
+  }).join('')
     ||`<div style="color:var(--t2);font-size:12px;padding:6px 0">${t('noRoster')}</div>`;
+}
+
+// ═══════════════════════════════════════════════════
+// PLAYER PHOTOS
+// kept entirely out of A / localStorage 'bball2' — device-only, never pushed
+// to Firebase or embedded in a share link. Resized+compressed client-side so
+// they stay small and don't slow down every save()/fbSave() during live play.
+// ═══════════════════════════════════════════════════
+let PHOTOS={};
+function loadPhotos(){try{const s=localStorage.getItem('bball_photos');if(s)PHOTOS=JSON.parse(s);}catch(e){}}
+function savePhotos(){try{localStorage.setItem('bball_photos',JSON.stringify(PHOTOS));}catch(e){toast(t('toastPhotoTooBig'),'err');}}
+let _photoTargetN=null;
+function pickPhoto(n){_photoTargetN=n;document.getElementById('photoFileIn').click();}
+function onPhotoFileChosen(input){
+  const file=input.files&&input.files[0];
+  input.value='';
+  const n=_photoTargetN;_photoTargetN=null;
+  if(!file||!n)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const SZ=160;
+      const side=Math.min(img.width,img.height);
+      const sx=(img.width-side)/2,sy=(img.height-side)/2;
+      const canvas=document.createElement('canvas');
+      canvas.width=SZ;canvas.height=SZ;
+      canvas.getContext('2d').drawImage(img,sx,sy,side,side,0,0,SZ,SZ);
+      PHOTOS[n]=canvas.toDataURL('image/jpeg',0.75);
+      savePhotos();
+      renderRL('rList');renderRL('rListEdit');
+      if(A.cur)renderGame();
+      toast(t('toastPhotoSaved'));
+    };
+    img.onerror=()=>toast(t('toastPhotoFail'),'err');
+    img.src=e.target.result;
+  };
+  reader.onerror=()=>toast(t('toastPhotoFail'),'err');
+  reader.readAsDataURL(file);
+}
+function removePhoto(n,ev){
+  if(ev)ev.stopPropagation();
+  delete PHOTOS[n];
+  savePhotos();
+  renderRL('rList');renderRL('rListEdit');
+  if(A.cur)renderGame();
 }
 
 function saveSetup(){
@@ -1387,6 +1444,7 @@ function renderGame(){
       <div class="sec-ttl">${t('selPlayerStep')}</div>
       <div class="psel">${g.players.map(p=>`
         <div class="psel-btn${selP===p.n?' active':''}" data-pn="${p.n}" onclick="selectPlayer(${p.n})">
+          ${PHOTOS[p.n]?`<div class="psel-photo" style="background-image:url('${PHOTOS[p.n]}')"></div>`:''}
           <div class="psel-num">#${p.n}</div>
           <div class="psel-nm">${p.name}</div>
           <div class="psel-foul">${t('foulShort')}${p.s.foul||0}</div>
@@ -2128,6 +2186,7 @@ document.getElementById('pinIn').addEventListener('keydown',e=>{if(e.key==='Ente
 // INIT
 // ═══════════════════════════════════════════════════
 load();
+loadPhotos();
 applyI18N();
 loadFBConfig(); // async — syncs in background after local data is ready
 if(!checkSV()&&!checkFBView()){
