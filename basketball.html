@@ -69,21 +69,6 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .ob{display:flex;gap:6px;margin-top:7px}
 .obtn{flex:1;padding:8px 3px;background:var(--bg2);border:1px solid var(--blue);border-radius:7px;color:var(--blue);font-size:11px;cursor:pointer;text-align:center}
 .obtn:active{background:var(--blue);color:#fff}
-/* quick record cards */
-.qk-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:7px;margin-bottom:8px}
-.qk-top{display:flex;align-items:center;gap:9px;padding:3px 4px 9px;cursor:pointer}
-.qk-badge{background:var(--gl);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
-.qk-title{flex:1;font-size:15px;font-weight:700;line-height:1.3}
-.qk-live{font-size:11px;color:var(--t2);font-weight:400;margin-top:1px}
-.qk-chev{color:var(--t2);font-size:14px;flex-shrink:0}
-.qk-btns{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
-.qkb2{padding:13px 2px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;color:#fff;text-align:center;line-height:1.25;min-height:46px}
-.qkb2:active{transform:scale(.92);opacity:.85}
-.qk2{background:var(--gl)}.qk3{background:#1565c0}
-.qkx{background:#6d1f1f;color:#ffcdd2;border:1px solid #b71c1c}
-.qkrb{background:#bf360c}
-.qkm{background:var(--bg3);border:1px solid var(--border);color:var(--t2)}
-
 /* log */
 .lh{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
 .ubtn{background:none;border:1px solid var(--border);border-radius:5px;padding:3px 9px;color:var(--t2);font-size:11px;cursor:pointer}
@@ -146,22 +131,36 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .ni{font-size:18px;display:block}
 .nb.active{color:var(--gl)}
 
-/* modal */
-.ov{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:flex-end;z-index:200}
-.ov.show{display:flex}
-.mo{background:var(--bg2);border-radius:14px 14px 0 0;padding:18px 14px 28px;width:100%}
-.mo-ttl{font-size:16px;font-weight:700;text-align:center;margin-bottom:12px}
-.mo-sec{margin-bottom:10px}
-.mo-lbl{font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-.ag{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
-.ai{background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:10px 5px;text-align:center;cursor:pointer}
-.ai:active{opacity:.8}
-.ai.made{border-color:var(--gl)}.ai.made:active{background:var(--gl)}
-.ai.miss:active{background:var(--red);opacity:1}
-.ai.other:active{background:#ff6b35}
-.aic{font-size:20px;display:block;margin-bottom:2px}
-.ail{font-size:10px;color:var(--t2)}
-.ai.made .ail{color:var(--gl)}
+/* player selector (pick one active player, then tap actions) */
+.psel{display:flex;gap:7px;overflow-x:auto;padding:0 14px 8px;-webkit-overflow-scrolling:touch}
+.psel::-webkit-scrollbar{display:none}
+.psel-btn{flex:0 0 auto;min-width:54px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:7px 6px;text-align:center;cursor:pointer}
+.psel-btn.active{background:var(--gl);border-color:var(--gl)}
+.psel-num{font-size:15px;font-weight:800}
+.psel-nm{font-size:9px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52px}
+.psel-btn.active .psel-num,.psel-btn.active .psel-nm{color:#fff}
+.psel-foul{font-size:8px;color:var(--yellow);margin-top:1px}
+
+/* selection status bar */
+.selbar{margin:0 14px 10px;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:12px;color:var(--t2);text-align:center}
+.selbar b{color:var(--text);font-size:14px}
+.selbar.empty{color:var(--yellow)}
+
+/* action grid */
+.actgrid{padding:0 14px}
+.act-row{display:grid;gap:6px;margin-bottom:6px}
+.act-row.r4{grid-template-columns:repeat(4,1fr)}
+.act-row.r5{grid-template-columns:repeat(5,1fr)}
+.actb{border:none;border-radius:9px;padding:13px 2px;font-size:12px;font-weight:700;color:#fff;cursor:pointer;text-align:center;line-height:1.25;min-height:48px}
+.actb:active{transform:scale(.93);opacity:.85}
+.actb:disabled{opacity:.35}
+.act-mk{background:var(--gl)}.act-mk3{background:#1565c0}
+.act-x{background:#6d1f1f;color:#ffcdd2;border:1px solid #b71c1c}
+.act-rb{background:#bf360c}
+.act-oth{background:var(--bg3);border:1px solid var(--border);color:var(--text)}
+
+/* team fouls under scoreboard */
+.tf{font-size:10px;color:var(--t2);margin-top:2px}
 
 /* dialog */
 .dov{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:250}
@@ -194,16 +193,6 @@ textarea:focus{outline:none;border-color:var(--gl)}
 
 <div class="toast" id="toast"></div>
 
-<!-- Action modal -->
-<div class="ov" id="ov">
-  <div class="mo">
-    <div class="mo-ttl" id="mo-ttl">選擇動作</div>
-    <div class="mo-sec"><div class="mo-lbl">得分記錄</div><div class="ag" id="sg"></div></div>
-    <div class="mo-sec"><div class="mo-lbl">其他記錄</div><div class="ag" id="og" style="grid-template-columns:repeat(4,1fr)"></div></div>
-    <button class="btn btn-dim btn-full" style="margin-top:10px" onclick="closeModal()">取消</button>
-  </div>
-</div>
-
 <!-- New game dialog -->
 <div class="dov" id="ngd">
   <div class="di">
@@ -234,7 +223,7 @@ textarea:focus{outline:none;border-color:var(--gl)}
     <button class="btn btn-g btn-full" style="padding:14px;font-size:16px;margin-top:4px" onclick="saveSetup()">儲存並開始 →</button>
     <div style="padding:11px;background:var(--bg2);border-radius:10px;font-size:11px;color:var(--t2);line-height:1.9;margin-top:12px">
       <strong style="color:var(--text)">怎麼記錄比賽</strong><br>
-      比賽畫面每位球員一張卡片，直接點「<span style="color:var(--gl)">2分進／2分不進／3分進／籃板</span>」；點球員名字可打開完整選單（罰球、助攻、抄截、蓋帽、犯規、失誤）。<br>
+      兩步驟：先點上排「<span style="color:var(--gl)">選球員</span>」，再點下方動作按鈕（投籃、籃板、助攻…），按鈕會一直套用在你選的球員身上，直到你換選別人。<br>
       也可以用語音輸入（比賽畫面展開「語音輔助記錄」），但現場吵雜時建議直接用按鈕比較準。
     </div>
   </div>
@@ -401,6 +390,7 @@ textarea:focus{outline:none;border-color:var(--gl)}
 // DATA
 // ═══════════════════════════════════════════════════
 let A={teamName:'我方',roster:[],cur:null,hist:[]};
+let selP=null; // currently selected player number for quick-record
 // cur = {id,date,opp,ourPts,oppPts,quarter,players:[{n,name,s}],log:[]}
 
 function load(){
@@ -510,8 +500,9 @@ function confirmNG(){
     A.hist.unshift({...A.cur,status:'done'});
     if(A.hist.length>60)A.hist.pop();
   }
-  A.cur={id:''+Date.now(),date:fmt(),opp,ourPts:0,oppPts:0,quarter:1,
+  A.cur={id:''+Date.now(),date:fmt(),opp,ourPts:0,oppPts:0,oppFoul:0,quarter:1,
     players:A.roster.map(r=>({n:r.n,name:r.name,s:newS()})),log:[]};
+  selP=null;
   save();closeNGD();initUI();go('game');toast(`新比賽：vs ${opp}`);
 }
 
@@ -534,36 +525,49 @@ function renderGame(){
       <div class="qr">${['Q1','Q2','Q3','Q4','OT'].map((q,i)=>
         `<button class="qb${g.quarter===i+1?' active':''}" onclick="setQ(${i+1},this)">${q}</button>`).join('')}</div>
       <div class="sr">
-        <div class="st"><div class="sl">${A.teamName}</div><div class="sn our" id="ourS">${g.ourPts}</div></div>
+        <div class="st"><div class="sl">${A.teamName}</div><div class="sn our" id="ourS">${g.ourPts}</div><div class="tf" id="ourTF">犯規 ${sumFoul(g.players)}</div></div>
         <div class="svs">VS</div>
-        <div class="st"><div class="sl">${g.opp}</div><div class="sn opp" id="oppS">${g.oppPts}</div></div>
+        <div class="st"><div class="sl">${g.opp}</div><div class="sn opp" id="oppS">${g.oppPts}</div><div class="tf" id="oppTF">犯規 ${g.oppFoul||0}</div></div>
       </div>
     </div>
     <div class="sec" style="padding-top:12px">
-      <div class="sec-ttl">快速記錄（點名字看完整選單）</div>
-      <div>${g.players.map(p=>{
-        const s=p.s;
-        return `
-        <div class="qk-card">
-          <div class="qk-top" onclick="openModal(${p.n})">
-            <div class="qk-badge">${p.n}</div>
-            <div class="qk-title">${p.name}<div class="qk-live" id="qklive-${p.n}">${s.pts}分 · 籃板${s.reb||0} · 助攻${s.ast||0}</div></div>
-            <div class="qk-chev">›</div>
-          </div>
-          <div class="qk-btns">
-            <button class="qkb2 qk2" onclick="act(${p.n},'2pt')">2分<br>進</button>
-            <button class="qkb2 qkx" onclick="act(${p.n},'2miss')">2分<br>不進</button>
-            <button class="qkb2 qk3" onclick="act(${p.n},'3pt')">3分<br>進</button>
-            <button class="qkb2 qkrb" onclick="act(${p.n},'reb')">籃板</button>
-            <button class="qkb2 qkm" onclick="openModal(${p.n})">更多</button>
-          </div>
-        </div>`;}).join('')}</div>
+      <div class="sec-ttl">1. 先選球員</div>
+      <div class="psel">${g.players.map(p=>`
+        <div class="psel-btn${selP===p.n?' active':''}" data-pn="${p.n}" onclick="selectPlayer(${p.n})">
+          <div class="psel-num">#${p.n}</div>
+          <div class="psel-nm">${p.name}</div>
+          <div class="psel-foul">犯規${p.s.foul||0}</div>
+        </div>`).join('')}</div>
+      <div class="selbar${selP===null?' empty':''}" id="selBar">${selBarHTML(g)}</div>
+      <div class="sec-ttl">2. 再點動作</div>
+      <div class="actgrid">
+        <div class="act-row r4">
+          <button class="actb act-mk" onclick="actSel('2pt')">2分進</button>
+          <button class="actb act-x" onclick="actSel('2miss')">2分不進</button>
+          <button class="actb act-mk3" onclick="actSel('3pt')">3分進</button>
+          <button class="actb act-x" onclick="actSel('3miss')">3分不進</button>
+        </div>
+        <div class="act-row r4">
+          <button class="actb act-mk" onclick="actSel('ft')">罰球進</button>
+          <button class="actb act-x" onclick="actSel('ftm')">罰球不進</button>
+          <button class="actb act-rb" onclick="actSel('oreb')">進攻籃板</button>
+          <button class="actb act-rb" onclick="actSel('reb')">防守籃板</button>
+        </div>
+        <div class="act-row r5">
+          <button class="actb act-oth" onclick="actSel('ast')">助攻</button>
+          <button class="actb act-oth" onclick="actSel('stl')">抄截</button>
+          <button class="actb act-oth" onclick="actSel('blk')">蓋帽</button>
+          <button class="actb act-oth" onclick="actSel('to')">失誤</button>
+          <button class="actb act-oth" onclick="actSel('foul')">犯規</button>
+        </div>
+      </div>
       <div style="margin-top:10px">
-        <div class="sec-ttl">對手得分</div>
+        <div class="sec-ttl">對手記錄</div>
         <div class="ob">
           <div class="obtn" onclick="oppScore(1)">+1 罰球</div>
           <div class="obtn" onclick="oppScore(2)">+2 兩分</div>
           <div class="obtn" onclick="oppScore(3)">+3 三分</div>
+          <div class="obtn" onclick="oppFoul()">犯規</div>
         </div>
       </div>
     </div>
@@ -617,10 +621,33 @@ function act(pn,aid,silent=false){
   }
   g.log.unshift({q:g.quarter,ic:a.i,tx:`#${pn} ${p.name} ${a.l}`,pt:a.p>0?`+${a.p}`:'',ms:a.m||false,our:true,pn,aid});
   if(g.log.length>80)g.log.pop();
-  updScore();renderLog();updQkLive(pn);closeModal();save();
+  updScore();renderLog();refreshLiveUI(pn);save();
   if(!silent)toast(`#${pn} ${p.name} ${a.l}${a.p>0?' +'+a.p:''}`);
   return true;
 }
+
+// tap a stat button — applies to whichever player is currently selected
+function actSel(aid){
+  if(selP===null){toast('請先在上方選擇球員','warn');return;}
+  act(selP,aid);
+}
+
+function selectPlayer(pn){
+  const g=A.cur;if(!g)return;
+  selP=(selP===pn)?null:pn; // tap again to deselect
+  document.querySelectorAll('.psel-btn').forEach(b=>b.classList.toggle('active',+b.dataset.pn===selP));
+  const bar=document.getElementById('selBar');
+  if(bar){bar.innerHTML=selBarHTML(g);bar.className='selbar'+(selP===null?' empty':'');}
+}
+
+function selBarHTML(g){
+  if(selP===null)return '👆 請先在上方選擇球員';
+  const p=g.players.find(x=>x.n===selP);
+  if(!p){selP=null;return '👆 請先在上方選擇球員';}
+  return `<b>#${p.n} ${p.name}</b> 已選取 · ${p.s.pts}分 · 籃板${p.s.reb||0} · 助攻${p.s.ast||0}`;
+}
+
+function sumFoul(players){return (players||[]).reduce((a,p)=>a+(p.s.foul||0),0);}
 
 function oppScore(pts){
   const g=A.cur;if(!g)return;
@@ -630,12 +657,27 @@ function oppScore(pts){
   updScore();renderLog();save();toast(`對手 ${lb}`);
 }
 
+function oppFoul(){
+  const g=A.cur;if(!g)return;
+  g.oppFoul=(g.oppFoul||0)+1;
+  g.log.unshift({q:g.quarter,ic:'🟠',tx:`${g.opp} 犯規`,pt:'',ms:false,our:false,pn:-1,aid:'oppfoul'});
+  if(g.log.length>80)g.log.pop();
+  renderLog();save();toast(`${g.opp} 犯規`);
+  const tfEl=document.getElementById('oppTF');if(tfEl)tfEl.textContent=`犯規 ${g.oppFoul}`;
+}
+
 function undo(){
   const g=A.cur;if(!g){toast('無進行中比賽','warn');return;}
   if(!g.log.length){toast('沒有可撤銷的動作','err');return;}
   const l=g.log.shift();
-  if(!l.our){g.oppPts-=(l.oppts||0);}
-  else{
+  if(!l.our){
+    if(l.aid==='oppfoul'){
+      g.oppFoul=Math.max(0,(g.oppFoul||0)-1);
+      const tfEl=document.getElementById('oppTF');if(tfEl)tfEl.textContent=`犯規 ${g.oppFoul}`;
+    }else{
+      g.oppPts-=(l.oppts||0);
+    }
+  }else{
     const p=g.players.find(x=>x.n===l.pn);
     if(p){
       switch(l.aid){
@@ -650,16 +692,22 @@ function undo(){
         case 'stl':  p.s.stl--;break;case 'blk':p.s.blk--;break;
         case 'foul': p.s.foul--;break;case 'to':p.s.to--;break;
       }
-      updQkLive(l.pn);
+      refreshLiveUI(l.pn);
     }
   }
   updScore();renderLog();save();toast('已撤銷');
 }
-function updQkLive(pn){
+function refreshLiveUI(pn){
   const g=A.cur;if(!g)return;
-  const p=g.players.find(x=>x.n===pn);if(!p)return;
-  const el=document.getElementById('qklive-'+pn);
-  if(el)el.textContent=`${p.s.pts}分 · 籃板${p.s.reb||0} · 助攻${p.s.ast||0}`;
+  const bar=document.getElementById('selBar');
+  if(bar){bar.innerHTML=selBarHTML(g);bar.className='selbar'+(selP===null?' empty':'');}
+  const p=g.players.find(x=>x.n===pn);
+  if(p){
+    const fEl=document.querySelector(`.psel-btn[data-pn="${pn}"] .psel-foul`);
+    if(fEl)fEl.textContent=`犯規${p.s.foul||0}`;
+  }
+  const tfEl=document.getElementById('ourTF');
+  if(tfEl)tfEl.textContent=`犯規 ${sumFoul(g.players)}`;
 }
 
 function renderLog(){
@@ -673,24 +721,6 @@ function renderLog(){
       ${e.pt?`<span class="lip ${e.our&&!e.ms?'pos':e.our&&e.ms?'neu':'neg'}">${e.pt}</span>`:''}
     </div>`).join('');
 }
-
-// ═══════════════════════════════════════════════════
-// MODAL
-// ═══════════════════════════════════════════════════
-function openModal(pn){
-  const g=A.cur;if(!g)return;
-  const p=g.players.find(x=>x.n===pn);if(!p)return;
-  document.getElementById('mo-ttl').textContent=`#${pn} ${p.name}`;
-  document.getElementById('sg').innerHTML=SA.map(a=>`
-    <div class="ai ${a.m?'miss':'made'}" onclick="act(${pn},'${a.id}')">
-      <span class="aic">${a.i}</span><span class="ail">${a.l}</span></div>`).join('');
-  document.getElementById('og').innerHTML=OA.map(a=>`
-    <div class="ai other" onclick="act(${pn},'${a.id}')">
-      <span class="aic">${a.i}</span><span class="ail">${a.l}</span></div>`).join('');
-  document.getElementById('ov').classList.add('show');
-}
-function closeModal(){document.getElementById('ov').classList.remove('show');}
-document.getElementById('ov').addEventListener('click',e=>{if(e.target===document.getElementById('ov'))closeModal();});
 
 // ═══════════════════════════════════════════════════
 // STATS TABLE
@@ -1104,8 +1134,11 @@ function parseV(raw){
             toast(`#${num} ${p.name} ${a.l}`);
           }
         }else if(!aid){
-          html=`<span style="color:var(--yellow)">找到 #${num}，請選擇動作</span>`;
-          setTimeout(()=>openModal(num),300);
+          html=`<span style="color:var(--yellow)">找到 #${num} ${p.name}，已選取・請點動作按鈕</span>`;
+          selP=num;
+          document.querySelectorAll('.psel-btn').forEach(b=>b.classList.toggle('active',+b.dataset.pn===selP));
+          const bar=document.getElementById('selBar');
+          if(bar){bar.innerHTML=selBarHTML(g);bar.className='selbar';}
         }
       }
     }
