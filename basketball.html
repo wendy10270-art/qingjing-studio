@@ -48,9 +48,14 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .sn{font-size:58px;font-weight:900;line-height:1}
 .our{color:var(--gl)}.opp{color:var(--blue)}.svs{font-size:20px;color:var(--t2)}
 
-/* voice */
-.vs{padding:16px 16px 10px;text-align:center}
-.mb{width:86px;height:86px;border-radius:50%;background:var(--gl);border:none;font-size:34px;cursor:pointer;box-shadow:0 4px 18px rgba(76,175,80,.4);display:inline-flex;align-items:center;justify-content:center;color:#fff}
+/* voice (secondary / collapsible — unreliable in noisy gyms) */
+.vsx{margin:10px 14px 0;background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.vsx-sum{padding:10px 12px;font-size:12px;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px}
+.vsx-sum::-webkit-details-marker{display:none}
+.vsx-sum::before{content:'▸';font-size:10px;transition:transform .15s}
+.vsx[open] .vsx-sum::before{transform:rotate(90deg)}
+.vs{padding:4px 16px 14px;text-align:center;border-top:1px solid var(--border)}
+.mb{width:60px;height:60px;border-radius:50%;background:var(--gl);border:none;font-size:24px;cursor:pointer;box-shadow:0 4px 18px rgba(76,175,80,.4);display:inline-flex;align-items:center;justify-content:center;color:#fff}
 .mb.on{background:var(--red);animation:pulse 1s infinite;box-shadow:0 4px 24px rgba(239,83,80,.5)}
 .mb:active{transform:scale(.91)!important}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
@@ -64,16 +69,20 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .ob{display:flex;gap:6px;margin-top:7px}
 .obtn{flex:1;padding:8px 3px;background:var(--bg2);border:1px solid var(--blue);border-radius:7px;color:var(--blue);font-size:11px;cursor:pointer;text-align:center}
 .obtn:active{background:var(--blue);color:#fff}
-/* quick action rows */
-.qk-row{display:grid;grid-template-columns:66px repeat(4,1fr) 36px;gap:4px;margin-bottom:5px;align-items:stretch}
-.qk-nm{font-size:13px;font-weight:700;color:var(--gl);line-height:1.35;cursor:pointer;display:flex;flex-direction:column;justify-content:center;padding:2px 0}
-.qk-nm span{font-size:10px;color:var(--t2);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.qkb{padding:14px 1px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;color:#fff;text-align:center;line-height:1}
-.qkb:active{transform:scale(.90);opacity:.8}
+/* quick record cards */
+.qk-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:7px;margin-bottom:8px}
+.qk-top{display:flex;align-items:center;gap:9px;padding:3px 4px 9px;cursor:pointer}
+.qk-badge{background:var(--gl);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+.qk-title{flex:1;font-size:15px;font-weight:700;line-height:1.3}
+.qk-live{font-size:11px;color:var(--t2);font-weight:400;margin-top:1px}
+.qk-chev{color:var(--t2);font-size:14px;flex-shrink:0}
+.qk-btns{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+.qkb2{padding:13px 2px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;color:#fff;text-align:center;line-height:1.25;min-height:46px}
+.qkb2:active{transform:scale(.92);opacity:.85}
 .qk2{background:var(--gl)}.qk3{background:#1565c0}
 .qkx{background:#6d1f1f;color:#ffcdd2;border:1px solid #b71c1c}
 .qkrb{background:#bf360c}
-.qkm{background:var(--bg3);border:1px solid var(--border);color:var(--t2);font-size:17px}
+.qkm{background:var(--bg3);border:1px solid var(--border);color:var(--t2)}
 
 /* log */
 .lh{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
@@ -83,21 +92,31 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .lic{font-size:12px}.lit{flex:1}.lip{font-weight:700}
 .pos{color:var(--gl)}.neg{color:var(--red)}.neu{color:var(--t2)}
 
-/* stats table */
+/* stats cards */
 .sh{padding:13px 14px 7px}
 .ss{font-size:28px;font-weight:900;color:var(--gl);margin-bottom:2px}
-.ts{overflow-x:auto;border-radius:8px;border:1px solid var(--border);margin:0 14px}
-table{width:100%;border-collapse:collapse;font-size:11px}
-.ts table{min-width:810px}
-th{background:var(--green);padding:5px 4px;text-align:center;color:#fff;font-size:10px;white-space:nowrap;border:1px solid rgba(255,255,255,.1)}
-th.sc{position:sticky;left:0;background:var(--green);z-index:2}
-th.grp{background:#1b5e20;font-size:9px;letter-spacing:.3px}
-td{padding:5px 4px;text-align:center;border-bottom:1px solid var(--border);border-right:1px solid var(--border)}
-td:last-child{border-right:none}
-td.sc{position:sticky;left:0;background:var(--bg);z-index:1;font-weight:600;white-space:nowrap;text-align:left;min-width:80px}
-tr.tr td{background:var(--bg2);font-weight:700;border-top:2px solid var(--green)}
-tr.tr td.sc{background:var(--bg2)}
-.ptc{color:var(--gl);font-weight:700}.pcc{color:var(--yellow);font-size:10px;font-weight:600}
+.ts{margin:0 14px}
+.pcard{background:var(--bg2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden}
+.pcard-sum{display:flex;align-items:center;gap:8px;padding:11px 12px;cursor:pointer;list-style:none}
+.pcard-sum::-webkit-details-marker{display:none}
+.pc-badge{background:var(--gl);color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex-shrink:0}
+.pc-badge.tot{background:#1565c0}
+.pc-name{font-size:13px;font-weight:700;white-space:nowrap}
+.pc-line{flex:1;font-size:11px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pc-line b{color:var(--text)}
+.pc-chev{color:var(--t2);font-size:11px;transition:transform .15s;flex-shrink:0}
+.pcard[open] .pc-chev{transform:rotate(180deg)}
+.pcard-body{padding:0 12px 12px}
+.pd-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.pd-cell{background:var(--bg3);border-radius:7px;padding:7px 3px;text-align:center}
+.pd-lbl{font-size:9px;color:var(--t2);margin-bottom:2px}
+.pd-val{font-size:14px;font-weight:700}
+.pd-shots{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pd-shot{background:var(--bg3);border-radius:7px;padding:7px 3px;text-align:center}
+.pd-slbl{font-size:9px;color:var(--t2);margin-bottom:2px}
+.pd-sval{font-size:13px;font-weight:700}
+.pd-spct{font-size:10px;color:var(--yellow);font-weight:600}
+.pcard-tot{border-color:var(--gl)}
 
 /* share panel */
 .sp{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;margin:12px 14px}
@@ -201,7 +220,7 @@ textarea:focus{outline:none;border-color:var(--gl)}
 <div class="screen active" id="setupScreen">
   <div class="sw">
     <div class="big-ttl">🏀 籃球比賽統計表</div>
-    <div class="big-sub">語音記錄 · 多場存檔 · 一鍵分享</div>
+    <div class="big-sub">快速點按記錄 · 多場存檔 · 一鍵分享</div>
     <div class="ig"><label>我方隊名</label><input type="text" id="teamName" placeholder="例：小虎隊"></div>
     <div class="ig">
       <label>新增球員名單</label>
@@ -214,10 +233,9 @@ textarea:focus{outline:none;border-color:var(--gl)}
     <div class="pl" id="rList"></div>
     <button class="btn btn-g btn-full" style="padding:14px;font-size:16px;margin-top:4px" onclick="saveSetup()">儲存並開始 →</button>
     <div style="padding:11px;background:var(--bg2);border-radius:10px;font-size:11px;color:var(--t2);line-height:1.9;margin-top:12px">
-      <strong style="color:var(--text)">語音指令範例</strong><br>
-      「<span style="color:var(--gl)">38號2分進</span>」「<span style="color:var(--gl)">38號三分進</span>」<br>
-      「<span style="color:var(--gl)">38號兩分出手沒進</span>」「<span style="color:var(--gl)">38號三分不進</span>」<br>
-      「<span style="color:var(--gl)">38號籃板</span>」「<span style="color:var(--gl)">38號進攻板</span>」「<span style="color:var(--gl)">38號助攻</span>」「<span style="color:var(--gl)">對方三分</span>」
+      <strong style="color:var(--text)">怎麼記錄比賽</strong><br>
+      比賽畫面每位球員一張卡片，直接點「<span style="color:var(--gl)">2分進／2分不進／3分進／籃板</span>」；點球員名字可打開完整選單（罰球、助攻、抄截、蓋帽、犯規、失誤）。<br>
+      也可以用語音輸入（比賽畫面展開「語音輔助記錄」），但現場吵雜時建議直接用按鈕比較準。
     </div>
   </div>
 </div>
@@ -521,25 +539,25 @@ function renderGame(){
         <div class="st"><div class="sl">${g.opp}</div><div class="sn opp" id="oppS">${g.oppPts}</div></div>
       </div>
     </div>
-    <div class="vs">
-      <button class="mb" id="micBtn" onclick="toggleVoice()">🎙</button>
-      <div style="margin-top:10px">
-        <button id="autoBtn" onclick="toggleAuto()" style="padding:7px 18px;border-radius:16px;background:var(--bg3);border:1px solid var(--border);color:var(--t2);font-size:12px;cursor:pointer;font-weight:600">🔁 連續模式</button>
-      </div>
-      <div class="mh" id="micHint">點擊麥克風 或 開啟連續模式</div>
-      <div class="mr" id="micRes"></div>
-    </div>
-    <div class="sec">
-      <div class="sec-ttl">快速記錄（點名字開完整選單）</div>
-      <div>${g.players.map(p=>`
-        <div class="qk-row">
-          <div class="qk-nm" onclick="openModal(${p.n})">#${p.n}<span>${p.name}</span></div>
-          <button class="qkb qk2" onclick="act(${p.n},'2pt')">2分</button>
-          <button class="qkb qk3" onclick="act(${p.n},'3pt')">3分</button>
-          <button class="qkb qkx" onclick="act(${p.n},'2miss')">沒進</button>
-          <button class="qkb qkrb" onclick="act(${p.n},'reb')">籃板</button>
-          <button class="qkb qkm" onclick="openModal(${p.n})">•••</button>
-        </div>`).join('')}</div>
+    <div class="sec" style="padding-top:12px">
+      <div class="sec-ttl">快速記錄（點名字看完整選單）</div>
+      <div>${g.players.map(p=>{
+        const s=p.s;
+        return `
+        <div class="qk-card">
+          <div class="qk-top" onclick="openModal(${p.n})">
+            <div class="qk-badge">${p.n}</div>
+            <div class="qk-title">${p.name}<div class="qk-live" id="qklive-${p.n}">${s.pts}分 · 籃板${s.reb||0} · 助攻${s.ast||0}</div></div>
+            <div class="qk-chev">›</div>
+          </div>
+          <div class="qk-btns">
+            <button class="qkb2 qk2" onclick="act(${p.n},'2pt')">2分<br>進</button>
+            <button class="qkb2 qkx" onclick="act(${p.n},'2miss')">2分<br>不進</button>
+            <button class="qkb2 qk3" onclick="act(${p.n},'3pt')">3分<br>進</button>
+            <button class="qkb2 qkrb" onclick="act(${p.n},'reb')">籃板</button>
+            <button class="qkb2 qkm" onclick="openModal(${p.n})">更多</button>
+          </div>
+        </div>`;}).join('')}</div>
       <div style="margin-top:10px">
         <div class="sec-ttl">對手得分</div>
         <div class="ob">
@@ -549,6 +567,17 @@ function renderGame(){
         </div>
       </div>
     </div>
+    <details class="vsx">
+      <summary class="vsx-sum">🎙 語音輔助記錄（選用・現場吵雜建議直接用上方按鈕）</summary>
+      <div class="vs">
+        <button class="mb" id="micBtn" onclick="toggleVoice()">🎙</button>
+        <div style="margin-top:10px">
+          <button id="autoBtn" onclick="toggleAuto()" style="padding:7px 18px;border-radius:16px;background:var(--bg3);border:1px solid var(--border);color:var(--t2);font-size:12px;cursor:pointer;font-weight:600">🔁 連續模式</button>
+        </div>
+        <div class="mh" id="micHint">點擊麥克風 或 開啟連續模式</div>
+        <div class="mr" id="micRes"></div>
+      </div>
+    </details>
     <div class="sec">
       <div class="lh">
         <div class="sec-ttl" style="margin:0">最近記錄</div>
@@ -588,7 +617,7 @@ function act(pn,aid,silent=false){
   }
   g.log.unshift({q:g.quarter,ic:a.i,tx:`#${pn} ${p.name} ${a.l}`,pt:a.p>0?`+${a.p}`:'',ms:a.m||false,our:true,pn,aid});
   if(g.log.length>80)g.log.pop();
-  updScore();renderLog();closeModal();save();
+  updScore();renderLog();updQkLive(pn);closeModal();save();
   if(!silent)toast(`#${pn} ${p.name} ${a.l}${a.p>0?' +'+a.p:''}`);
   return true;
 }
@@ -608,20 +637,29 @@ function undo(){
   if(!l.our){g.oppPts-=(l.oppts||0);}
   else{
     const p=g.players.find(x=>x.n===l.pn);
-    if(p)switch(l.aid){
-      case '2pt':  p.s.pts-=2;p.s.twoM--;p.s.twoA--;g.ourPts-=2;break;
-      case '2miss':p.s.twoA--;break;
-      case '3pt':  p.s.pts-=3;p.s.threeM--;p.s.threeA--;g.ourPts-=3;break;
-      case '3miss':p.s.threeA--;break;
-      case 'ft':   p.s.pts-=1;p.s.ftM--;p.s.ftA--;g.ourPts-=1;break;
-      case 'ftm':  p.s.ftA--;break;
-      case 'oreb': p.s.reb--;p.s.oreb--;break;
-      case 'reb':  p.s.reb--;break;case 'ast':p.s.ast--;break;
-      case 'stl':  p.s.stl--;break;case 'blk':p.s.blk--;break;
-      case 'foul': p.s.foul--;break;case 'to':p.s.to--;break;
+    if(p){
+      switch(l.aid){
+        case '2pt':  p.s.pts-=2;p.s.twoM--;p.s.twoA--;g.ourPts-=2;break;
+        case '2miss':p.s.twoA--;break;
+        case '3pt':  p.s.pts-=3;p.s.threeM--;p.s.threeA--;g.ourPts-=3;break;
+        case '3miss':p.s.threeA--;break;
+        case 'ft':   p.s.pts-=1;p.s.ftM--;p.s.ftA--;g.ourPts-=1;break;
+        case 'ftm':  p.s.ftA--;break;
+        case 'oreb': p.s.reb--;p.s.oreb--;break;
+        case 'reb':  p.s.reb--;break;case 'ast':p.s.ast--;break;
+        case 'stl':  p.s.stl--;break;case 'blk':p.s.blk--;break;
+        case 'foul': p.s.foul--;break;case 'to':p.s.to--;break;
+      }
+      updQkLive(l.pn);
     }
   }
   updScore();renderLog();save();toast('已撤銷');
+}
+function updQkLive(pn){
+  const g=A.cur;if(!g)return;
+  const p=g.players.find(x=>x.n===pn);if(!p)return;
+  const el=document.getElementById('qklive-'+pn);
+  if(el)el.textContent=`${p.s.pts}分 · 籃板${p.s.reb||0} · 助攻${p.s.ast||0}`;
 }
 
 function renderLog(){
@@ -659,45 +697,52 @@ document.getElementById('ov').addEventListener('click',e=>{if(e.target===documen
 // ═══════════════════════════════════════════════════
 function pc(m,a){return a>0?Math.round(m/a*100)+'%':'-';}
 
+function statLine(s){
+  return `得分 <b>${s.pts}</b> · 籃板 <b>${s.reb||0}</b> · 助攻 <b>${s.ast||0}</b>`;
+}
+function buildDetail(s){
+  const or=s.oreb||0,dr=(s.reb||0)-or;
+  return `
+    <div class="pd-grid">
+      <div class="pd-cell"><div class="pd-lbl">進攻籃板</div><div class="pd-val">${or}</div></div>
+      <div class="pd-cell"><div class="pd-lbl">防守籃板</div><div class="pd-val">${dr}</div></div>
+      <div class="pd-cell"><div class="pd-lbl">抄截</div><div class="pd-val">${s.stl||0}</div></div>
+      <div class="pd-cell"><div class="pd-lbl">蓋帽</div><div class="pd-val">${s.blk||0}</div></div>
+      <div class="pd-cell"><div class="pd-lbl">失誤</div><div class="pd-val">${s.to||0}</div></div>
+      <div class="pd-cell"><div class="pd-lbl">犯規</div><div class="pd-val">${s.foul||0}</div></div>
+    </div>
+    <div class="pd-shots">
+      <div class="pd-shot"><div class="pd-slbl">2分球</div><div class="pd-sval">${s.twoM}/${s.twoA}</div><div class="pd-spct">${pc(s.twoM,s.twoA)}</div></div>
+      <div class="pd-shot"><div class="pd-slbl">3分球</div><div class="pd-sval">${s.threeM}/${s.threeA}</div><div class="pd-spct">${pc(s.threeM,s.threeA)}</div></div>
+      <div class="pd-shot"><div class="pd-slbl">罰球</div><div class="pd-sval">${s.ftM}/${s.ftA}</div><div class="pd-spct">${pc(s.ftM,s.ftA)}</div></div>
+    </div>`;
+}
 function buildTbl(players){
   if(!players||!players.length)return'<div style="color:var(--t2);padding:12px;text-align:center">無球員資料</div>';
   const t=players.reduce((acc,p)=>{
     ['pts','twoM','twoA','threeM','threeA','ftM','ftA','reb','oreb','ast','stl','blk','foul','to']
       .forEach(k=>acc[k]+=(p.s[k]||0));return acc;
   },{pts:0,twoM:0,twoA:0,threeM:0,threeA:0,ftM:0,ftA:0,reb:0,oreb:0,ast:0,stl:0,blk:0,foul:0,to:0});
-  const rows=players.map(p=>{
-    const or=p.s.oreb||0,dr=(p.s.reb||0)-or;
-    return`<tr>
-    <td class="sc">#${p.n} ${p.name}</td>
-    <td>${p.s.twoA}</td><td>${p.s.twoM}</td><td class="pcc">${pc(p.s.twoM,p.s.twoA)}</td>
-    <td>${p.s.threeA}</td><td>${p.s.threeM}</td><td class="pcc">${pc(p.s.threeM,p.s.threeA)}</td>
-    <td>${p.s.ftA}</td><td>${p.s.ftM}</td><td class="pcc">${pc(p.s.ftM,p.s.ftA)}</td>
-    <td>${or}</td><td>${dr}</td><td>${p.s.reb||0}</td>
-    <td>${p.s.ast}</td><td>${p.s.stl}</td><td>${p.s.blk}</td>
-    <td>${p.s.to}</td><td>${p.s.foul}</td><td class="ptc">${p.s.pts}</td>
-  </tr>`;}).join('');
-  const tor=t.oreb,tdr=t.reb-t.oreb;
-  return`<table><thead>
-    <tr><th class="sc" rowspan="2">球員</th>
-      <th colspan="3" class="grp">2分球</th><th colspan="3" class="grp">3分球</th><th colspan="3" class="grp">罰球</th>
-      <th colspan="3" class="grp">籃板</th>
-      <th rowspan="2">助攻</th><th rowspan="2">搶斷</th><th rowspan="2">蓋帽</th>
-      <th rowspan="2">失誤</th><th rowspan="2">犯規</th><th rowspan="2">得分</th></tr>
-    <tr><th>出手</th><th>命中</th><th style="color:var(--yellow)">%</th>
-        <th>出手</th><th>命中</th><th style="color:var(--yellow)">%</th>
-        <th>出手</th><th>命中</th><th style="color:var(--yellow)">%</th>
-        <th>進攻</th><th>防守</th><th>合計</th></tr>
-  </thead><tbody>${rows}
-    <tr class="tr">
-      <td class="sc">合計</td>
-      <td>${t.twoA}</td><td>${t.twoM}</td><td class="pcc">${pc(t.twoM,t.twoA)}</td>
-      <td>${t.threeA}</td><td>${t.threeM}</td><td class="pcc">${pc(t.threeM,t.threeA)}</td>
-      <td>${t.ftA}</td><td>${t.ftM}</td><td class="pcc">${pc(t.ftM,t.ftA)}</td>
-      <td>${tor}</td><td>${tdr}</td><td>${t.reb}</td>
-      <td>${t.ast}</td><td>${t.stl}</td><td>${t.blk}</td>
-      <td>${t.to}</td><td>${t.foul}</td><td class="ptc">${t.pts}</td>
-    </tr>
-  </tbody></table>`;
+  const cards=players.map(p=>`
+    <details class="pcard">
+      <summary class="pcard-sum">
+        <span class="pc-badge">${p.n}</span>
+        <span class="pc-name">${p.name}</span>
+        <span class="pc-line">${statLine(p.s)}</span>
+        <span class="pc-chev">▾</span>
+      </summary>
+      <div class="pcard-body">${buildDetail(p.s)}</div>
+    </details>`).join('');
+  return `${cards}
+    <details class="pcard pcard-tot" open>
+      <summary class="pcard-sum">
+        <span class="pc-badge tot">Σ</span>
+        <span class="pc-name">全隊合計</span>
+        <span class="pc-line">${statLine(t)}</span>
+        <span class="pc-chev">▾</span>
+      </summary>
+      <div class="pcard-body">${buildDetail(t)}</div>
+    </details>`;
 }
 
 function renderStats(){
