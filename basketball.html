@@ -276,6 +276,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .svh{background:var(--bg2);padding:14px 16px;border-bottom:1px solid var(--border);text-align:center}
 .svt{font-size:12px;color:var(--t2);margin-bottom:2px}
 .svm{font-size:24px;font-weight:900}
+.yt-wrap{position:relative;padding-top:56.25%;background:#000}
+.yt-wrap iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:0}
 
 /* toast */
 .toast{position:fixed;top:66px;left:50%;transform:translateX(-50%) translateY(-8px);background:var(--gl);color:#fff;padding:8px 18px;border-radius:16px;font-size:12px;font-weight:600;z-index:300;opacity:0;transition:all .25s;pointer-events:none;white-space:nowrap}
@@ -299,6 +301,7 @@ textarea:focus{outline:none;border-color:var(--gl)}
   <div class="di">
     <div class="di-ttl" data-i18n="newGameTitle">🏀 開始新比賽</div>
     <input type="text" id="nopp" data-i18n-ph="oppPh" placeholder="對手隊名（例：雄鷹隊）">
+    <input type="text" id="nyt" data-i18n-ph="ytLinkPh" placeholder="🔴 YouTube 直播連結（選填，之後也能補）">
     <div class="di-btns">
       <button class="btn btn-dim" data-i18n="cancel" onclick="closeNGD()">取消</button>
       <button class="btn btn-g" data-i18n="start" onclick="confirmNG()">開始</button>
@@ -372,6 +375,13 @@ textarea:focus{outline:none;border-color:var(--gl)}
       </div>
       <div id="fbShareDiv1" style="display:none;margin-top:7px">
         <button class="btn btn-full" data-i18n="shareLiveLink" style="background:#673ab7;color:#fff;padding:9px;font-size:12px" onclick="doShareFB()">📡 即時連結（家長可看到即時比分和統計）</button>
+      </div>
+      <div style="margin-top:9px">
+        <div style="display:flex;gap:6px">
+          <input type="text" id="ytIn" data-i18n-ph="ytLinkPh" placeholder="🔴 YouTube 直播連結（選填，之後也能補）" style="flex:1;padding:9px 10px;font-size:12px">
+          <button class="btn btn-g" style="padding:9px 14px;font-size:12px;flex-shrink:0" onclick="setGameYt()" data-i18n="saveBtn">儲存</button>
+        </div>
+        <div id="ytStatus" style="font-size:11px;color:var(--t2);margin-top:4px"></div>
       </div>
     </div>
     <div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:8px">
@@ -525,6 +535,7 @@ textarea:focus{outline:none;border-color:var(--gl)}
 
 <!-- ── SHARE VIEW (read-only, URL #v=... or #fb=...) ── -->
 <div class="screen" id="svScreen">
+  <div id="svVideo"></div>
   <div class="svh">
     <img src="bball-team-logo.png" alt="" class="team-logo-lg">
     <div class="svt" id="svT"></div>
@@ -611,6 +622,7 @@ const I18N={
     addScheduleBtn:'🗓️ 新增賽程',
     addScheduleTitle:'🗓️ 新增賽程',schDateLbl:'日期',schTimeLbl:'時間（選填）',schVenuePh:'地點（選填）',
     saveBtn:'儲存',startRecording:'開始記錄',upcomingTitle:'📅 即將到來的賽事',
+    ytLinkPh:'🔴 YouTube 直播連結（選填，之後也能補）',toastYtSaved:'已儲存直播連結',toastYtCleared:'已清除直播連結',ytSetOn:'✓ 已設定：',
     toastNeedDateOpp:'請輸入日期和對手',confirmDelSch:'確定刪除這筆賽程？',toastSchAdded:'已加入賽程',
     noGameSub:'點下方按鈕開始記錄',
     calLegendWin:'勝',calLegendLoss:'敗',calLegendDraw:'平',calLegendSch:'賽程',calNoEvents:'這天沒有安排的賽事',
@@ -705,6 +717,7 @@ const I18N={
     addScheduleBtn:'🗓️ Add Fixture',
     addScheduleTitle:'🗓️ Add Fixture',schDateLbl:'Date',schTimeLbl:'Time (optional)',schVenuePh:'Venue (optional)',
     saveBtn:'Save',startRecording:'Start Recording',upcomingTitle:'📅 Upcoming Fixtures',
+    ytLinkPh:'🔴 YouTube live link (optional, can add later)',toastYtSaved:'Live link saved',toastYtCleared:'Live link cleared',ytSetOn:'✓ Set: ',
     toastNeedDateOpp:'Enter a date and opponent',confirmDelSch:'Delete this fixture?',toastSchAdded:'Fixture added',
     noGameSub:'Tap the button below to start recording',
     calLegendWin:'Win',calLegendLoss:'Loss',calLegendDraw:'Draw',calLegendSch:'Fixture',calNoEvents:'No events on this day',
@@ -932,17 +945,25 @@ function clearAll(){
 // ═══════════════════════════════════════════════════
 // NEW GAME DIALOG
 // ═══════════════════════════════════════════════════
-function openNGD(prefillOpp){document.getElementById('nopp').value=prefillOpp||'';document.getElementById('ngd').classList.add('show');setTimeout(()=>document.getElementById('nopp').focus(),200);}
+function openNGD(prefillOpp){document.getElementById('nopp').value=prefillOpp||'';document.getElementById('nyt').value='';document.getElementById('ngd').classList.add('show');setTimeout(()=>document.getElementById('nopp').focus(),200);}
 function closeNGD(){document.getElementById('ngd').classList.remove('show');_startingFromSchId=null;}
 let _startingFromSchId=null;
+function parseYtId(input){
+  input=(input||'').trim();
+  if(!input)return'';
+  if(/^[\w-]{11}$/.test(input))return input; // bare video ID
+  const m=input.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|live\/|embed\/|shorts\/))([\w-]{11})/);
+  return m?m[1]:'';
+}
 function confirmNG(){
   const opp=document.getElementById('nopp').value.trim()||'對手';
+  const ytId=parseYtId(document.getElementById('nyt').value);
   if(A.cur&&(A.cur.ourPts||A.cur.oppPts||A.cur.log.length)){
     A.hist.unshift({...A.cur,status:'done'});
     if(A.hist.length>60)A.hist.pop();
   }
   A.cur={id:''+Date.now(),date:fmt(),opp,ourPts:0,oppPts:0,oppFoul:0,
-    oppReb:0,oppAst:0,oppTov:0,ourTimeouts:5,oppTimeouts:5,quarter:1,
+    oppReb:0,oppAst:0,oppTov:0,ourTimeouts:5,oppTimeouts:5,quarter:1,ytId,
     players:A.roster.map(r=>({n:r.n,name:r.name,s:newS()})),log:[]};
   if(_startingFromSchId){
     A.schedule=(A.schedule||[]).filter(s=>s.id!==_startingFromSchId);
@@ -1664,6 +1685,21 @@ function renderStats(){
   const w=g.ourPts>g.oppPts?'✅':g.ourPts<g.oppPts?'❌':'';
   document.getElementById('statsScore').innerHTML=`${g.ourPts}<span style="color:var(--t2);font-size:22px"> : </span>${g.oppPts} ${w}`;
   document.getElementById('statsTbl').innerHTML=buildStatsCards(g);
+  updYtUI();
+}
+function setGameYt(){
+  if(!A.cur)return;
+  const el=document.getElementById('ytIn');
+  const id=parseYtId(el.value);
+  A.cur.ytId=id;
+  save();
+  el.value='';
+  updYtUI();
+  toast(id?t('toastYtSaved'):t('toastYtCleared'));
+}
+function updYtUI(){
+  const st=document.getElementById('ytStatus');if(!st)return;
+  st.textContent=(A.cur&&A.cur.ytId)?t('ytSetOn')+A.cur.ytId:'';
 }
 // composes every stats card in a consistent order; shared by stats/history/live/share views
 function buildStatsCards(g,teamName){
@@ -1727,7 +1763,7 @@ function fmtLine(g){
 function genURL(g){
   try{
     const d={team:A.teamName,date:g.date,opp:g.opp,ourPts:g.ourPts,oppPts:g.oppPts,
-      oppFoul:g.oppFoul||0,oppReb:g.oppReb||0,oppAst:g.oppAst||0,oppTov:g.oppTov||0,quarter:g.quarter||1,
+      oppFoul:g.oppFoul||0,oppReb:g.oppReb||0,oppAst:g.oppAst||0,oppTov:g.oppTov||0,quarter:g.quarter||1,ytId:g.ytId||'',
       players:g.players.map(p=>({n:p.n,name:p.name,s:p.s})),
       log:(g.log||[]).map(e=>({q:e.q,ic:e.ic,tx:e.tx,pt:e.pt,our:e.our,aid:e.aid,oppts:e.oppts,loc:e.loc,ms:e.ms})),
       schedule:A.schedule||[]};
@@ -1876,8 +1912,21 @@ function checkFBView(){
   }catch(e){return false;}
 }
 
+let _svCurYtId=null; // tracks which video is currently embedded, so live updates don't reload/restart the player
+function ytEmbedHTML(ytId){
+  if(!ytId)return'';
+  return `<div class="yt-wrap"><iframe src="https://www.youtube.com/embed/${ytId}?autoplay=0" title="YouTube live" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`;
+}
+function updSvVideo(ytId){
+  ytId=ytId||'';
+  if(ytId===_svCurYtId)return;
+  _svCurYtId=ytId;
+  const el=document.getElementById('svVideo');
+  if(el)el.innerHTML=ytEmbedHTML(ytId);
+}
 function renderFBLive(data){
   const g=data.cur;
+  updSvVideo(g&&g.ytId);
   const teamName=data.teamName||t('svDefaultTeam');
   document.getElementById('svT').textContent=teamName+(g?` vs ${g.opp}`:'');
   if(!g){
@@ -1901,6 +1950,7 @@ function checkSV(){
   if(!h.startsWith('#v='))return false;
   try{
     const d=JSON.parse(decodeURIComponent(escape(atob(h.slice(3)))));
+    updSvVideo(d.ytId);
     const w=d.ourPts>d.oppPts?'✅':d.ourPts<d.oppPts?'❌':'';
     document.getElementById('svT').textContent=`${d.team} vs ${d.opp}`;
     document.getElementById('svM').textContent=`${d.ourPts} : ${d.oppPts} ${w}`;
