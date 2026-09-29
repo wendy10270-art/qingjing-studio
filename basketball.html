@@ -185,6 +185,48 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .lg-mk{color:var(--gl);font-weight:900}
 .lg-x{color:var(--red);font-weight:900}
 
+/* shot chart player filter */
+.shot-filter{display:flex;gap:5px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch}
+.shot-filter::-webkit-scrollbar{display:none}
+.sf-chip{flex:0 0 auto;padding:5px 10px;border-radius:12px;background:var(--bg3);border:1px solid var(--border);color:var(--t2);font-size:11px;cursor:pointer}
+.sf-chip.active{background:var(--gl);border-color:var(--gl);color:#fff}
+
+/* timeouts */
+.to-row{display:flex;gap:7px;padding:0 14px 10px}
+.to-btn{flex:1;padding:7px 4px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:11px;cursor:pointer;text-align:center}
+.to-btn:active{background:var(--bg3)}
+
+/* quarter score table */
+.qtbl{width:100%;border-collapse:collapse;font-size:12px}
+.qtbl th{color:var(--t2);font-weight:600;padding:4px 2px;text-align:center}
+.qtbl td{padding:6px 2px;text-align:center;border-top:1px solid var(--border)}
+.qtbl-team{text-align:left!important;font-weight:600;white-space:nowrap}
+
+/* team comparison bars */
+.cmp-row{margin-bottom:12px}
+.cmp-nums{display:flex;align-items:center;justify-content:space-between;font-size:12px;margin-bottom:4px}
+.cmp-nums b{font-size:14px;min-width:24px}
+.cmp-nums b:last-child{text-align:right}
+.cmp-lbl{color:var(--t2);font-size:10px}
+.cmp-bar-bg{display:flex;background:var(--bg3);border-radius:4px;height:8px;overflow:hidden}
+.cmp-bar-a{background:var(--gl);height:100%;margin-left:auto}
+.cmp-bar-b{background:var(--blue);height:100%}
+
+/* play-by-play */
+.pbp-qrow{display:flex;gap:5px;overflow-x:auto;margin-bottom:8px;-webkit-overflow-scrolling:touch}
+.pbp-qrow::-webkit-scrollbar{display:none}
+.pbp-qbtn{flex:0 0 auto;padding:5px 10px;border-radius:12px;background:var(--bg3);border:1px solid var(--border);color:var(--t2);font-size:11px;cursor:pointer}
+.pbp-qbtn.active{background:var(--gl);border-color:var(--gl);color:#fff}
+.pbp-toggle{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2);margin-bottom:8px;cursor:pointer}
+.pbp-list{max-height:340px;overflow-y:auto}
+.pbp-row{display:flex;align-items:center;gap:6px;padding:6px 8px;border-left:3px solid var(--border);margin-bottom:3px;font-size:11px;background:var(--bg3);border-radius:0 6px 6px 0}
+.pbp-row.pbp-our{border-left-color:var(--gl)}
+.pbp-row.pbp-opp{border-left-color:var(--blue)}
+.pbp-q{color:var(--t2);font-size:10px;flex-shrink:0}
+.pbp-ic{flex-shrink:0}
+.pbp-tx{flex:1}
+.pbp-score{font-weight:700;color:var(--t2);flex-shrink:0}
+
 /* dialog */
 .dov{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:250}
 .dov.show{display:flex}
@@ -422,6 +464,9 @@ textarea:focus{outline:none;border-color:var(--gl)}
 // ═══════════════════════════════════════════════════
 let A={teamName:'我方',roster:[],cur:null,hist:[]};
 let selP=null; // currently selected player number for quick-record
+let shotFilterP=null; // shot chart player filter (null = all players)
+let pbpQFilter='all'; // play-by-play quarter filter
+let pbpNewestFirst=true; // play-by-play sort order
 // cur = {id,date,opp,ourPts,oppPts,quarter,players:[{n,name,s}],log:[]}
 
 // ═══════════════════════════════════════════════════
@@ -506,6 +551,9 @@ const I18N={
     lineRebAbbr:'板',lineOffAbbr:'攻',lineDefAbbr:'守',
     lineAstAbbr:'助',lineStlAbbr:'斷',lineBlkAbbr:'帽',lineFoulAbbr:'規',lineToAbbr:'誤',
     lineTeamPrefix:'全隊 ',line2p:'2分',line3p:'3分',lineFt:'罰球',
+    byQuarter:'各節比分',bestPlayer:'本場最佳球員',teamCompare:'球隊數據比較',
+    allPlayers:'全部',allQ:'全部',newestFirst:'最新優先',pbpTitle:'完整記錄',
+    timeoutsLeft:'剩餘暫停',timeoutLog:'請求暫停',toastNoTimeouts:'暫停已用完',
   },
   en:{
     appTitle:'🏀 Basketball Stat Tracker',appSub:'Quick-tap tracking · Multi-game history · One-tap share',
@@ -584,6 +632,9 @@ const I18N={
     lineRebAbbr:'reb',lineOffAbbr:'off',lineDefAbbr:'def',
     lineAstAbbr:'ast',lineStlAbbr:'stl',lineBlkAbbr:'blk',lineFoulAbbr:'foul',lineToAbbr:'TO',
     lineTeamPrefix:'Team ',line2p:'2PT',line3p:'3PT',lineFt:'FT',
+    byQuarter:'By Quarter',bestPlayer:'Best Performer',teamCompare:'Team Comparison',
+    allPlayers:'All',allQ:'All',newestFirst:'Newest first',pbpTitle:'Play-by-Play',
+    timeoutsLeft:'Timeouts left',timeoutLog:'Timeout',toastNoTimeouts:'No timeouts left',
   }
 };
 function t(key){const d=I18N[LANG]||I18N.zh;return (d&&d[key]!==undefined)?d[key]:(I18N.zh[key]!==undefined?I18N.zh[key]:key);}
@@ -706,9 +757,10 @@ function confirmNG(){
     A.hist.unshift({...A.cur,status:'done'});
     if(A.hist.length>60)A.hist.pop();
   }
-  A.cur={id:''+Date.now(),date:fmt(),opp,ourPts:0,oppPts:0,oppFoul:0,quarter:1,
+  A.cur={id:''+Date.now(),date:fmt(),opp,ourPts:0,oppPts:0,oppFoul:0,
+    oppReb:0,oppAst:0,oppTov:0,ourTimeouts:5,oppTimeouts:5,quarter:1,
     players:A.roster.map(r=>({n:r.n,name:r.name,s:newS()})),log:[]};
-  selP=null;
+  selP=null;shotFilterP=null;pbpQFilter='all';pbpNewestFirst=true;
   save();closeNGD();initUI();go('game');toast(`${t('toastNewGame')}${opp}`);
 }
 
@@ -754,11 +806,21 @@ function shotSectionHTML(g){
   const pending=g.log.find(e=>SHOT_AIDS.includes(e.aid)&&!e.loc);
   const hint=pending?`<div class="shx-hint">${t('shotHintPending').replace('{0}',pending.tx)}</div>`
     :`<div class="shx-hint dim">${t('shotHintNone')}</div>`;
-  return `${hint}
+  const filtered=shotFilterP===null?g.log:g.log.filter(e=>e.pn===shotFilterP);
+  const chips=`<div class="shot-filter">
+    <div class="sf-chip${shotFilterP===null?' active':''}" onclick="setShotFilter(null)">${t('allPlayers')}</div>
+    ${g.players.map(p=>`<div class="sf-chip${shotFilterP===p.n?' active':''}" onclick="setShotFilter(${p.n})">#${p.n}</div>`).join('')}
+  </div>`;
+  return `${chips}${hint}
     <svg viewBox="0 0 300 320" class="court-svg" id="shotCourt" onclick="tagLastShotLocation(event)">
-      ${courtLinesSVG()}${shotMarkersSVG(g.log)}
+      ${courtLinesSVG()}${shotMarkersSVG(filtered)}
     </svg>
     <div class="shx-legend"><span class="lg-mk">●</span> ${t('legendMade')}　<span class="lg-x">✕</span> ${t('legendMiss')}</div>`;
+}
+function setShotFilter(pn){
+  shotFilterP=pn;
+  const body=document.getElementById('shxBody');
+  if(body&&A.cur)body.innerHTML=shotSectionHTML(A.cur);
 }
 function buildShotCard(log){
   const shots=(log||[]).filter(e=>e.loc);
@@ -776,6 +838,150 @@ function buildShotCard(log){
       <div class="shx-legend"><span class="lg-mk">●</span> ${t('legendMade')}　<span class="lg-x">✕</span> ${t('legendMiss')}</div>
     </div>
   </details>`;
+}
+
+// ═══════════════════════════════════════════════════
+// QUARTER-BY-QUARTER SCORE (derived from log, no extra tracking needed)
+// ═══════════════════════════════════════════════════
+function quarterScores(g){
+  const ours=[0,0,0,0,0],opps=[0,0,0,0,0];
+  (g.log||[]).forEach(e=>{
+    const qi=Math.min(Math.max((e.q||1)-1,0),4);
+    if(e.our===true&&e.pt&&e.pt.charAt(0)==='+')ours[qi]+=parseInt(e.pt.slice(1),10)||0;
+    else if(e.aid==='opp')opps[qi]+=(e.oppts||0);
+  });
+  return {ours,opps};
+}
+function buildQuarterTable(g,teamName){
+  teamName=teamName||A.teamName;
+  const {ours,opps}=quarterScores(g);
+  const usedOT=ours[4]>0||opps[4]>0||(g.quarter||1)>=5;
+  const labels=usedOT?['Q1','Q2','Q3','Q4','OT']:['Q1','Q2','Q3','Q4'];
+  const head=labels.map(l=>`<th>${l}</th>`).join('');
+  const ourRow=labels.map((_,i)=>`<td>${ours[i]}</td>`).join('');
+  const oppRow=labels.map((_,i)=>`<td>${opps[i]}</td>`).join('');
+  return `<div class="pcard" style="padding:10px 12px">
+    <div class="pc-name" style="margin-bottom:8px">${t('byQuarter')}</div>
+    <div style="overflow-x:auto"><table class="qtbl"><thead><tr><th></th>${head}<th>${t('teamTotal')}</th></tr></thead>
+    <tbody>
+      <tr><td class="qtbl-team">${teamName}</td>${ourRow}<td><b>${g.ourPts}</b></td></tr>
+      <tr><td class="qtbl-team">${g.opp}</td>${oppRow}<td><b>${g.oppPts}</b></td></tr>
+    </tbody></table></div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════
+// BEST PERFORMER (our team only — no opponent roster tracked)
+// ═══════════════════════════════════════════════════
+function bestPlayer(players){
+  if(!players||!players.length)return null;
+  return players.reduce((best,p)=>{
+    const score=(p.s.pts||0)+(p.s.reb||0)*0.6+(p.s.ast||0)*0.6;
+    if(!best)return score>0?p:null;
+    const bScore=(best.s.pts||0)+(best.s.reb||0)*0.6+(best.s.ast||0)*0.6;
+    return score>bScore?p:best;
+  },null);
+}
+function buildBestPlayerCard(players){
+  const bp=bestPlayer(players);
+  if(!bp)return '';
+  return `<div class="pcard" style="padding:10px 12px">
+    <div class="pc-name" style="margin-bottom:8px">${t('bestPlayer')}</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="pc-badge" style="width:34px;height:34px;font-size:13px;flex-shrink:0">${bp.n}</div>
+      <div style="flex:1;font-weight:700;font-size:14px">${bp.name}</div>
+      <div style="display:flex;gap:14px;text-align:center">
+        <div><div style="font-weight:800;color:var(--gl)">${bp.s.pts}</div><div style="font-size:9px;color:var(--t2)">PTS</div></div>
+        <div><div style="font-weight:800">${bp.s.reb||0}</div><div style="font-size:9px;color:var(--t2)">REB</div></div>
+        <div><div style="font-weight:800">${bp.s.ast||0}</div><div style="font-size:9px;color:var(--t2)">AST</div></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════
+// TEAM COMPARISON (our per-player totals vs opponent team-level counters)
+// ═══════════════════════════════════════════════════
+function teamTotals(players){
+  return (players||[]).reduce((a,p)=>{
+    a.pts+=(p.s.pts||0);a.reb+=(p.s.reb||0);a.ast+=(p.s.ast||0);a.to+=(p.s.to||0);
+    return a;
+  },{pts:0,reb:0,ast:0,to:0});
+}
+function buildCompareCard(g,teamName){
+  teamName=teamName||A.teamName;
+  const our=teamTotals(g.players);
+  const opp={pts:g.oppPts||0,reb:g.oppReb||0,ast:g.oppAst||0,to:g.oppTov||0};
+  const rows=[
+    {lbl:t('statPts'),a:our.pts,b:opp.pts},
+    {lbl:t('statReb'),a:our.reb,b:opp.reb},
+    {lbl:t('statAst'),a:our.ast,b:opp.ast},
+    {lbl:t('statTo'),a:our.to,b:opp.to},
+  ];
+  const barRows=rows.map(r=>{
+    const tot=r.a+r.b||1;
+    const pa=(r.a/tot*100).toFixed(1);
+    return `<div class="cmp-row">
+      <div class="cmp-nums"><b>${r.a}</b><span class="cmp-lbl">${r.lbl}</span><b>${r.b}</b></div>
+      <div class="cmp-bar-bg"><div class="cmp-bar-a" style="width:${pa}%"></div><div class="cmp-bar-b" style="width:${(100-pa).toFixed(1)}%"></div></div>
+    </div>`;
+  }).join('');
+  return `<div class="pcard" style="padding:10px 12px">
+    <div class="pc-name" style="margin-bottom:8px">${t('teamCompare')}</div>
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t2);margin-bottom:8px">
+      <span>${teamName}</span><span>${g.opp}</span>
+    </div>
+    ${barRows}
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════
+// PLAY-BY-PLAY (full filterable log, derived from g.log)
+// ═══════════════════════════════════════════════════
+function buildPBPCard(g){
+  let chron=[...(g.log||[])].reverse(); // oldest first
+  let runOur=0,runOpp=0;
+  chron=chron.map(e=>{
+    if(e.our===true&&e.pt&&e.pt.charAt(0)==='+')runOur+=parseInt(e.pt.slice(1),10)||0;
+    if(e.aid==='opp')runOpp+=(e.oppts||0);
+    return {...e,_ro:runOur,_rp:runOpp};
+  });
+  if(pbpNewestFirst)chron=chron.reverse();
+  if(pbpQFilter!=='all')chron=chron.filter(e=>String(e.q)===String(pbpQFilter));
+  const rows=chron.map(e=>{
+    const sideClass=e.our===true?'pbp-our':e.our===false?'pbp-opp':'';
+    const showScore=(e.pt&&e.pt.charAt(0)==='+')||e.aid==='opp';
+    return `<div class="pbp-row ${sideClass}">
+      <span class="pbp-q">Q${e.q}</span><span class="pbp-ic">${e.ic}</span>
+      <span class="pbp-tx">${e.tx}</span>
+      ${showScore?`<span class="pbp-score">${e._ro}-${e._rp}</span>`:''}
+    </div>`;
+  }).join('')||`<div style="color:var(--t2);font-size:12px;text-align:center;padding:12px">${t('noLog')}</div>`;
+  const qOpts=['all','1','2','3','4','5'];
+  const qBtns=qOpts.map(q=>{
+    const lbl=q==='all'?t('allQ'):(q==='5'?'OT':'Q'+q);
+    return `<button class="pbp-qbtn${pbpQFilter===q?' active':''}" onclick="setPBPFilter('${q}')">${lbl}</button>`;
+  }).join('');
+  return `<details class="pcard" open>
+    <summary class="pcard-sum">
+      <span class="pc-badge tot">📋</span>
+      <span class="pc-name">${t('pbpTitle')}</span>
+      <span class="pc-chev">▾</span>
+    </summary>
+    <div class="pcard-body">
+      <div class="pbp-qrow">${qBtns}</div>
+      <label class="pbp-toggle"><input type="checkbox" ${pbpNewestFirst?'checked':''} onchange="togglePBPOrder(this)"> ${t('newestFirst')}</label>
+      <div class="pbp-list">${rows}</div>
+    </div>
+  </details>`;
+}
+function setPBPFilter(q){pbpQFilter=q;refreshPBP();}
+function togglePBPOrder(el){pbpNewestFirst=el.checked;refreshPBP();}
+let _pbpGame=null; // game object backing whichever PBP card is currently on screen
+function refreshPBP(){
+  if(!_pbpGame)return;
+  const el=document.getElementById('pbpWrap');
+  if(el)el.innerHTML=buildPBPCard(_pbpGame);
 }
 
 // ═══════════════════════════════════════════════════
@@ -802,7 +1008,11 @@ function renderGame(){
         <div class="st"><div class="sl">${g.opp}</div><div class="sn opp" id="oppS">${g.oppPts}</div><div class="tf" id="oppTF">${t('foulShort')} ${g.oppFoul||0}</div></div>
       </div>
     </div>
-    <div class="sec" style="padding-top:12px">
+    <div class="to-row" style="padding-top:10px">
+      <button class="to-btn" id="ourTOBtn" onclick="useTimeout('our')">⏱ ${A.teamName} ${t('timeoutsLeft')} ${g.ourTimeouts??5}</button>
+      <button class="to-btn" id="oppTOBtn" onclick="useTimeout('opp')">⏱ ${g.opp} ${t('timeoutsLeft')} ${g.oppTimeouts??5}</button>
+    </div>
+    <div class="sec" style="padding-top:2px">
       <div class="sec-ttl">${t('selPlayerStep')}</div>
       <div class="psel">${g.players.map(p=>`
         <div class="psel-btn${selP===p.n?' active':''}" data-pn="${p.n}" onclick="selectPlayer(${p.n})">
@@ -846,6 +1056,11 @@ function renderGame(){
           <div class="obtn" onclick="oppScore(2)">${t('opp2pBtn')}</div>
           <div class="obtn" onclick="oppScore(3)">${t('opp3pBtn')}</div>
           <div class="obtn" onclick="oppFoul()">${t('foulShort')}</div>
+        </div>
+        <div class="ob" style="margin-top:6px">
+          <div class="obtn" onclick="oppStat('oppReb')">${t('statReb')}</div>
+          <div class="obtn" onclick="oppStat('oppAst')">${t('statAst')}</div>
+          <div class="obtn" onclick="oppStat('oppTov')">${t('statTo')}</div>
         </div>
       </div>
     </div>
@@ -944,17 +1159,49 @@ function oppFoul(){
   const tfEl=document.getElementById('oppTF');if(tfEl)tfEl.textContent=`${t('foulShort')} ${g.oppFoul}`;
 }
 
+// opponent team-level stat (rebound/assist/turnover) — not tracked per opposing player
+function oppStat(field){
+  const g=A.cur;if(!g)return;
+  g[field]=(g[field]||0)+1;
+  const lbl={oppReb:t('statReb'),oppAst:t('statAst'),oppTov:t('statTo')}[field];
+  g.log.unshift({q:g.quarter,ic:'🔵',tx:`${g.opp} ${lbl}`,pt:'',ms:false,our:false,pn:-1,aid:field});
+  if(g.log.length>80)g.log.pop();
+  renderLog();save();toast(`${g.opp} ${lbl}`);
+}
+
+function useTimeout(side){
+  const g=A.cur;if(!g)return;
+  const key=side==='our'?'ourTimeouts':'oppTimeouts';
+  if(g[key]===undefined)g[key]=5;
+  if(g[key]<=0){toast(t('toastNoTimeouts'),'warn');return;}
+  g[key]--;
+  const who=side==='our'?A.teamName:g.opp;
+  g.log.unshift({q:g.quarter,ic:'⏱',tx:`${who} ${t('timeoutLog')}`,pt:'',ms:false,our:null,pn:-1,aid:'timeout',side});
+  if(g.log.length>80)g.log.pop();
+  const el=document.getElementById(side==='our'?'ourTOBtn':'oppTOBtn');
+  if(el)el.textContent=`⏱ ${who} ${t('timeoutsLeft')} ${g[key]}`;
+  renderLog();save();toast(`${who} ${t('timeoutLog')}`);
+}
+
 function undo(){
   const g=A.cur;if(!g){toast(t('toastNoActiveGame'),'warn');return;}
   if(!g.log.length){toast(t('toastNoUndo'),'err');return;}
   const l=g.log.shift();
-  if(!l.our){
-    if(l.aid==='oppfoul'){
-      g.oppFoul=Math.max(0,(g.oppFoul||0)-1);
-      const tfEl=document.getElementById('oppTF');if(tfEl)tfEl.textContent=`${t('foulShort')} ${g.oppFoul}`;
-    }else{
-      g.oppPts-=(l.oppts||0);
+  if(l.aid==='oppfoul'){
+    g.oppFoul=Math.max(0,(g.oppFoul||0)-1);
+    const tfEl=document.getElementById('oppTF');if(tfEl)tfEl.textContent=`${t('foulShort')} ${g.oppFoul}`;
+  }else if(l.aid==='oppReb'||l.aid==='oppAst'||l.aid==='oppTov'){
+    g[l.aid]=Math.max(0,(g[l.aid]||0)-1);
+  }else if(l.aid==='timeout'){
+    const key=l.side==='our'?'ourTimeouts':'oppTimeouts';
+    g[key]=(g[key]||0)+1;
+    const el=document.getElementById(l.side==='our'?'ourTOBtn':'oppTOBtn');
+    if(el){
+      const who=l.side==='our'?A.teamName:g.opp;
+      el.textContent=`⏱ ${who} ${t('timeoutsLeft')} ${g[key]}`;
     }
+  }else if(l.aid==='opp'){
+    g.oppPts-=(l.oppts||0);
   }else{
     const p=g.players.find(x=>x.n===l.pn);
     if(p){
@@ -1066,7 +1313,17 @@ function renderStats(){
   document.getElementById('statsMeta').textContent=`${A.teamName} vs ${g.opp} · ${g.date}`;
   const w=g.ourPts>g.oppPts?'✅':g.ourPts<g.oppPts?'❌':'';
   document.getElementById('statsScore').innerHTML=`${g.ourPts}<span style="color:var(--t2);font-size:22px"> : </span>${g.oppPts} ${w}`;
-  document.getElementById('statsTbl').innerHTML=buildShotCard(g.log)+buildTbl(g.players);
+  document.getElementById('statsTbl').innerHTML=buildStatsCards(g);
+}
+// composes every stats card in a consistent order; shared by stats/history/live/share views
+function buildStatsCards(g,teamName){
+  _pbpGame=g;
+  return buildBestPlayerCard(g.players)
+    +buildQuarterTable(g,teamName)
+    +buildCompareCard(g,teamName)
+    +buildShotCard(g.log)
+    +buildTbl(g.players)
+    +`<div id="pbpWrap">${buildPBPCard(g)}</div>`;
 }
 
 // ═══════════════════════════════════════════════════
@@ -1094,7 +1351,7 @@ function viewGame(i){
   document.getElementById('hdMeta').textContent=`${A.teamName} vs ${g.opp} · ${g.date}`;
   const w=g.ourPts>g.oppPts?'✅':g.ourPts<g.oppPts?'❌':'';
   document.getElementById('hdScore').innerHTML=`${g.ourPts}<span style="color:var(--t2);font-size:22px"> : </span>${g.oppPts} ${w}`;
-  document.getElementById('hdTbl').innerHTML=buildShotCard(g.log)+buildTbl(g.players);
+  document.getElementById('hdTbl').innerHTML=buildStatsCards(g);
   showScreen('hdScreen');
 }
 function delGame(i){
@@ -1135,9 +1392,10 @@ function fmtLine(g){
 
 function genURL(g){
   try{
-    const d={team:A.teamName,date:g.date,opp:g.opp,our:g.ourPts,opp2:g.oppPts,
+    const d={team:A.teamName,date:g.date,opp:g.opp,ourPts:g.ourPts,oppPts:g.oppPts,
+      oppFoul:g.oppFoul||0,oppReb:g.oppReb||0,oppAst:g.oppAst||0,oppTov:g.oppTov||0,quarter:g.quarter||1,
       players:g.players.map(p=>({n:p.n,name:p.name,s:p.s})),
-      shots:(g.log||[]).filter(e=>e.loc).map(e=>({loc:e.loc,ms:e.ms}))};
+      log:(g.log||[]).map(e=>({q:e.q,ic:e.ic,tx:e.tx,pt:e.pt,our:e.our,aid:e.aid,oppts:e.oppts,loc:e.loc,ms:e.ms}))};
     return window.location.href.split('#')[0]+'#v='+btoa(unescape(encodeURIComponent(JSON.stringify(d))));
   }catch(e){return null;}
 }
@@ -1296,7 +1554,7 @@ function renderFBLive(data){
   document.getElementById('svM').innerHTML=`${g.ourPts} : ${g.oppPts} ${w}`;
   document.getElementById('svM').style.color='';
   document.getElementById('svD').textContent=`Q${g.quarter||1} · ${g.date||''}`;
-  document.getElementById('svTbl').innerHTML=buildShotCard(g.log||[])+buildTbl(g.players||[]);
+  document.getElementById('svTbl').innerHTML=buildStatsCards(g,data.teamName||t('svDefaultTeam'));
 }
 
 // ═══════════════════════════════════════════════════
@@ -1307,11 +1565,11 @@ function checkSV(){
   if(!h.startsWith('#v='))return false;
   try{
     const d=JSON.parse(decodeURIComponent(escape(atob(h.slice(3)))));
-    const w=d.our>d.opp2?'✅':d.our<d.opp2?'❌':'';
+    const w=d.ourPts>d.oppPts?'✅':d.ourPts<d.oppPts?'❌':'';
     document.getElementById('svT').textContent=`${d.team} vs ${d.opp}`;
-    document.getElementById('svM').textContent=`${d.our} : ${d.opp2} ${w}`;
+    document.getElementById('svM').textContent=`${d.ourPts} : ${d.oppPts} ${w}`;
     document.getElementById('svD').textContent=d.date;
-    document.getElementById('svTbl').innerHTML=buildShotCard(d.shots||[])+buildTbl(d.players);
+    document.getElementById('svTbl').innerHTML=buildStatsCards(d,d.team);
     showScreen('svScreen');return true;
   }catch(e){return false;}
 }
