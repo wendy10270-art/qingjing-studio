@@ -87,6 +87,21 @@ def is_rent(kind):
     return '場租' in (kind or '')
 
 
+def norm_name(n):
+    # 老師名字在 phones／calmap 兩張表各自維護，大小寫或前後空白不同（如 7u／7U）就會對不上
+    return re.sub(r'\s+', '', n or '').lower()
+
+
+def lookup(d, teacher):
+    if teacher in d:
+        return d[teacher]
+    nt = norm_name(teacher)
+    for k, v in d.items():
+        if norm_name(k) == nt:
+            return v
+    return None
+
+
 def gc_access_token():
     data = fetch(f'{LINE_WEBHOOK_BASE}/api/gc-token?key={GC_TOKEN_SECRET}')
     if not data.get('ok'):
@@ -142,17 +157,20 @@ def main():
     # ── 明天課表＋場租，直接查每位老師自己的 Google 日曆 ──
     by_teacher = {}
     rent_by_teacher = {}
+    cal_failed = []
     try:
         token = gc_access_token()
         tmin = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
         tmax = tmin + timedelta(days=1)
         for teacher, cal_id in cal_map.items():
             if not cal_id:
+                cal_failed.append(f'{teacher}（日曆對照是空的）')
                 continue
             try:
                 evs = gc_tomorrow_events(token, cal_id, tmin.isoformat(), tmax.isoformat())
             except Exception as e:
                 print(f'讀 {teacher} 日曆失敗：{e}')
+                cal_failed.append(f'{teacher}（{e}）')
                 continue
             for ev in evs:
                 if ev.get('status') == 'cancelled':
@@ -171,14 +189,25 @@ def main():
     for teacher in by_teacher:
         by_teacher[teacher].sort()
 
+    # 有電話（會被推播）卻不在日曆對照裡的老師，永遠查不到他的課，要提醒店長補對照
+    cal_norm = {norm_name(k) for k in cal_map}
+    no_cal = [t for t in teacher_phones if norm_name(t) not in cal_norm]
+
     teachers = set(by_teacher) | set(rent_by_teacher)
     if not teachers:
         print(f'{td} 沒有課表或場租，不用發老師提醒')
+        if cal_failed or no_cal:
+            warn = [f'📋 老師明日提醒 {tomorrow.month}/{tomorrow.day}：沒有查到任何課表']
+            if cal_failed:
+                warn.append('⚠️ 日曆讀取失敗：' + '、'.join(cal_failed))
+            if no_cal:
+                warn.append('⚠️ 日曆對照缺這些老師：' + '、'.join(no_cal))
+            send_ntfy('輕境小幫手', '\n'.join(warn), 'warning')
         return
 
     sent, unbound, failed = [], [], []
     for teacher in teachers:
-        phone = teacher_phones.get(teacher)
+        phone = lookup(teacher_phones, teacher)
         key = phone_key(phone)
         binding = bindings.get(key or '') or {}
         if not (binding.get('groupId') or binding.get('roomId') or binding.get('userId')):
@@ -220,7 +249,11 @@ def main():
         summary.append('⚠️ 未綁定 LINE，未發送：' + '、'.join(unbound))
     if failed:
         summary.append('❌ 推播失敗：' + '、'.join(f'{t}（{e}）' for t, e in failed))
-    send_ntfy('輕境小幫手', '\n'.join(summary), 'warning' if (unbound or failed) else 'herb')
+    if cal_failed:
+        summary.append('⚠️ 日曆讀取失敗（這幾位的課沒查到）：' + '、'.join(cal_failed))
+    if no_cal:
+        summary.append('⚠️ 日曆對照缺這些老師（查不到課）：' + '、'.join(no_cal))
+    send_ntfy('輕境小幫手', '\n'.join(summary), 'warning' if (unbound or failed or cal_failed or no_cal) else 'herb')
 
 
 if __name__ == '__main__':
