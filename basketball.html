@@ -552,6 +552,7 @@ textarea:focus{outline:none;border-color:var(--gl)}
     </div>
     <button class="btn btn-g btn-full" style="padding:14px" onclick="tryUnlock()" data-i18n="unlockBtn">解鎖</button>
     <div id="lockErr" style="text-align:center;color:var(--red);font-size:12px;margin-top:10px"></div>
+    <button onclick="cancelUnlock()" data-i18n="cancelUnlockBtn" style="display:block;margin:16px auto 0;background:none;border:none;color:var(--t2);font-size:13px;cursor:pointer">← 返回</button>
   </div>
 </div>
 
@@ -602,8 +603,8 @@ const I18N={
     shareLiveLink:'📡 即時連結（家長可看到即時比分和統計）',
     endGameBtn:'🏁 結束比賽',startNextBtn:'➕ 開始下一場',
     confirmEndGame:'確定要結束這場比賽嗎？結束後會存到歷史紀錄。',toastGameEnded:'比賽已結束並存檔',
-    lockTitle:'管理密碼',lockSub:'輸入密碼以進入記錄／管理畫面',lockPh:'密碼',unlockBtn:'解鎖',
-    lockWrongPin:'密碼錯誤',adminPinTitle:'🔒 管理密碼',adminPinNote:'設定後，這支手機（或其他裝置）打開這個網址都需要輸入密碼才能記錄／管理資料。分享給家長看的連結不受影響，家長不需要密碼。',
+    lockTitle:'管理密碼',lockSub:'輸入密碼以進入記錄／管理畫面',lockPh:'密碼',unlockBtn:'解鎖',cancelUnlockBtn:'← 返回',
+    lockWrongPin:'密碼錯誤',adminPinTitle:'🔒 管理密碼',adminPinNote:'設定後，要進入「比賽」記錄畫面或「球隊」管理畫面都需要輸入密碼，避免其他人進去更改資料。「行事曆」和「統計」可以直接看，不需要密碼。分享給家長看的連結不受影響，家長不需要密碼。',
     adminPinLbl:'設定 / 修改密碼',adminPinPh:'留空＝不設密碼',adminPinSave:'儲存密碼',
     adminPinSetOn:'✓ 已設定密碼保護',adminPinSetOff:'✗ 尚未設定密碼',adminLockNow:'🔒 立即鎖定',
     toastPinSaved:'密碼已儲存',toastPinCleared:'已取消密碼保護',toastLocked:'已鎖定',
@@ -696,8 +697,8 @@ const I18N={
     shareLiveLink:'📡 Live link (parents see live score & stats)',
     endGameBtn:'🏁 End Game',startNextBtn:'➕ Start Next Game',
     confirmEndGame:'End this game? It will be saved to history.',toastGameEnded:'Game ended and saved',
-    lockTitle:'Admin Password',lockSub:'Enter the password to record / manage data',lockPh:'Password',unlockBtn:'Unlock',
-    lockWrongPin:'Wrong password',adminPinTitle:'🔒 Admin Password',adminPinNote:'Once set, this phone (or any other device) will need the password to open the record/manage screens. Links you share with parents are unaffected — they never need a password.',
+    lockTitle:'Admin Password',lockSub:'Enter the password to record / manage data',lockPh:'Password',unlockBtn:'Unlock',cancelUnlockBtn:'← Back',
+    lockWrongPin:'Wrong password',adminPinTitle:'🔒 Admin Password',adminPinNote:'Once set, the "Game" recording screen and "Team" management screen both need the password, to keep others from changing data. "Calendar" and "Stats" stay open, no password needed. Links you share with parents are unaffected — they never need a password.',
     adminPinLbl:'Set / change password',adminPinPh:'Leave blank = no password',adminPinSave:'Save password',
     adminPinSetOn:'✓ Password protection on',adminPinSetOff:'✗ No password set',adminLockNow:'🔒 Lock now',
     toastPinSaved:'Password saved',toastPinCleared:'Password protection removed',toastLocked:'Locked',
@@ -801,6 +802,7 @@ function save(){try{localStorage.setItem('bball2',JSON.stringify(A));}catch(e){}
 // ═══════════════════════════════════════════════════
 function getPin(){return localStorage.getItem('bball_pin')||'';}
 function isLocked(){return !!getPin()&&localStorage.getItem('bball_unlocked')!=='1';}
+let _lockTarget=null; // which protected tab (game/team) the lock screen should return to after a correct password
 function enterApp(){
   if(!A.roster.length){showScreen('setupScreen');renderRL('rList');}
   else{initUI();showScreen('histScreen');}
@@ -812,15 +814,23 @@ function tryUnlock(){
     localStorage.setItem('bball_unlocked','1');
     if(el)el.value='';
     document.getElementById('lockErr').textContent='';
-    enterApp();
+    const target=_lockTarget||'game';
+    _lockTarget=null;
+    go(target);
   }else{
     document.getElementById('lockErr').textContent=t('lockWrongPin');
   }
 }
+function cancelUnlock(){
+  const el=document.getElementById('pinIn');if(el)el.value='';
+  document.getElementById('lockErr').textContent='';
+  _lockTarget=null;
+  go('hist');
+}
 function lockNow(){
   localStorage.removeItem('bball_unlocked');
   const el=document.getElementById('pinIn');if(el)el.value='';
-  showScreen('lockScreen');
+  go('hist');
   toast(t('toastLocked'));
 }
 function savePin(){
@@ -2018,6 +2028,11 @@ function parseV(raw){
 function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
 
 function go(tab){
+  if((tab==='game'||tab==='team')&&isLocked()){
+    _lockTarget=tab;
+    showScreen('lockScreen');
+    return;
+  }
   if(tab!=='game'&&autoRestart){autoRestart=false;if(listening&&recog)recog.stop();}
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
   if(tab==='game'){
@@ -2066,8 +2081,7 @@ load();
 applyI18N();
 loadFBConfig(); // async — syncs in background after local data is ready
 if(!checkSV()&&!checkFBView()){
-  if(isLocked()){showScreen('lockScreen');}
-  else{enterApp();}
+  enterApp();
 }
 </script>
 </body>
