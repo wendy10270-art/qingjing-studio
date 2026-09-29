@@ -48,9 +48,14 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .sn{font-size:58px;font-weight:900;line-height:1}
 .our{color:var(--gl)}.opp{color:var(--blue)}.svs{font-size:20px;color:var(--t2)}
 
-/* voice */
-.vs{padding:16px 16px 10px;text-align:center}
-.mb{width:86px;height:86px;border-radius:50%;background:var(--gl);border:none;font-size:34px;cursor:pointer;box-shadow:0 4px 18px rgba(76,175,80,.4);display:inline-flex;align-items:center;justify-content:center;color:#fff}
+/* voice (secondary / collapsible — unreliable in noisy gyms) */
+.vsx{margin:10px 14px 0;background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.vsx-sum{padding:10px 12px;font-size:12px;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px}
+.vsx-sum::-webkit-details-marker{display:none}
+.vsx-sum::before{content:'▸';font-size:10px;transition:transform .15s}
+.vsx[open] .vsx-sum::before{transform:rotate(90deg)}
+.vs{padding:4px 16px 14px;text-align:center;border-top:1px solid var(--border)}
+.mb{width:60px;height:60px;border-radius:50%;background:var(--gl);border:none;font-size:24px;cursor:pointer;box-shadow:0 4px 18px rgba(76,175,80,.4);display:inline-flex;align-items:center;justify-content:center;color:#fff}
 .mb.on{background:var(--red);animation:pulse 1s infinite;box-shadow:0 4px 24px rgba(239,83,80,.5)}
 .mb:active{transform:scale(.91)!important}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
@@ -64,17 +69,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .ob{display:flex;gap:6px;margin-top:7px}
 .obtn{flex:1;padding:8px 3px;background:var(--bg2);border:1px solid var(--blue);border-radius:7px;color:var(--blue);font-size:11px;cursor:pointer;text-align:center}
 .obtn:active{background:var(--blue);color:#fff}
-/* quick action rows */
-.qk-row{display:grid;grid-template-columns:66px repeat(4,1fr) 36px;gap:4px;margin-bottom:5px;align-items:stretch}
-.qk-nm{font-size:13px;font-weight:700;color:var(--gl);line-height:1.35;cursor:pointer;display:flex;flex-direction:column;justify-content:center;padding:2px 0}
-.qk-nm span{font-size:10px;color:var(--t2);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.qkb{padding:14px 1px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;color:#fff;text-align:center;line-height:1}
-.qkb:active{transform:scale(.90);opacity:.8}
-.qk2{background:var(--gl)}.qk3{background:#1565c0}
-.qkx{background:#6d1f1f;color:#ffcdd2;border:1px solid #b71c1c}
-.qkrb{background:#bf360c}
-.qkm{background:var(--bg3);border:1px solid var(--border);color:var(--t2);font-size:17px}
-
+.obtn.sel{background:var(--blue);color:#fff;font-weight:700}
 /* log */
 .lh{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
 .ubtn{background:none;border:1px solid var(--border);border-radius:5px;padding:3px 9px;color:var(--t2);font-size:11px;cursor:pointer}
@@ -83,21 +78,31 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .lic{font-size:12px}.lit{flex:1}.lip{font-weight:700}
 .pos{color:var(--gl)}.neg{color:var(--red)}.neu{color:var(--t2)}
 
-/* stats table */
+/* stats cards */
 .sh{padding:13px 14px 7px}
 .ss{font-size:28px;font-weight:900;color:var(--gl);margin-bottom:2px}
-.ts{overflow-x:auto;border-radius:8px;border:1px solid var(--border);margin:0 14px}
-table{width:100%;border-collapse:collapse;font-size:11px}
-.ts table{min-width:810px}
-th{background:var(--green);padding:5px 4px;text-align:center;color:#fff;font-size:10px;white-space:nowrap;border:1px solid rgba(255,255,255,.1)}
-th.sc{position:sticky;left:0;background:var(--green);z-index:2}
-th.grp{background:#1b5e20;font-size:9px;letter-spacing:.3px}
-td{padding:5px 4px;text-align:center;border-bottom:1px solid var(--border);border-right:1px solid var(--border)}
-td:last-child{border-right:none}
-td.sc{position:sticky;left:0;background:var(--bg);z-index:1;font-weight:600;white-space:nowrap;text-align:left;min-width:80px}
-tr.tr td{background:var(--bg2);font-weight:700;border-top:2px solid var(--green)}
-tr.tr td.sc{background:var(--bg2)}
-.ptc{color:var(--gl);font-weight:700}.pcc{color:var(--yellow);font-size:10px;font-weight:600}
+.ts{margin:0 14px}
+.pcard{background:var(--bg2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden}
+.pcard-sum{display:flex;align-items:center;gap:8px;padding:11px 12px;cursor:pointer;list-style:none}
+.pcard-sum::-webkit-details-marker{display:none}
+.pc-badge{background:var(--gl);color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex-shrink:0}
+.pc-badge.tot{background:#1565c0}
+.pc-name{font-size:13px;font-weight:700;white-space:nowrap}
+.pc-line{flex:1;font-size:11px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pc-line b{color:var(--text)}
+.pc-chev{color:var(--t2);font-size:11px;transition:transform .15s;flex-shrink:0}
+.pcard[open] .pc-chev{transform:rotate(180deg)}
+.pcard-body{padding:0 12px 12px}
+.pd-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.pd-cell{background:var(--bg3);border-radius:7px;padding:7px 3px;text-align:center}
+.pd-lbl{font-size:9px;color:var(--t2);margin-bottom:2px}
+.pd-val{font-size:14px;font-weight:700}
+.pd-shots{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pd-shot{background:var(--bg3);border-radius:7px;padding:7px 3px;text-align:center}
+.pd-slbl{font-size:9px;color:var(--t2);margin-bottom:2px}
+.pd-sval{font-size:13px;font-weight:700}
+.pd-spct{font-size:10px;color:var(--yellow);font-weight:600}
+.pcard-tot{border-color:var(--gl)}
 
 /* share panel */
 .sp{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;margin:12px 14px}
@@ -127,22 +132,50 @@ tr.tr td.sc{background:var(--bg2)}
 .ni{font-size:18px;display:block}
 .nb.active{color:var(--gl)}
 
-/* modal */
-.ov{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:flex-end;z-index:200}
-.ov.show{display:flex}
-.mo{background:var(--bg2);border-radius:14px 14px 0 0;padding:18px 14px 28px;width:100%}
-.mo-ttl{font-size:16px;font-weight:700;text-align:center;margin-bottom:12px}
-.mo-sec{margin-bottom:10px}
-.mo-lbl{font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-.ag{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
-.ai{background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:10px 5px;text-align:center;cursor:pointer}
-.ai:active{opacity:.8}
-.ai.made{border-color:var(--gl)}.ai.made:active{background:var(--gl)}
-.ai.miss:active{background:var(--red);opacity:1}
-.ai.other:active{background:#ff6b35}
-.aic{font-size:20px;display:block;margin-bottom:2px}
-.ail{font-size:10px;color:var(--t2)}
-.ai.made .ail{color:var(--gl)}
+/* player selector (pick one active player, then tap actions) */
+.psel{display:flex;gap:7px;overflow-x:auto;padding:0 14px 8px;-webkit-overflow-scrolling:touch}
+.psel::-webkit-scrollbar{display:none}
+.psel-btn{flex:0 0 auto;min-width:54px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:7px 6px;text-align:center;cursor:pointer}
+.psel-btn.active{background:var(--gl);border-color:var(--gl)}
+.psel-num{font-size:15px;font-weight:800}
+.psel-nm{font-size:9px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52px}
+.psel-btn.active .psel-num,.psel-btn.active .psel-nm{color:#fff}
+.psel-foul{font-size:8px;color:var(--yellow);margin-top:1px}
+
+/* selection status bar */
+.selbar{margin:0 14px 10px;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:12px;color:var(--t2);text-align:center}
+.selbar b{color:var(--text);font-size:14px}
+.selbar.empty{color:var(--yellow)}
+
+/* action grid */
+.actgrid{padding:0 14px}
+.act-row{display:grid;gap:6px;margin-bottom:6px}
+.act-row.r4{grid-template-columns:repeat(4,1fr)}
+.act-row.r5{grid-template-columns:repeat(5,1fr)}
+.actb{border:none;border-radius:9px;padding:13px 2px;font-size:12px;font-weight:700;color:#fff;cursor:pointer;text-align:center;line-height:1.25;min-height:48px}
+.actb:active{transform:scale(.93);opacity:.85}
+.actb:disabled{opacity:.35}
+.act-mk{background:var(--gl)}.act-mk3{background:#1565c0}
+.act-x{background:#6d1f1f;color:#ffcdd2;border:1px solid #b71c1c}
+.act-rb{background:#bf360c}
+.act-oth{background:var(--bg3);border:1px solid var(--border);color:var(--text)}
+
+/* team fouls under scoreboard */
+.tf{font-size:10px;color:var(--t2);margin-top:2px}
+
+/* shot chart */
+.shx{margin:10px 14px 0;background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.shx-sum{padding:10px 12px;font-size:12px;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px}
+.shx-sum::-webkit-details-marker{display:none}
+.shx-sum::before{content:'▸';font-size:10px;transition:transform .15s}
+.shx[open] .shx-sum::before{transform:rotate(90deg)}
+.shx-body{padding:4px 12px 14px;border-top:1px solid var(--border)}
+.shx-hint{font-size:11px;color:var(--gl);text-align:center;margin:8px 0 6px;font-weight:600}
+.shx-hint.dim{color:var(--t2);font-weight:400}
+.court-svg{width:100%;height:auto;border-radius:8px;display:block;cursor:crosshair;touch-action:manipulation;background:#d9822b}
+.shx-legend{display:flex;justify-content:center;gap:16px;margin-top:8px;font-size:11px;color:var(--t2)}
+.lg-mk{color:var(--gl);font-weight:900}
+.lg-x{color:var(--red);font-weight:900}
 
 /* dialog */
 .dov{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:250}
@@ -175,24 +208,14 @@ textarea:focus{outline:none;border-color:var(--gl)}
 
 <div class="toast" id="toast"></div>
 
-<!-- Action modal -->
-<div class="ov" id="ov">
-  <div class="mo">
-    <div class="mo-ttl" id="mo-ttl">選擇動作</div>
-    <div class="mo-sec"><div class="mo-lbl">得分記錄</div><div class="ag" id="sg"></div></div>
-    <div class="mo-sec"><div class="mo-lbl">其他記錄</div><div class="ag" id="og" style="grid-template-columns:repeat(4,1fr)"></div></div>
-    <button class="btn btn-dim btn-full" style="margin-top:10px" onclick="closeModal()">取消</button>
-  </div>
-</div>
-
 <!-- New game dialog -->
 <div class="dov" id="ngd">
   <div class="di">
-    <div class="di-ttl">🏀 開始新比賽</div>
-    <input type="text" id="nopp" placeholder="對手隊名（例：雄鷹隊）">
+    <div class="di-ttl" data-i18n="newGameTitle">🏀 開始新比賽</div>
+    <input type="text" id="nopp" data-i18n-ph="oppPh" placeholder="對手隊名（例：雄鷹隊）">
     <div class="di-btns">
-      <button class="btn btn-dim" onclick="closeNGD()">取消</button>
-      <button class="btn btn-g" onclick="confirmNG()">開始</button>
+      <button class="btn btn-dim" data-i18n="cancel" onclick="closeNGD()">取消</button>
+      <button class="btn btn-g" data-i18n="start" onclick="confirmNG()">開始</button>
     </div>
   </div>
 </div>
@@ -200,24 +223,23 @@ textarea:focus{outline:none;border-color:var(--gl)}
 <!-- ── SETUP ── -->
 <div class="screen active" id="setupScreen">
   <div class="sw">
-    <div class="big-ttl">🏀 籃球比賽統計表</div>
-    <div class="big-sub">語音記錄 · 多場存檔 · 一鍵分享</div>
-    <div class="ig"><label>我方隊名</label><input type="text" id="teamName" placeholder="例：小虎隊"></div>
+    <div class="big-ttl" data-i18n="appTitle">🏀 籃球比賽統計表</div>
+    <div class="big-sub" data-i18n="appSub">快速點按記錄 · 多場存檔 · 一鍵分享</div>
+    <div class="ig"><label data-i18n="teamNameLbl">我方隊名</label><input type="text" id="teamName" data-i18n-ph="teamNamePh" placeholder="例：小虎隊"></div>
     <div class="ig">
-      <label>新增球員名單</label>
+      <label data-i18n="addRosterLbl">新增球員名單</label>
       <div class="add-row">
         <input type="number" id="inpNum" placeholder="#" min="0" max="99">
-        <input type="text" id="inpName" placeholder="姓名" style="flex:1">
+        <input type="text" id="inpName" data-i18n-ph="namePh" placeholder="姓名" style="flex:1">
         <button class="btn btn-g" onclick="addRoster()" style="padding:11px 14px">＋</button>
       </div>
     </div>
     <div class="pl" id="rList"></div>
-    <button class="btn btn-g btn-full" style="padding:14px;font-size:16px;margin-top:4px" onclick="saveSetup()">儲存並開始 →</button>
+    <button class="btn btn-g btn-full" data-i18n="saveStart" style="padding:14px;font-size:16px;margin-top:4px" onclick="saveSetup()">儲存並開始 →</button>
     <div style="padding:11px;background:var(--bg2);border-radius:10px;font-size:11px;color:var(--t2);line-height:1.9;margin-top:12px">
-      <strong style="color:var(--text)">語音指令範例</strong><br>
-      「<span style="color:var(--gl)">38號2分進</span>」「<span style="color:var(--gl)">38號三分進</span>」<br>
-      「<span style="color:var(--gl)">38號兩分出手沒進</span>」「<span style="color:var(--gl)">38號三分不進</span>」<br>
-      「<span style="color:var(--gl)">38號籃板</span>」「<span style="color:var(--gl)">38號進攻板</span>」「<span style="color:var(--gl)">38號助攻</span>」「<span style="color:var(--gl)">對方三分</span>」
+      <strong style="color:var(--text)" data-i18n="howToTitle">怎麼記錄比賽</strong><br>
+      <span data-i18n="howToBody">兩步驟：先點上排「<span style="color:var(--gl)">選球員</span>」，再點下方動作按鈕（投籃、籃板、助攻…），按鈕會一直套用在你選的球員身上，直到你換選別人。</span><br>
+      <span data-i18n="howToVoice">也可以用語音輸入（比賽畫面展開「語音輔助記錄」），但現場吵雜時建議直接用按鈕比較準。</span>
     </div>
   </div>
 </div>
@@ -226,10 +248,10 @@ textarea:focus{outline:none;border-color:var(--gl)}
 <div class="screen" id="gameScreen">
   <div class="pg" id="gameContent"></div>
   <div class="bnav">
-    <button class="nb active" id="nG" onclick="go('game')"><span class="ni">🏀</span>比賽</button>
-    <button class="nb" id="nS" onclick="go('stats')"><span class="ni">📊</span>統計</button>
-    <button class="nb" id="nH" onclick="go('hist')"><span class="ni">📅</span>歷史</button>
-    <button class="nb" id="nT" onclick="go('team')"><span class="ni">⚙️</span>球隊</button>
+    <button class="nb active" id="nG" onclick="go('game')"><span class="ni">🏀</span><span data-i18n="navGame">比賽</span></button>
+    <button class="nb" id="nS" onclick="go('stats')"><span class="ni">📊</span><span data-i18n="navStats">統計</span></button>
+    <button class="nb" id="nH" onclick="go('hist')"><span class="ni">📅</span><span data-i18n="navHist">歷史</span></button>
+    <button class="nb" id="nT" onclick="go('team')"><span class="ni">⚙️</span><span data-i18n="navTeam">球隊</span></button>
   </div>
 </div>
 
@@ -242,24 +264,24 @@ textarea:focus{outline:none;border-color:var(--gl)}
     </div>
     <div class="ts"><div id="statsTbl"></div></div>
     <div class="sp">
-      <div class="sp-ttl">📤 分享統計給其他家長</div>
+      <div class="sp-ttl" data-i18n="shareToParents">📤 分享統計給其他家長</div>
       <div class="sb-row">
-        <button class="sb-btn sb-line" onclick="doShareLine()">📋 複製 LINE 文字</button>
-        <button class="sb-btn sb-link" onclick="doShareLink()">🔗 分享連結</button>
+        <button class="sb-btn sb-line" data-i18n="shareLine" onclick="doShareLine()">📋 複製 LINE 文字</button>
+        <button class="sb-btn sb-link" data-i18n="shareLink" onclick="doShareLink()">🔗 分享連結</button>
       </div>
       <div id="fbShareDiv1" style="display:none;margin-top:7px">
-        <button class="btn btn-full" style="background:#673ab7;color:#fff;padding:9px;font-size:12px" onclick="doShareFB()">📡 即時連結（家長可看到即時比分和統計）</button>
+        <button class="btn btn-full" data-i18n="shareLiveLink" style="background:#673ab7;color:#fff;padding:9px;font-size:12px" onclick="doShareFB()">📡 即時連結（家長可看到即時比分和統計）</button>
       </div>
     </div>
     <div style="padding:0 14px 14px">
-      <button class="btn btn-full" style="background:#ff6b35;color:#fff" onclick="openNGD()">💾 完成本場 · 開始下一場</button>
+      <button class="btn btn-full" data-i18n="finishGame" style="background:#ff6b35;color:#fff" onclick="openNGD()">💾 完成本場 · 開始下一場</button>
     </div>
   </div>
   <div class="bnav">
-    <button class="nb" id="nG2" onclick="go('game')"><span class="ni">🏀</span>比賽</button>
-    <button class="nb active" id="nS2" onclick="go('stats')"><span class="ni">📊</span>統計</button>
-    <button class="nb" id="nH2" onclick="go('hist')"><span class="ni">📅</span>歷史</button>
-    <button class="nb" id="nT2" onclick="go('team')"><span class="ni">⚙️</span>球隊</button>
+    <button class="nb" id="nG2" onclick="go('game')"><span class="ni">🏀</span><span data-i18n="navGame">比賽</span></button>
+    <button class="nb active" id="nS2" onclick="go('stats')"><span class="ni">📊</span><span data-i18n="navStats">統計</span></button>
+    <button class="nb" id="nH2" onclick="go('hist')"><span class="ni">📅</span><span data-i18n="navHist">歷史</span></button>
+    <button class="nb" id="nT2" onclick="go('team')"><span class="ni">⚙️</span><span data-i18n="navTeam">球隊</span></button>
   </div>
 </div>
 
@@ -267,16 +289,16 @@ textarea:focus{outline:none;border-color:var(--gl)}
 <div class="screen" id="histScreen">
   <div class="pg">
     <div class="hh">
-      <div style="font-size:16px;font-weight:700">📅 歷史賽事</div>
-      <button class="btn btn-g" style="padding:7px 13px;font-size:13px" onclick="openNGD()">＋ 新比賽</button>
+      <div style="font-size:16px;font-weight:700" data-i18n="histTitle">📅 歷史賽事</div>
+      <button class="btn btn-g" data-i18n="newGameBtn" style="padding:7px 13px;font-size:13px" onclick="openNGD()">＋ 新比賽</button>
     </div>
     <div class="hl" id="histList"></div>
   </div>
   <div class="bnav">
-    <button class="nb" id="nG3" onclick="go('game')"><span class="ni">🏀</span>比賽</button>
-    <button class="nb" id="nS3" onclick="go('stats')"><span class="ni">📊</span>統計</button>
-    <button class="nb active" id="nH3" onclick="go('hist')"><span class="ni">📅</span>歷史</button>
-    <button class="nb" id="nT3" onclick="go('team')"><span class="ni">⚙️</span>球隊</button>
+    <button class="nb" id="nG3" onclick="go('game')"><span class="ni">🏀</span><span data-i18n="navGame">比賽</span></button>
+    <button class="nb" id="nS3" onclick="go('stats')"><span class="ni">📊</span><span data-i18n="navStats">統計</span></button>
+    <button class="nb active" id="nH3" onclick="go('hist')"><span class="ni">📅</span><span data-i18n="navHist">歷史</span></button>
+    <button class="nb" id="nT3" onclick="go('team')"><span class="ni">⚙️</span><span data-i18n="navTeam">球隊</span></button>
   </div>
 </div>
 
@@ -284,81 +306,89 @@ textarea:focus{outline:none;border-color:var(--gl)}
 <div class="screen" id="hdScreen">
   <div class="pg">
     <div class="sh">
-      <button onclick="go('hist')" style="background:none;border:none;color:var(--t2);font-size:13px;cursor:pointer;margin-bottom:8px;padding:0">← 返回歷史</button>
+      <button onclick="go('hist')" data-i18n="backToHist" style="background:none;border:none;color:var(--t2);font-size:13px;cursor:pointer;margin-bottom:8px;padding:0">← 返回歷史</button>
       <div id="hdMeta" style="font-size:11px;color:var(--t2);margin-bottom:2px"></div>
       <div class="ss" id="hdScore"></div>
     </div>
     <div class="ts"><div id="hdTbl"></div></div>
     <div class="sp">
-      <div class="sp-ttl">📤 分享這場統計</div>
+      <div class="sp-ttl" data-i18n="shareThisGame">📤 分享這場統計</div>
       <div class="sb-row">
-        <button class="sb-btn sb-line" onclick="hdShareLine()">📋 複製 LINE 文字</button>
-        <button class="sb-btn sb-link" onclick="hdShareLink()">🔗 分享連結</button>
+        <button class="sb-btn sb-line" data-i18n="shareLine" onclick="hdShareLine()">📋 複製 LINE 文字</button>
+        <button class="sb-btn sb-link" data-i18n="shareLink" onclick="hdShareLink()">🔗 分享連結</button>
       </div>
       <div id="fbShareDiv2" style="display:none;margin-top:7px">
-        <button class="btn btn-full" style="background:#673ab7;color:#fff;padding:9px;font-size:12px" onclick="doShareFB()">📡 即時連結</button>
+        <button class="btn btn-full" data-i18n="shareLiveLinkShort" style="background:#673ab7;color:#fff;padding:9px;font-size:12px" onclick="doShareFB()">📡 即時連結</button>
       </div>
     </div>
   </div>
   <div class="bnav">
-    <button class="nb" onclick="go('game')"><span class="ni">🏀</span>比賽</button>
-    <button class="nb" onclick="go('stats')"><span class="ni">📊</span>統計</button>
-    <button class="nb active" onclick="go('hist')"><span class="ni">📅</span>歷史</button>
-    <button class="nb" onclick="go('team')"><span class="ni">⚙️</span>球隊</button>
+    <button class="nb" onclick="go('game')"><span class="ni">🏀</span><span data-i18n="navGame">比賽</span></button>
+    <button class="nb" onclick="go('stats')"><span class="ni">📊</span><span data-i18n="navStats">統計</span></button>
+    <button class="nb active" onclick="go('hist')"><span class="ni">📅</span><span data-i18n="navHist">歷史</span></button>
+    <button class="nb" onclick="go('team')"><span class="ni">⚙️</span><span data-i18n="navTeam">球隊</span></button>
   </div>
 </div>
 
 <!-- ── TEAM SETTINGS ── -->
 <div class="screen" id="teamScreen">
   <div class="pg">
-    <div class="hh"><div style="font-size:16px;font-weight:700">⚙️ 球隊管理</div></div>
+    <div class="hh"><div style="font-size:16px;font-weight:700" data-i18n="teamMgmt">⚙️ 球隊管理</div></div>
     <div style="padding:0 14px">
-      <div class="ig"><label>隊名</label><input type="text" id="teamEdit" placeholder="我方隊名"></div>
-      <button class="btn btn-g" style="margin-bottom:16px" onclick="saveTeam()">儲存隊名</button>
-      <div class="sec-ttl">球員名單</div>
+      <div class="ig"><label data-i18n="teamNameFieldLbl">隊名</label><input type="text" id="teamEdit" data-i18n-ph="teamNamePh" placeholder="我方隊名"></div>
+      <button class="btn btn-g" data-i18n="saveTeamName" style="margin-bottom:16px" onclick="saveTeam()">儲存隊名</button>
+      <div class="sec-ttl" data-i18n="rosterTitle">球員名單</div>
       <div class="add-row" style="margin-bottom:8px">
         <input type="number" id="eNum" placeholder="#" min="0" max="99" style="width:70px;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px">
-        <input type="text" id="eName" placeholder="姓名" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px">
+        <input type="text" id="eName" data-i18n-ph="namePh" placeholder="姓名" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px">
         <button class="btn btn-g" onclick="addRosterEdit()" style="padding:10px 14px">＋</button>
       </div>
       <div class="pl" id="rListEdit"></div>
       <div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--border)">
-        <div class="sec-ttl">資料管理</div>
-        <button class="btn btn-red btn-full" onclick="clearAll()">🗑 清除所有資料</button>
+        <div class="sec-ttl" data-i18n="langLbl">App 語言 / Language</div>
+        <div id="curLangTxt" style="font-size:11px;color:var(--t2);margin-bottom:8px"></div>
+        <div class="ob">
+          <div class="obtn" id="langZhBtn" onclick="setLang('zh')">中文</div>
+          <div class="obtn" id="langEnBtn" onclick="setLang('en')">English</div>
+        </div>
+      </div>
+      <div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--border)">
+        <div class="sec-ttl" data-i18n="dataMgmt">資料管理</div>
+        <button class="btn btn-red btn-full" data-i18n="clearAllBtn" onclick="clearAll()">🗑 清除所有資料</button>
       </div>
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
-        <div class="sec-ttl">☁️ 雲端同步（Firebase）</div>
+        <div class="sec-ttl" data-i18n="cloudSync">☁️ 雲端同步（Firebase）</div>
         <div id="fbStatus" style="font-size:12px;color:var(--t2);margin-bottom:10px">✗ 未連接雲端</div>
         <div class="fb-guide">
-          <strong>設定步驟：</strong><br>
-          1. 前往 <a href="#" onclick="return false" style="color:var(--blue)">console.firebase.google.com</a> 建立免費專案<br>
-          2. 選「Realtime Database」→「建立資料庫」→「測試模式」<br>
-          3. 專案設定 ⚙️ → 「您的應用程式」→ 複製設定物件 JSON<br>
-          4. 貼到下方並按「連接雲端」
+          <strong data-i18n="fbStepsTitle">設定步驟：</strong><br>
+          <span data-i18n="fbStep1">1. 前往 <a href="#" onclick="return false" style="color:var(--blue)">console.firebase.google.com</a> 建立免費專案</span><br>
+          <span data-i18n="fbStep2">2. 選「Realtime Database」→「建立資料庫」→「測試模式」</span><br>
+          <span data-i18n="fbStep3">3. 專案設定 ⚙️ → 「您的應用程式」→ 複製設定物件 JSON</span><br>
+          <span data-i18n="fbStep4">4. 貼到下方並按「連接雲端」</span>
         </div>
         <div class="ig" style="margin-bottom:10px">
-          <label>Firebase 設定 JSON</label>
+          <label data-i18n="fbCfgLbl">Firebase 設定 JSON</label>
           <textarea id="fbCfgTx" rows="4" placeholder='{"apiKey":"AIza...","databaseURL":"https://xxx-rtdb.firebaseio.com","projectId":"..."}'></textarea>
         </div>
         <div class="ig">
-          <label>隊伍代碼（其他家長用此代碼看即時統計）</label>
+          <label data-i18n="fbCodeLbl">隊伍代碼（其他家長用此代碼看即時統計）</label>
           <div style="display:flex;gap:7px">
-            <input type="text" id="fbTcIn" placeholder="例：tigers7" style="flex:1">
+            <input type="text" id="fbTcIn" data-i18n-ph="fbCodePh" placeholder="例：tigers7" style="flex:1">
             <button class="btn btn-dim" onclick="genTC()" style="padding:11px 12px">🎲</button>
           </div>
         </div>
-        <button class="btn btn-g btn-full" onclick="saveFBConfig()">☁️ 連接雲端</button>
+        <button class="btn btn-g btn-full" data-i18n="fbConnect" onclick="saveFBConfig()">☁️ 連接雲端</button>
         <div id="fbLinkRow" style="display:none;margin-top:8px">
-          <button class="btn btn-full" style="background:#673ab7;color:#fff" onclick="copyFBLink()">📡 複製即時連結（分享給其他家長）</button>
+          <button class="btn btn-full" data-i18n="fbCopyLink" style="background:#673ab7;color:#fff" onclick="copyFBLink()">📡 複製即時連結（分享給其他家長）</button>
         </div>
       </div>
     </div>
   </div>
   <div class="bnav">
-    <button class="nb" onclick="go('game')"><span class="ni">🏀</span>比賽</button>
-    <button class="nb" onclick="go('stats')"><span class="ni">📊</span>統計</button>
-    <button class="nb" onclick="go('hist')"><span class="ni">📅</span>歷史</button>
-    <button class="nb active" onclick="go('team')"><span class="ni">⚙️</span>球隊</button>
+    <button class="nb" onclick="go('game')"><span class="ni">🏀</span><span data-i18n="navGame">比賽</span></button>
+    <button class="nb" onclick="go('stats')"><span class="ni">📊</span><span data-i18n="navStats">統計</span></button>
+    <button class="nb" onclick="go('hist')"><span class="ni">📅</span><span data-i18n="navHist">歷史</span></button>
+    <button class="nb active" onclick="go('team')"><span class="ni">⚙️</span><span data-i18n="navTeam">球隊</span></button>
   </div>
 </div>
 
@@ -369,12 +399,12 @@ textarea:focus{outline:none;border-color:var(--gl)}
     <div class="svm" id="svM"></div>
     <div style="font-size:11px;color:var(--t2);margin-top:3px" id="svD"></div>
     <div id="svLive" style="display:none;margin-top:6px;font-size:11px;color:var(--red);font-weight:700">
-      <span class="live-dot"></span>LIVE 即時更新
+      <span class="live-dot"></span><span data-i18n="liveUpdating">LIVE 即時更新</span>
     </div>
   </div>
   <div style="padding:14px">
     <div class="ts"><div id="svTbl"></div></div>
-    <div style="text-align:center;margin-top:14px;color:var(--t2);font-size:11px">由「籃球比賽統計表」產生</div>
+    <div style="text-align:center;margin-top:14px;color:var(--t2);font-size:11px" data-i18n="producedBy">由「籃球比賽統計表」產生</div>
   </div>
 </div>
 
@@ -383,7 +413,180 @@ textarea:focus{outline:none;border-color:var(--gl)}
 // DATA
 // ═══════════════════════════════════════════════════
 let A={teamName:'我方',roster:[],cur:null,hist:[]};
+let selP=null; // currently selected player number for quick-record
 // cur = {id,date,opp,ourPts,oppPts,quarter,players:[{n,name,s}],log:[]}
+
+// ═══════════════════════════════════════════════════
+// I18N
+// ═══════════════════════════════════════════════════
+let LANG=localStorage.getItem('bball_lang')||'zh';
+const I18N={
+  zh:{
+    appTitle:'🏀 籃球比賽統計表',appSub:'快速點按記錄 · 多場存檔 · 一鍵分享',
+    teamNameLbl:'我方隊名',teamNamePh:'例：小虎隊',addRosterLbl:'新增球員名單',namePh:'姓名',
+    saveStart:'儲存並開始 →',
+    howToTitle:'怎麼記錄比賽',
+    howToBody:'兩步驟：先點上排「<span style="color:var(--gl)">選球員</span>」，再點下方動作按鈕（投籃、籃板、助攻…），按鈕會一直套用在你選的球員身上，直到你換選別人。',
+    howToVoice:'也可以用語音輸入（比賽畫面展開「語音輔助記錄」），但現場吵雜時建議直接用按鈕比較準。語音指令僅支援中文。',
+    navGame:'比賽',navStats:'統計',navHist:'歷史',navTeam:'球隊',
+    newGameTitle:'🏀 開始新比賽',oppPh:'對手隊名（例：雄鷹隊）',cancel:'取消',start:'開始',
+    noGame:'尚無進行中的比賽',newGameBtn:'＋ 新比賽',
+    selPlayerStep:'1. 先選球員',foulShort:'犯規',
+    selPrompt:'👆 請先在上方選擇球員',selected:'已選取',ptsWord:'分',
+    actionStep:'2. 再點動作',
+    a2m:'2分進',a2x:'2分不進',a3m:'3分進',a3x:'3分不進',
+    aftm:'罰球進',aftx:'罰球不進',aoreb:'進攻籃板',adreb:'防守籃板',
+    aast:'助攻',astl:'抄截',ablk:'蓋帽',ato:'失誤',afoul:'犯規',
+    shotChartTitle:'🎯 投籃位置圖（選填，記錄我方投籃落點）',
+    shotHintPending:'📍 點球場上的位置來標記「{0}」',
+    shotHintNone:'投籃後，這裡會提示你標記位置',
+    legendMade:'命中',legendMiss:'未進',
+    oppRecord:'對手記錄',oppFtBtn:'+1 罰球',opp2pBtn:'+2 兩分',opp3pBtn:'+3 三分',
+    voiceTitle:'🎙 語音輔助記錄（選用・現場吵雜建議直接用上方按鈕）',
+    voiceHintDefault:'點擊麥克風 或 開啟連續模式',
+    continuousOn:'🔁 連續模式',continuousOff:'⏹ 停止連續',
+    recentTitle:'最近記錄',undo:'↩ 撤銷',
+    shareToParents:'📤 分享統計給其他家長',shareLine:'📋 複製 LINE 文字',shareLink:'🔗 分享連結',
+    shareLiveLink:'📡 即時連結（家長可看到即時比分和統計）',finishGame:'💾 完成本場 · 開始下一場',
+    histTitle:'📅 歷史賽事',backToHist:'← 返回歷史',shareThisGame:'📤 分享這場統計',shareLiveLinkShort:'📡 即時連結',
+    teamMgmt:'⚙️ 球隊管理',teamNameFieldLbl:'隊名',saveTeamName:'儲存隊名',rosterTitle:'球員名單',
+    dataMgmt:'資料管理',clearAllBtn:'🗑 清除所有資料',
+    cloudSync:'☁️ 雲端同步（Firebase）',cloudNotConnected:'✗ 未連接雲端',cloudConnected:'✓ 已連接 · 代碼：',
+    fbStepsTitle:'設定步驟：',
+    fbStep1:'1. 前往 <a href="#" onclick="return false" style="color:var(--blue)">console.firebase.google.com</a> 建立免費專案',
+    fbStep2:'2. 選「Realtime Database」→「建立資料庫」→「測試模式」',
+    fbStep3:'3. 專案設定 ⚙️ → 「您的應用程式」→ 複製設定物件 JSON',
+    fbStep4:'4. 貼到下方並按「連接雲端」',
+    fbCfgLbl:'Firebase 設定 JSON',fbCodeLbl:'隊伍代碼（其他家長用此代碼看即時統計）',fbCodePh:'例：tigers7',
+    fbConnect:'☁️ 連接雲端',fbCopyLink:'📡 複製即時連結（分享給其他家長）',
+    liveUpdating:'LIVE 即時更新',producedBy:'由「籃球比賽統計表」產生',
+    langLbl:'App 語言 / Language',curLangZh:'目前：中文',curLangEn:'目前：English',
+    noGameStats:'目前無進行中比賽',startGameFirst:'請先開始一場比賽',noRoster:'尚無球員',
+    noHist:'尚無歷史賽事',histAutoSave:'完成比賽後自動存入',teamTotal:'全隊合計',
+    statPts:'得分',statReb:'籃板',statAst:'助攻',
+    statOreb:'進攻籃板',statDreb:'防守籃板',statStl:'抄截',statBlk:'蓋帽',statTo:'失誤',statFoul:'犯規',
+    stat2p:'2分球',stat3p:'3分球',statFt:'罰球',
+    shotChartCardTitle:'投籃位置圖',madeShort:'命中',noLog:'尚無記錄',
+    svLiveTitle:'📡 即時比賽統計',svConnecting:'連接中…',svReconnecting:'連線中斷，嘗試重新連接…',
+    svDefaultTeam:'球隊',svNotStarted:'比賽尚未開始',
+    toastNewGame:'新比賽：vs ',toastNeedSelectPlayer:'請先在上方選擇球員',
+    toastNoActiveGame:'無進行中比賽',toastNoUndo:'沒有可撤銷的動作',toastUndone:'已撤銷',
+    toastShotTagged:'已標記投籃位置',toastNoShotToTag:'最近沒有投籃可標記',
+    toastNeedNumName:'請輸入號碼和姓名',toastDupNum:'號碼重複',toastNeedRosterFirst:'請先新增球員',
+    toastSaved:'已儲存',confirmClearAll:'確定清除所有資料？',toastCleared:'已清除',
+    confirmDelGame:'確定刪除這場紀錄？',toastDeleted:'已刪除',
+    toastCopiedLine:'已複製！貼到 LINE 群組即可',toastCopyManually:'請手動複製',
+    toastCopiedLink:'連結已複製！分享給其他家長',toastLinkFail:'產生連結失敗',
+    toastCloudConnected:'☁️ 雲端已連接',toastCloudFail:'雲端連線失敗：請檢查設定',
+    toastNeedFBJson:'請貼上 Firebase 設定 JSON',toastBadJson:'JSON 格式錯誤，請重新複製',
+    toastNoDbUrl:'設定中缺少 databaseURL 欄位',toastLoadingSDK:'載入雲端SDK中…',
+    toastSDKFail:'載入 Firebase SDK 失敗，請檢查網路',
+    toastFBLinkCopied:'📡 即時連結已複製！其他家長開啟即可看到即時統計',toastNeedCloudFirst:'請先連接雲端',
+    promptCopyLink:'複製此連結：',
+    voiceNoSupport:'請用 Safari 開啟以使用語音',voiceListening:'正在聆聽…說出指令',
+    voiceContinuous:'連續聆聽中…',voiceNeedGame:'請先開始一場比賽',
+    voicePermission:'請允許麥克風權限',voiceNoSpeech:'沒偵測到聲音',voiceError:'語音識別錯誤',
+    voiceContOn:'連續模式開啟 — 說完自動繼續聆聽',voiceContOff:'連續模式已關閉',
+    voiceNoNum:'✗ 未識別球員號碼',voiceNoPlayerA:'✗ 找不到',voiceNoPlayerB:'號球員',
+    voiceSelectedB:'，已選取・請點動作按鈕',voiceFoundA:'找到 #',
+    voiceOppScoredA:'✓ ',voiceOppScoredB:'得',voiceOppScoredC:'分',
+    actLbl2m:'兩分命中',actLbl2x:'兩分不進',actLbl3m:'三分命中',actLbl3x:'三分不進',
+    actLblFtm:'罰球命中',actLblFtx:'罰球不進',actLblOreb:'進攻板',actLblDreb:'防守板',
+    actLblAst:'助攻',actLblStl:'搶斷',actLblBlk:'蓋帽',actLblFoul:'犯規',actLblTo:'失誤',
+    oppFtLbl:'罰球',opp2pLbl:'兩分',opp3pLbl:'三分',oppScoredToast:'對手 ',oppFoulToast:' 犯規',
+    lineWin:'🏆 勝',lineLoss:'❌ 敗',lineDraw:'🤝 平',lineScore:'比分：',
+    lineRebAbbr:'板',lineOffAbbr:'攻',lineDefAbbr:'守',
+    lineAstAbbr:'助',lineStlAbbr:'斷',lineBlkAbbr:'帽',lineFoulAbbr:'規',lineToAbbr:'誤',
+    lineTeamPrefix:'全隊 ',line2p:'2分',line3p:'3分',lineFt:'罰球',
+  },
+  en:{
+    appTitle:'🏀 Basketball Stat Tracker',appSub:'Quick-tap tracking · Multi-game history · One-tap share',
+    teamNameLbl:'Our Team Name',teamNamePh:'e.g. Tigers',addRosterLbl:'Add Players',namePh:'Name',
+    saveStart:'Save & Start →',
+    howToTitle:'How to record',
+    howToBody:'Two steps: tap <span style="color:var(--gl)">a player</span> in the top row, then tap an action button below — it keeps applying to that player until you pick someone else.',
+    howToVoice:'Voice input is also available (expand "Voice Assist" on the game screen), but on a noisy court the buttons are more reliable. Voice commands are Chinese only.',
+    navGame:'Game',navStats:'Stats',navHist:'History',navTeam:'Team',
+    newGameTitle:'🏀 Start New Game',oppPh:'Opponent name (e.g. Eagles)',cancel:'Cancel',start:'Start',
+    noGame:'No game in progress',newGameBtn:'＋ New Game',
+    selPlayerStep:'1. Select a player',foulShort:'Fouls',
+    selPrompt:'👆 Select a player above first',selected:'Selected',ptsWord:' pts',
+    actionStep:'2. Tap an action',
+    a2m:'2PT Made',a2x:'2PT Miss',a3m:'3PT Made',a3x:'3PT Miss',
+    aftm:'FT Made',aftx:'FT Miss',aoreb:'Off. Reb.',adreb:'Def. Reb.',
+    aast:'Assist',astl:'Steal',ablk:'Block',ato:'Turnover',afoul:'Foul',
+    shotChartTitle:'🎯 Shot Chart (optional, our team only)',
+    shotHintPending:'📍 Tap the court to mark where "{0}" happened',
+    shotHintNone:'After a shot, you can tag its location here',
+    legendMade:'Made',legendMiss:'Missed',
+    oppRecord:'Opponent',oppFtBtn:'+1 FT',opp2pBtn:'+2 2PT',opp3pBtn:'+3 3PT',
+    voiceTitle:'🎙 Voice Assist (optional・use buttons if it\'s noisy)',
+    voiceHintDefault:'Tap the mic, or turn on continuous mode',
+    continuousOn:'🔁 Continuous',continuousOff:'⏹ Stop Continuous',
+    recentTitle:'Recent Activity',undo:'↩ Undo',
+    shareToParents:'📤 Share stats with parents',shareLine:'📋 Copy LINE text',shareLink:'🔗 Share link',
+    shareLiveLink:'📡 Live link (parents see live score & stats)',finishGame:'💾 Finish game · Start next',
+    histTitle:'📅 Game History',backToHist:'← Back to History',shareThisGame:'📤 Share this game',shareLiveLinkShort:'📡 Live link',
+    teamMgmt:'⚙️ Team Settings',teamNameFieldLbl:'Team Name',saveTeamName:'Save Team Name',rosterTitle:'Roster',
+    dataMgmt:'Data',clearAllBtn:'🗑 Clear All Data',
+    cloudSync:'☁️ Cloud Sync (Firebase)',cloudNotConnected:'✗ Not connected',cloudConnected:'✓ Connected · Code: ',
+    fbStepsTitle:'Setup steps:',
+    fbStep1:'1. Go to <a href="#" onclick="return false" style="color:var(--blue)">console.firebase.google.com</a> and create a free project',
+    fbStep2:'2. Choose "Realtime Database" → "Create Database" → "Test mode"',
+    fbStep3:'3. Project Settings ⚙️ → "Your apps" → copy the config JSON',
+    fbStep4:'4. Paste it below and tap "Connect"',
+    fbCfgLbl:'Firebase config JSON',fbCodeLbl:'Team code (other parents use this to view live stats)',fbCodePh:'e.g. tigers7',
+    fbConnect:'☁️ Connect',fbCopyLink:'📡 Copy live link (share with other parents)',
+    liveUpdating:'LIVE',producedBy:'Made with "Basketball Stat Tracker"',
+    langLbl:'App 語言 / Language',curLangZh:'Current: 中文',curLangEn:'Current: English',
+    noGameStats:'No game in progress',startGameFirst:'Start a game first',noRoster:'No players yet',
+    noHist:'No games yet',histAutoSave:'Games are saved here once finished',teamTotal:'Team Total',
+    statPts:'Points',statReb:'Rebounds',statAst:'Assists',
+    statOreb:'Off. Reb.',statDreb:'Def. Reb.',statStl:'Steals',statBlk:'Blocks',statTo:'Turnovers',statFoul:'Fouls',
+    stat2p:'2PT',stat3p:'3PT',statFt:'FT',
+    shotChartCardTitle:'Shot Chart',madeShort:'Made',noLog:'No activity yet',
+    svLiveTitle:'📡 Live Game Stats',svConnecting:'Connecting…',svReconnecting:'Connection lost, retrying…',
+    svDefaultTeam:'Team',svNotStarted:'Game not started yet',
+    toastNewGame:'New game: vs ',toastNeedSelectPlayer:'Select a player above first',
+    toastNoActiveGame:'No game in progress',toastNoUndo:'Nothing to undo',toastUndone:'Undone',
+    toastShotTagged:'Shot location tagged',toastNoShotToTag:'No recent shot to tag',
+    toastNeedNumName:'Enter a number and name',toastDupNum:'Number already used',toastNeedRosterFirst:'Add players first',
+    toastSaved:'Saved',confirmClearAll:'Clear all data?',toastCleared:'Cleared',
+    confirmDelGame:'Delete this game record?',toastDeleted:'Deleted',
+    toastCopiedLine:'Copied! Paste into your LINE group',toastCopyManually:'Please copy manually',
+    toastCopiedLink:'Link copied! Share with other parents',toastLinkFail:'Failed to generate link',
+    toastCloudConnected:'☁️ Cloud connected',toastCloudFail:'Cloud connection failed: check settings',
+    toastNeedFBJson:'Paste the Firebase config JSON first',toastBadJson:'Invalid JSON, please re-copy',
+    toastNoDbUrl:'Config is missing databaseURL',toastLoadingSDK:'Loading cloud SDK…',
+    toastSDKFail:'Failed to load Firebase SDK, check your network',
+    toastFBLinkCopied:'📡 Live link copied! Other parents can open it to see live stats',toastNeedCloudFirst:'Connect the cloud first',
+    promptCopyLink:'Copy this link:',
+    voiceNoSupport:'Open with Safari to use voice input',voiceListening:'Listening… say a command',
+    voiceContinuous:'Continuous listening…',voiceNeedGame:'Start a game first',
+    voicePermission:'Please allow microphone access',voiceNoSpeech:'No speech detected',voiceError:'Voice recognition error',
+    voiceContOn:'Continuous mode on — keeps listening after each command',voiceContOff:'Continuous mode off',
+    voiceNoNum:'✗ Player number not recognized',voiceNoPlayerA:'✗ No player #',voiceNoPlayerB:'',
+    voiceSelectedB:' — selected, tap an action button',voiceFoundA:'Found #',
+    voiceOppScoredA:'✓ ',voiceOppScoredB:' scored ',voiceOppScoredC:' pts',
+    actLbl2m:'2PT Made',actLbl2x:'2PT Miss',actLbl3m:'3PT Made',actLbl3x:'3PT Miss',
+    actLblFtm:'FT Made',actLblFtx:'FT Miss',actLblOreb:'Off. Reb.',actLblDreb:'Def. Reb.',
+    actLblAst:'Assist',actLblStl:'Steal',actLblBlk:'Block',actLblFoul:'Foul',actLblTo:'Turnover',
+    oppFtLbl:'FT',opp2pLbl:'2PT',opp3pLbl:'3PT',oppScoredToast:'Opponent ',oppFoulToast:' foul',
+    lineWin:'🏆 Win',lineLoss:'❌ Loss',lineDraw:'🤝 Draw',lineScore:'Score: ',
+    lineRebAbbr:'reb',lineOffAbbr:'off',lineDefAbbr:'def',
+    lineAstAbbr:'ast',lineStlAbbr:'stl',lineBlkAbbr:'blk',lineFoulAbbr:'foul',lineToAbbr:'TO',
+    lineTeamPrefix:'Team ',line2p:'2PT',line3p:'3PT',lineFt:'FT',
+  }
+};
+function t(key){const d=I18N[LANG]||I18N.zh;return (d&&d[key]!==undefined)?d[key]:(I18N.zh[key]!==undefined?I18N.zh[key]:key);}
+function setLang(l){localStorage.setItem('bball_lang',l);location.reload();}
+function applyI18N(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{el.innerHTML=t(el.getAttribute('data-i18n'));});
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{el.placeholder=t(el.getAttribute('data-i18n-ph'));});
+  const cl=document.getElementById('curLangTxt');if(cl)cl.textContent=(LANG==='en'?t('curLangEn'):t('curLangZh'));
+  const zb=document.getElementById('langZhBtn'),eb=document.getElementById('langEnBtn');
+  if(zb&&eb){zb.classList.toggle('sel',LANG==='zh');eb.classList.toggle('sel',LANG==='en');}
+}
 
 function load(){
   try{
@@ -407,28 +610,31 @@ function save(){try{localStorage.setItem('bball2',JSON.stringify(A));}catch(e){}
 function newS(){return{pts:0,twoM:0,twoA:0,threeM:0,threeA:0,ftM:0,ftA:0,reb:0,oreb:0,ast:0,stl:0,blk:0,foul:0,to:0};}
 function fmt(){
   const d=new Date();
-  const wd=['日','一','二','三','四','五','六'][d.getDay()];
+  const wdArr=LANG==='en'?['Sun','Mon','Tue','Wed','Thu','Fri','Sat']:['日','一','二','三','四','五','六'];
+  const wd=wdArr[d.getDay()];
   const h=String(d.getHours()).padStart(2,'0');
   const min=String(d.getMinutes()).padStart(2,'0');
-  return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}（${wd}）${h}:${min}`;
+  return LANG==='en'
+    ? `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} (${wd}) ${h}:${min}`
+    : `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}（${wd}）${h}:${min}`;
 }
 
 // ═══════════════════════════════════════════════════
 // ACTIONS
 // ═══════════════════════════════════════════════════
 const SA=[
-  {id:'2pt',  l:'兩分命中',i:'🏀',p:2,m:false},
-  {id:'2miss',l:'兩分不進',i:'⭕',p:0,m:true},
-  {id:'3pt',  l:'三分命中',i:'🎯',p:3,m:false},
-  {id:'3miss',l:'三分不進',i:'⭕',p:0,m:true},
-  {id:'ft',   l:'罰球命中',i:'✅',p:1,m:false},
-  {id:'ftm',  l:'罰球不進',i:'⭕',p:0,m:true},
+  {id:'2pt',  l:t('actLbl2m'),i:'🏀',p:2,m:false},
+  {id:'2miss',l:t('actLbl2x'),i:'⭕',p:0,m:true},
+  {id:'3pt',  l:t('actLbl3m'),i:'🎯',p:3,m:false},
+  {id:'3miss',l:t('actLbl3x'),i:'⭕',p:0,m:true},
+  {id:'ft',   l:t('actLblFtm'),i:'✅',p:1,m:false},
+  {id:'ftm',  l:t('actLblFtx'),i:'⭕',p:0,m:true},
 ];
 const OA=[
-  {id:'oreb',l:'進攻板',i:'🔥'},{id:'reb', l:'防守板',i:'💪'},
-  {id:'ast', l:'助攻',  i:'🤝'},{id:'stl', l:'搶斷',  i:'⚡'},
-  {id:'blk', l:'蓋帽',  i:'🚫'},{id:'foul',l:'犯規',  i:'✋'},
-  {id:'to',  l:'失誤',  i:'💫'},
+  {id:'oreb',l:t('actLblOreb'),i:'🔥'},{id:'reb', l:t('actLblDreb'),i:'💪'},
+  {id:'ast', l:t('actLblAst'),i:'🤝'},{id:'stl', l:t('actLblStl'),i:'⚡'},
+  {id:'blk', l:t('actLblBlk'),i:'🚫'},{id:'foul',l:t('actLblFoul'),i:'✋'},
+  {id:'to',  l:t('actLblTo'),i:'💫'},
 ];
 const ALL=[...SA,...OA];
 const fa=id=>ALL.find(a=>a.id===id);
@@ -439,8 +645,8 @@ const fa=id=>ALL.find(a=>a.id===id);
 function addRoster(){
   const n=document.getElementById('inpNum').value.trim();
   const nm=document.getElementById('inpName').value.trim();
-  if(!n||!nm){toast('請輸入號碼和姓名','err');return;}
-  if(A.roster.find(p=>p.n==+n)){toast('號碼重複','err');return;}
+  if(!n||!nm){toast(t('toastNeedNumName'),'err');return;}
+  if(A.roster.find(p=>p.n==+n)){toast(t('toastDupNum'),'err');return;}
   A.roster.push({n:+n,name:nm});A.roster.sort((a,b)=>a.n-b.n);
   document.getElementById('inpNum').value='';document.getElementById('inpName').value='';
   document.getElementById('inpNum').focus();renderRL('rList');
@@ -448,8 +654,8 @@ function addRoster(){
 function addRosterEdit(){
   const n=document.getElementById('eNum').value.trim();
   const nm=document.getElementById('eName').value.trim();
-  if(!n||!nm){toast('請輸入號碼和姓名','err');return;}
-  if(A.roster.find(p=>p.n==+n)){toast('號碼重複','err');return;}
+  if(!n||!nm){toast(t('toastNeedNumName'),'err');return;}
+  if(A.roster.find(p=>p.n==+n)){toast(t('toastDupNum'),'err');return;}
   A.roster.push({n:+n,name:nm});A.roster.sort((a,b)=>a.n-b.n);
   document.getElementById('eNum').value='';document.getElementById('eName').value='';
   save();renderRL('rList');renderRL('rListEdit');
@@ -460,24 +666,24 @@ function renderRL(id){
   el.innerHTML=A.roster.map(p=>`
     <div class="pi"><div class="pb">${p.n}</div><div class="pn">${p.name}</div>
     <button class="xb" onclick="delR(${p.n})">✕</button></div>`).join('')
-    ||'<div style="color:var(--t2);font-size:12px;padding:6px 0">尚無球員</div>';
+    ||`<div style="color:var(--t2);font-size:12px;padding:6px 0">${t('noRoster')}</div>`;
 }
 
 function saveSetup(){
   const nm=document.getElementById('teamName').value.trim();
-  if(!A.roster.length){toast('請先新增球員','err');return;}
+  if(!A.roster.length){toast(t('toastNeedRosterFirst'),'err');return;}
   A.teamName=nm||'我方';save();
   if(!A.cur){openNGD();}else{initUI();go('game');}
 }
 function saveTeam(){
   const nm=document.getElementById('teamEdit').value.trim();
-  if(nm)A.teamName=nm;save();toast('已儲存');
+  if(nm)A.teamName=nm;save();toast(t('toastSaved'));
 }
 function clearAll(){
-  if(confirm('確定清除所有資料？')){
+  if(confirm(t('confirmClearAll'))){
     localStorage.removeItem('bball2');localStorage.removeItem('bball');
     A={teamName:'我方',roster:[],cur:null,hist:[]};
-    showScreen('setupScreen');renderRL('rList');toast('已清除');
+    showScreen('setupScreen');renderRL('rList');toast(t('toastCleared'));
   }
 }
 
@@ -492,9 +698,76 @@ function confirmNG(){
     A.hist.unshift({...A.cur,status:'done'});
     if(A.hist.length>60)A.hist.pop();
   }
-  A.cur={id:''+Date.now(),date:fmt(),opp,ourPts:0,oppPts:0,quarter:1,
+  A.cur={id:''+Date.now(),date:fmt(),opp,ourPts:0,oppPts:0,oppFoul:0,quarter:1,
     players:A.roster.map(r=>({n:r.n,name:r.name,s:newS()})),log:[]};
-  save();closeNGD();initUI();go('game');toast(`新比賽：vs ${opp}`);
+  selP=null;
+  save();closeNGD();initUI();go('game');toast(`${t('toastNewGame')}${opp}`);
+}
+
+// ═══════════════════════════════════════════════════
+// SHOT CHART
+// ═══════════════════════════════════════════════════
+const SHOT_AIDS=['2pt','2miss','3pt','3miss'];
+function courtLinesSVG(){
+  return `
+    <rect x="0" y="0" width="300" height="320" fill="#d9822b"/>
+    <rect x="1" y="1" width="298" height="318" fill="none" stroke="#fff" stroke-width="3"/>
+    <rect x="110" y="0" width="80" height="135" fill="#1a5276" stroke="#fff" stroke-width="2"/>
+    <circle cx="150" cy="135" r="40" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="5,4"/>
+    <path d="M18,0 L18,100 A135,135 0 0,0 282,100 L282,0" fill="none" stroke="#fff" stroke-width="2"/>
+    <line x1="116" y1="16" x2="184" y2="16" stroke="#fff" stroke-width="3"/>
+    <circle cx="150" cy="27" r="9" fill="none" stroke="#fff" stroke-width="2"/>`;
+}
+function shotMarkersSVG(log,limit){
+  const shots=(log||[]).filter(e=>e.loc).slice(0,limit||99);
+  return shots.map(e=>{
+    const cx=(e.loc.x/100*300).toFixed(1),cy=(e.loc.y/100*320).toFixed(1);
+    if(e.ms)return `<g stroke="#ef5350" stroke-width="2.5"><line x1="${cx-5}" y1="${cy-5}" x2="${+cx+5}" y2="${+cy+5}"/><line x1="${cx-5}" y1="${+cy+5}" x2="${+cx+5}" y2="${cy-5}"/></g>`;
+    return `<circle cx="${cx}" cy="${cy}" r="5.5" fill="#4caf50" stroke="#fff" stroke-width="1.5"/>`;
+  }).join('');
+}
+function courtTapXY(evt,svgEl){
+  const rect=svgEl.getBoundingClientRect();
+  const x=Math.max(0,Math.min(100,(evt.clientX-rect.left)/rect.width*100));
+  const y=Math.max(0,Math.min(100,(evt.clientY-rect.top)/rect.height*100));
+  return {x,y};
+}
+function tagLastShotLocation(evt){
+  const g=A.cur;if(!g)return;
+  const idx=g.log.findIndex(e=>SHOT_AIDS.includes(e.aid)&&!e.loc);
+  if(idx===-1){toast(t('toastNoShotToTag'),'warn');return;}
+  const svg=document.getElementById('shotCourt');if(!svg)return;
+  g.log[idx].loc=courtTapXY(evt,svg);
+  save();
+  const body=document.getElementById('shxBody');if(body)body.innerHTML=shotSectionHTML(g);
+  toast(t('toastShotTagged'));
+}
+function shotSectionHTML(g){
+  const pending=g.log.find(e=>SHOT_AIDS.includes(e.aid)&&!e.loc);
+  const hint=pending?`<div class="shx-hint">${t('shotHintPending').replace('{0}',pending.tx)}</div>`
+    :`<div class="shx-hint dim">${t('shotHintNone')}</div>`;
+  return `${hint}
+    <svg viewBox="0 0 300 320" class="court-svg" id="shotCourt" onclick="tagLastShotLocation(event)">
+      ${courtLinesSVG()}${shotMarkersSVG(g.log)}
+    </svg>
+    <div class="shx-legend"><span class="lg-mk">●</span> ${t('legendMade')}　<span class="lg-x">✕</span> ${t('legendMiss')}</div>`;
+}
+function buildShotCard(log){
+  const shots=(log||[]).filter(e=>e.loc);
+  if(!shots.length)return '';
+  const made=shots.filter(e=>!e.ms).length;
+  return `<details class="pcard pcard-tot" open>
+    <summary class="pcard-sum">
+      <span class="pc-badge tot">🎯</span>
+      <span class="pc-name">${t('shotChartCardTitle')}</span>
+      <span class="pc-line">${t('madeShort')} <b>${made}</b>/${shots.length}</span>
+      <span class="pc-chev">▾</span>
+    </summary>
+    <div class="pcard-body">
+      <svg viewBox="0 0 300 320" class="court-svg" style="cursor:default">${courtLinesSVG()}${shotMarkersSVG(log,shots.length)}</svg>
+      <div class="shx-legend"><span class="lg-mk">●</span> ${t('legendMade')}　<span class="lg-x">✕</span> ${t('legendMiss')}</div>
+    </div>
+  </details>`;
 }
 
 // ═══════════════════════════════════════════════════
@@ -506,8 +779,8 @@ function renderGame(){
   const el=document.getElementById('gameContent');
   if(!A.cur){
     el.innerHTML=`<div class="es" style="padding-top:60px"><div class="ei">🏀</div>
-      <div style="font-size:16px;font-weight:700;margin-bottom:8px">尚無進行中的比賽</div>
-      <button class="btn btn-g" style="padding:13px 22px;font-size:15px" onclick="openNGD()">＋ 新比賽</button></div>`;
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px">${t('noGame')}</div>
+      <button class="btn btn-g" style="padding:13px 22px;font-size:15px" onclick="openNGD()">${t('newGameBtn')}</button></div>`;
     return;
   }
   const g=A.cur;
@@ -516,43 +789,73 @@ function renderGame(){
       <div class="qr">${['Q1','Q2','Q3','Q4','OT'].map((q,i)=>
         `<button class="qb${g.quarter===i+1?' active':''}" onclick="setQ(${i+1},this)">${q}</button>`).join('')}</div>
       <div class="sr">
-        <div class="st"><div class="sl">${A.teamName}</div><div class="sn our" id="ourS">${g.ourPts}</div></div>
+        <div class="st"><div class="sl">${A.teamName}</div><div class="sn our" id="ourS">${g.ourPts}</div><div class="tf" id="ourTF">${t('foulShort')} ${sumFoul(g.players)}</div></div>
         <div class="svs">VS</div>
-        <div class="st"><div class="sl">${g.opp}</div><div class="sn opp" id="oppS">${g.oppPts}</div></div>
+        <div class="st"><div class="sl">${g.opp}</div><div class="sn opp" id="oppS">${g.oppPts}</div><div class="tf" id="oppTF">${t('foulShort')} ${g.oppFoul||0}</div></div>
       </div>
     </div>
-    <div class="vs">
-      <button class="mb" id="micBtn" onclick="toggleVoice()">🎙</button>
-      <div style="margin-top:10px">
-        <button id="autoBtn" onclick="toggleAuto()" style="padding:7px 18px;border-radius:16px;background:var(--bg3);border:1px solid var(--border);color:var(--t2);font-size:12px;cursor:pointer;font-weight:600">🔁 連續模式</button>
-      </div>
-      <div class="mh" id="micHint">點擊麥克風 或 開啟連續模式</div>
-      <div class="mr" id="micRes"></div>
-    </div>
-    <div class="sec">
-      <div class="sec-ttl">快速記錄（點名字開完整選單）</div>
-      <div>${g.players.map(p=>`
-        <div class="qk-row">
-          <div class="qk-nm" onclick="openModal(${p.n})">#${p.n}<span>${p.name}</span></div>
-          <button class="qkb qk2" onclick="act(${p.n},'2pt')">2分</button>
-          <button class="qkb qk3" onclick="act(${p.n},'3pt')">3分</button>
-          <button class="qkb qkx" onclick="act(${p.n},'2miss')">沒進</button>
-          <button class="qkb qkrb" onclick="act(${p.n},'reb')">籃板</button>
-          <button class="qkb qkm" onclick="openModal(${p.n})">•••</button>
+    <div class="sec" style="padding-top:12px">
+      <div class="sec-ttl">${t('selPlayerStep')}</div>
+      <div class="psel">${g.players.map(p=>`
+        <div class="psel-btn${selP===p.n?' active':''}" data-pn="${p.n}" onclick="selectPlayer(${p.n})">
+          <div class="psel-num">#${p.n}</div>
+          <div class="psel-nm">${p.name}</div>
+          <div class="psel-foul">${t('foulShort')}${p.s.foul||0}</div>
         </div>`).join('')}</div>
-      <div style="margin-top:10px">
-        <div class="sec-ttl">對手得分</div>
-        <div class="ob">
-          <div class="obtn" onclick="oppScore(1)">+1 罰球</div>
-          <div class="obtn" onclick="oppScore(2)">+2 兩分</div>
-          <div class="obtn" onclick="oppScore(3)">+3 三分</div>
+      <div class="selbar${selP===null?' empty':''}" id="selBar">${selBarHTML(g)}</div>
+      <div class="sec-ttl">${t('actionStep')}</div>
+      <div class="actgrid">
+        <div class="act-row r4">
+          <button class="actb act-mk" onclick="actSel('2pt')">${t('a2m')}</button>
+          <button class="actb act-x" onclick="actSel('2miss')">${t('a2x')}</button>
+          <button class="actb act-mk3" onclick="actSel('3pt')">${t('a3m')}</button>
+          <button class="actb act-x" onclick="actSel('3miss')">${t('a3x')}</button>
+        </div>
+        <div class="act-row r4">
+          <button class="actb act-mk" onclick="actSel('ft')">${t('aftm')}</button>
+          <button class="actb act-x" onclick="actSel('ftm')">${t('aftx')}</button>
+          <button class="actb act-rb" onclick="actSel('oreb')">${t('aoreb')}</button>
+          <button class="actb act-rb" onclick="actSel('reb')">${t('adreb')}</button>
+        </div>
+        <div class="act-row r5">
+          <button class="actb act-oth" onclick="actSel('ast')">${t('aast')}</button>
+          <button class="actb act-oth" onclick="actSel('stl')">${t('astl')}</button>
+          <button class="actb act-oth" onclick="actSel('blk')">${t('ablk')}</button>
+          <button class="actb act-oth" onclick="actSel('to')">${t('ato')}</button>
+          <button class="actb act-oth" onclick="actSel('foul')">${t('afoul')}</button>
         </div>
       </div>
     </div>
+    <details class="shx">
+      <summary class="shx-sum">${t('shotChartTitle')}</summary>
+      <div class="shx-body" id="shxBody">${shotSectionHTML(g)}</div>
+    </details>
+    <div class="sec">
+      <div style="margin-top:10px">
+        <div class="sec-ttl">${t('oppRecord')}</div>
+        <div class="ob">
+          <div class="obtn" onclick="oppScore(1)">${t('oppFtBtn')}</div>
+          <div class="obtn" onclick="oppScore(2)">${t('opp2pBtn')}</div>
+          <div class="obtn" onclick="oppScore(3)">${t('opp3pBtn')}</div>
+          <div class="obtn" onclick="oppFoul()">${t('foulShort')}</div>
+        </div>
+      </div>
+    </div>
+    <details class="vsx">
+      <summary class="vsx-sum">${t('voiceTitle')}</summary>
+      <div class="vs">
+        <button class="mb" id="micBtn" onclick="toggleVoice()">🎙</button>
+        <div style="margin-top:10px">
+          <button id="autoBtn" onclick="toggleAuto()" style="padding:7px 18px;border-radius:16px;background:var(--bg3);border:1px solid var(--border);color:var(--t2);font-size:12px;cursor:pointer;font-weight:600">${t('continuousOn')}</button>
+        </div>
+        <div class="mh" id="micHint">${t('voiceHintDefault')}</div>
+        <div class="mr" id="micRes"></div>
+      </div>
+    </details>
     <div class="sec">
       <div class="lh">
-        <div class="sec-ttl" style="margin:0">最近記錄</div>
-        <button class="ubtn" onclick="undo()">↩ 撤銷</button>
+        <div class="sec-ttl" style="margin:0">${t('recentTitle')}</div>
+        <button class="ubtn" onclick="undo()">${t('undo')}</button>
       </div>
       <div class="ll" id="logEl"></div>
     </div>`;
@@ -588,46 +891,101 @@ function act(pn,aid,silent=false){
   }
   g.log.unshift({q:g.quarter,ic:a.i,tx:`#${pn} ${p.name} ${a.l}`,pt:a.p>0?`+${a.p}`:'',ms:a.m||false,our:true,pn,aid});
   if(g.log.length>80)g.log.pop();
-  updScore();renderLog();closeModal();save();
+  updScore();renderLog();refreshLiveUI(pn);save();
   if(!silent)toast(`#${pn} ${p.name} ${a.l}${a.p>0?' +'+a.p:''}`);
   return true;
 }
 
+// tap a stat button — applies to whichever player is currently selected
+function actSel(aid){
+  if(selP===null){toast(t('toastNeedSelectPlayer'),'warn');return;}
+  act(selP,aid);
+}
+
+function selectPlayer(pn){
+  const g=A.cur;if(!g)return;
+  selP=(selP===pn)?null:pn; // tap again to deselect
+  document.querySelectorAll('.psel-btn').forEach(b=>b.classList.toggle('active',+b.dataset.pn===selP));
+  const bar=document.getElementById('selBar');
+  if(bar){bar.innerHTML=selBarHTML(g);bar.className='selbar'+(selP===null?' empty':'');}
+}
+
+function selBarHTML(g){
+  if(selP===null)return t('selPrompt');
+  const p=g.players.find(x=>x.n===selP);
+  if(!p){selP=null;return t('selPrompt');}
+  return `<b>#${p.n} ${p.name}</b> ${t('selected')} · ${t('statPts')} ${p.s.pts} · ${t('statReb')} ${p.s.reb||0} · ${t('statAst')} ${p.s.ast||0}`;
+}
+
+function sumFoul(players){return (players||[]).reduce((a,p)=>a+(p.s.foul||0),0);}
+
 function oppScore(pts){
   const g=A.cur;if(!g)return;
   g.oppPts+=pts;
-  const lb={1:'罰球',2:'兩分',3:'三分'}[pts];
+  const lb={1:t('oppFtLbl'),2:t('opp2pLbl'),3:t('opp3pLbl')}[pts];
   g.log.unshift({q:g.quarter,ic:'🔵',tx:`${g.opp} ${lb}`,pt:`-${pts}`,ms:false,our:false,pn:-1,aid:'opp',oppts:pts});
-  updScore();renderLog();save();toast(`對手 ${lb}`);
+  updScore();renderLog();save();toast(`${t('oppScoredToast')}${lb}`);
+}
+
+function oppFoul(){
+  const g=A.cur;if(!g)return;
+  g.oppFoul=(g.oppFoul||0)+1;
+  g.log.unshift({q:g.quarter,ic:'🟠',tx:`${g.opp}${t('oppFoulToast')}`,pt:'',ms:false,our:false,pn:-1,aid:'oppfoul'});
+  if(g.log.length>80)g.log.pop();
+  renderLog();save();toast(`${g.opp}${t('oppFoulToast')}`);
+  const tfEl=document.getElementById('oppTF');if(tfEl)tfEl.textContent=`${t('foulShort')} ${g.oppFoul}`;
 }
 
 function undo(){
-  const g=A.cur;if(!g){toast('無進行中比賽','warn');return;}
-  if(!g.log.length){toast('沒有可撤銷的動作','err');return;}
+  const g=A.cur;if(!g){toast(t('toastNoActiveGame'),'warn');return;}
+  if(!g.log.length){toast(t('toastNoUndo'),'err');return;}
   const l=g.log.shift();
-  if(!l.our){g.oppPts-=(l.oppts||0);}
-  else{
+  if(!l.our){
+    if(l.aid==='oppfoul'){
+      g.oppFoul=Math.max(0,(g.oppFoul||0)-1);
+      const tfEl=document.getElementById('oppTF');if(tfEl)tfEl.textContent=`${t('foulShort')} ${g.oppFoul}`;
+    }else{
+      g.oppPts-=(l.oppts||0);
+    }
+  }else{
     const p=g.players.find(x=>x.n===l.pn);
-    if(p)switch(l.aid){
-      case '2pt':  p.s.pts-=2;p.s.twoM--;p.s.twoA--;g.ourPts-=2;break;
-      case '2miss':p.s.twoA--;break;
-      case '3pt':  p.s.pts-=3;p.s.threeM--;p.s.threeA--;g.ourPts-=3;break;
-      case '3miss':p.s.threeA--;break;
-      case 'ft':   p.s.pts-=1;p.s.ftM--;p.s.ftA--;g.ourPts-=1;break;
-      case 'ftm':  p.s.ftA--;break;
-      case 'oreb': p.s.reb--;p.s.oreb--;break;
-      case 'reb':  p.s.reb--;break;case 'ast':p.s.ast--;break;
-      case 'stl':  p.s.stl--;break;case 'blk':p.s.blk--;break;
-      case 'foul': p.s.foul--;break;case 'to':p.s.to--;break;
+    if(p){
+      switch(l.aid){
+        case '2pt':  p.s.pts-=2;p.s.twoM--;p.s.twoA--;g.ourPts-=2;break;
+        case '2miss':p.s.twoA--;break;
+        case '3pt':  p.s.pts-=3;p.s.threeM--;p.s.threeA--;g.ourPts-=3;break;
+        case '3miss':p.s.threeA--;break;
+        case 'ft':   p.s.pts-=1;p.s.ftM--;p.s.ftA--;g.ourPts-=1;break;
+        case 'ftm':  p.s.ftA--;break;
+        case 'oreb': p.s.reb--;p.s.oreb--;break;
+        case 'reb':  p.s.reb--;break;case 'ast':p.s.ast--;break;
+        case 'stl':  p.s.stl--;break;case 'blk':p.s.blk--;break;
+        case 'foul': p.s.foul--;break;case 'to':p.s.to--;break;
+      }
+      refreshLiveUI(l.pn);
     }
   }
-  updScore();renderLog();save();toast('已撤銷');
+  updScore();renderLog();save();toast(t('toastUndone'));
+}
+function refreshLiveUI(pn){
+  const g=A.cur;if(!g)return;
+  const bar=document.getElementById('selBar');
+  if(bar){bar.innerHTML=selBarHTML(g);bar.className='selbar'+(selP===null?' empty':'');}
+  const p=g.players.find(x=>x.n===pn);
+  if(p){
+    const fEl=document.querySelector(`.psel-btn[data-pn="${pn}"] .psel-foul`);
+    if(fEl)fEl.textContent=`${t('foulShort')}${p.s.foul||0}`;
+  }
+  const tfEl=document.getElementById('ourTF');
+  if(tfEl)tfEl.textContent=`${t('foulShort')} ${sumFoul(g.players)}`;
+  const shxBody=document.getElementById('shxBody');
+  if(shxBody)shxBody.innerHTML=shotSectionHTML(g);
 }
 
 function renderLog(){
   const el=document.getElementById('logEl');if(!el)return;
   const g=A.cur;
-  if(!g||!g.log.length){el.innerHTML='<div style="color:var(--t2);font-size:11px;padding:6px 0">尚無記錄</div>';return;}
+  if(!g||!g.log.length){el.innerHTML=`<div style="color:var(--t2);font-size:11px;padding:6px 0">${t('noLog')}</div>`;return;}
   el.innerHTML=g.log.slice(0,10).map(e=>`
     <div class="li">
       <span class="lic">${e.ic}</span>
@@ -637,81 +995,70 @@ function renderLog(){
 }
 
 // ═══════════════════════════════════════════════════
-// MODAL
-// ═══════════════════════════════════════════════════
-function openModal(pn){
-  const g=A.cur;if(!g)return;
-  const p=g.players.find(x=>x.n===pn);if(!p)return;
-  document.getElementById('mo-ttl').textContent=`#${pn} ${p.name}`;
-  document.getElementById('sg').innerHTML=SA.map(a=>`
-    <div class="ai ${a.m?'miss':'made'}" onclick="act(${pn},'${a.id}')">
-      <span class="aic">${a.i}</span><span class="ail">${a.l}</span></div>`).join('');
-  document.getElementById('og').innerHTML=OA.map(a=>`
-    <div class="ai other" onclick="act(${pn},'${a.id}')">
-      <span class="aic">${a.i}</span><span class="ail">${a.l}</span></div>`).join('');
-  document.getElementById('ov').classList.add('show');
-}
-function closeModal(){document.getElementById('ov').classList.remove('show');}
-document.getElementById('ov').addEventListener('click',e=>{if(e.target===document.getElementById('ov'))closeModal();});
-
-// ═══════════════════════════════════════════════════
 // STATS TABLE
 // ═══════════════════════════════════════════════════
 function pc(m,a){return a>0?Math.round(m/a*100)+'%':'-';}
 
+function statLine(s){
+  return `${t('statPts')} <b>${s.pts}</b> · ${t('statReb')} <b>${s.reb||0}</b> · ${t('statAst')} <b>${s.ast||0}</b>`;
+}
+function buildDetail(s){
+  const or=s.oreb||0,dr=(s.reb||0)-or;
+  return `
+    <div class="pd-grid">
+      <div class="pd-cell"><div class="pd-lbl">${t('statOreb')}</div><div class="pd-val">${or}</div></div>
+      <div class="pd-cell"><div class="pd-lbl">${t('statDreb')}</div><div class="pd-val">${dr}</div></div>
+      <div class="pd-cell"><div class="pd-lbl">${t('statStl')}</div><div class="pd-val">${s.stl||0}</div></div>
+      <div class="pd-cell"><div class="pd-lbl">${t('statBlk')}</div><div class="pd-val">${s.blk||0}</div></div>
+      <div class="pd-cell"><div class="pd-lbl">${t('statTo')}</div><div class="pd-val">${s.to||0}</div></div>
+      <div class="pd-cell"><div class="pd-lbl">${t('statFoul')}</div><div class="pd-val">${s.foul||0}</div></div>
+    </div>
+    <div class="pd-shots">
+      <div class="pd-shot"><div class="pd-slbl">${t('stat2p')}</div><div class="pd-sval">${s.twoM}/${s.twoA}</div><div class="pd-spct">${pc(s.twoM,s.twoA)}</div></div>
+      <div class="pd-shot"><div class="pd-slbl">${t('stat3p')}</div><div class="pd-sval">${s.threeM}/${s.threeA}</div><div class="pd-spct">${pc(s.threeM,s.threeA)}</div></div>
+      <div class="pd-shot"><div class="pd-slbl">${t('statFt')}</div><div class="pd-sval">${s.ftM}/${s.ftA}</div><div class="pd-spct">${pc(s.ftM,s.ftA)}</div></div>
+    </div>`;
+}
 function buildTbl(players){
-  if(!players||!players.length)return'<div style="color:var(--t2);padding:12px;text-align:center">無球員資料</div>';
-  const t=players.reduce((acc,p)=>{
+  if(!players||!players.length)return `<div style="color:var(--t2);padding:12px;text-align:center">${t('noRoster')}</div>`;
+  const tot=players.reduce((acc,p)=>{
     ['pts','twoM','twoA','threeM','threeA','ftM','ftA','reb','oreb','ast','stl','blk','foul','to']
       .forEach(k=>acc[k]+=(p.s[k]||0));return acc;
   },{pts:0,twoM:0,twoA:0,threeM:0,threeA:0,ftM:0,ftA:0,reb:0,oreb:0,ast:0,stl:0,blk:0,foul:0,to:0});
-  const rows=players.map(p=>{
-    const or=p.s.oreb||0,dr=(p.s.reb||0)-or;
-    return`<tr>
-    <td class="sc">#${p.n} ${p.name}</td>
-    <td>${p.s.twoA}</td><td>${p.s.twoM}</td><td class="pcc">${pc(p.s.twoM,p.s.twoA)}</td>
-    <td>${p.s.threeA}</td><td>${p.s.threeM}</td><td class="pcc">${pc(p.s.threeM,p.s.threeA)}</td>
-    <td>${p.s.ftA}</td><td>${p.s.ftM}</td><td class="pcc">${pc(p.s.ftM,p.s.ftA)}</td>
-    <td>${or}</td><td>${dr}</td><td>${p.s.reb||0}</td>
-    <td>${p.s.ast}</td><td>${p.s.stl}</td><td>${p.s.blk}</td>
-    <td>${p.s.to}</td><td>${p.s.foul}</td><td class="ptc">${p.s.pts}</td>
-  </tr>`;}).join('');
-  const tor=t.oreb,tdr=t.reb-t.oreb;
-  return`<table><thead>
-    <tr><th class="sc" rowspan="2">球員</th>
-      <th colspan="3" class="grp">2分球</th><th colspan="3" class="grp">3分球</th><th colspan="3" class="grp">罰球</th>
-      <th colspan="3" class="grp">籃板</th>
-      <th rowspan="2">助攻</th><th rowspan="2">搶斷</th><th rowspan="2">蓋帽</th>
-      <th rowspan="2">失誤</th><th rowspan="2">犯規</th><th rowspan="2">得分</th></tr>
-    <tr><th>出手</th><th>命中</th><th style="color:var(--yellow)">%</th>
-        <th>出手</th><th>命中</th><th style="color:var(--yellow)">%</th>
-        <th>出手</th><th>命中</th><th style="color:var(--yellow)">%</th>
-        <th>進攻</th><th>防守</th><th>合計</th></tr>
-  </thead><tbody>${rows}
-    <tr class="tr">
-      <td class="sc">合計</td>
-      <td>${t.twoA}</td><td>${t.twoM}</td><td class="pcc">${pc(t.twoM,t.twoA)}</td>
-      <td>${t.threeA}</td><td>${t.threeM}</td><td class="pcc">${pc(t.threeM,t.threeA)}</td>
-      <td>${t.ftA}</td><td>${t.ftM}</td><td class="pcc">${pc(t.ftM,t.ftA)}</td>
-      <td>${tor}</td><td>${tdr}</td><td>${t.reb}</td>
-      <td>${t.ast}</td><td>${t.stl}</td><td>${t.blk}</td>
-      <td>${t.to}</td><td>${t.foul}</td><td class="ptc">${t.pts}</td>
-    </tr>
-  </tbody></table>`;
+  const cards=players.map(p=>`
+    <details class="pcard">
+      <summary class="pcard-sum">
+        <span class="pc-badge">${p.n}</span>
+        <span class="pc-name">${p.name}</span>
+        <span class="pc-line">${statLine(p.s)}</span>
+        <span class="pc-chev">▾</span>
+      </summary>
+      <div class="pcard-body">${buildDetail(p.s)}</div>
+    </details>`).join('');
+  return `${cards}
+    <details class="pcard pcard-tot" open>
+      <summary class="pcard-sum">
+        <span class="pc-badge tot">Σ</span>
+        <span class="pc-name">${t('teamTotal')}</span>
+        <span class="pc-line">${statLine(tot)}</span>
+        <span class="pc-chev">▾</span>
+      </summary>
+      <div class="pcard-body">${buildDetail(tot)}</div>
+    </details>`;
 }
 
 function renderStats(){
   const g=A.cur;
   if(!g){
-    document.getElementById('statsMeta').textContent='目前無進行中比賽';
+    document.getElementById('statsMeta').textContent=t('noGameStats');
     document.getElementById('statsScore').textContent='';
-    document.getElementById('statsTbl').innerHTML='<div style="color:var(--t2);padding:14px;text-align:center;font-size:13px">請先開始一場比賽</div>';
+    document.getElementById('statsTbl').innerHTML=`<div style="color:var(--t2);padding:14px;text-align:center;font-size:13px">${t('startGameFirst')}</div>`;
     return;
   }
   document.getElementById('statsMeta').textContent=`${A.teamName} vs ${g.opp} · ${g.date}`;
   const w=g.ourPts>g.oppPts?'✅':g.ourPts<g.oppPts?'❌':'';
   document.getElementById('statsScore').innerHTML=`${g.ourPts}<span style="color:var(--t2);font-size:22px"> : </span>${g.oppPts} ${w}`;
-  document.getElementById('statsTbl').innerHTML=buildTbl(g.players);
+  document.getElementById('statsTbl').innerHTML=buildShotCard(g.log)+buildTbl(g.players);
 }
 
 // ═══════════════════════════════════════════════════
@@ -720,7 +1067,7 @@ function renderStats(){
 function renderHist(){
   const el=document.getElementById('histList');
   if(!A.hist.length){
-    el.innerHTML=`<div class="es"><div class="ei">📅</div><div>尚無歷史賽事</div><div style="font-size:11px;margin-top:4px">完成比賽後自動存入</div></div>`;
+    el.innerHTML=`<div class="es"><div class="ei">📅</div><div>${t('noHist')}</div><div style="font-size:11px;margin-top:4px">${t('histAutoSave')}</div></div>`;
     return;
   }
   el.innerHTML=A.hist.map((g,i)=>{
@@ -739,11 +1086,11 @@ function viewGame(i){
   document.getElementById('hdMeta').textContent=`${A.teamName} vs ${g.opp} · ${g.date}`;
   const w=g.ourPts>g.oppPts?'✅':g.ourPts<g.oppPts?'❌':'';
   document.getElementById('hdScore').innerHTML=`${g.ourPts}<span style="color:var(--t2);font-size:22px"> : </span>${g.oppPts} ${w}`;
-  document.getElementById('hdTbl').innerHTML=buildTbl(g.players);
+  document.getElementById('hdTbl').innerHTML=buildShotCard(g.log)+buildTbl(g.players);
   showScreen('hdScreen');
 }
 function delGame(i){
-  if(confirm('確定刪除這場紀錄？')){A.hist.splice(i,1);save();renderHist();toast('已刪除');}
+  if(confirm(t('confirmDelGame'))){A.hist.splice(i,1);save();renderHist();toast(t('toastDeleted'));}
 }
 function hdShareLine(){if(_hg)shareLineText(_hg);}
 function hdShareLink(){if(_hg)shareLinkURL(_hg);}
@@ -752,50 +1099,51 @@ function hdShareLink(){if(_hg)shareLinkURL(_hg);}
 // SHARE
 // ═══════════════════════════════════════════════════
 function fmtLine(g){
-  const w=g.ourPts>g.oppPts?'🏆 勝':g.ourPts<g.oppPts?'❌ 敗':'🤝 平';
-  let t=`🏀 ${A.teamName} vs ${g.opp}\n比分：${g.ourPts} - ${g.oppPts}  ${w}\n📅 ${g.date}\n──────────────────\n`;
+  const w=g.ourPts>g.oppPts?t('lineWin'):g.ourPts<g.oppPts?t('lineLoss'):t('lineDraw');
+  let out=`🏀 ${A.teamName} vs ${g.opp}\n${t('lineScore')}${g.ourPts} - ${g.oppPts}  ${w}\n📅 ${g.date}\n──────────────────\n`;
   g.players.forEach(p=>{
     const s=p.s;
     if(!s.pts&&!s.reb&&!s.ast&&!s.stl&&!s.blk&&!s.foul&&!s.to)return;
-    t+=`\n#${p.n} ${p.name}`;
-    if(s.pts)t+=`  🏀${s.pts}分`;
-    if(s.reb){const or=s.oreb||0,dr=(s.reb||0)-or;t+=`  板${s.reb}(攻${or}/守${dr})`;}
-    if(s.ast)t+=`  助${s.ast}`;
-    if(s.stl)t+=`  斷${s.stl}`;if(s.blk)t+=`  帽${s.blk}`;
-    if(s.foul)t+=`  規${s.foul}`;if(s.to)t+=`  誤${s.to}`;
-    t+='\n';
+    out+=`\n#${p.n} ${p.name}`;
+    if(s.pts)out+=`  🏀${s.pts}${t('ptsWord')}`;
+    if(s.reb){const or=s.oreb||0,dr=(s.reb||0)-or;out+=`  ${t('lineRebAbbr')}${s.reb}(${t('lineOffAbbr')}${or}/${t('lineDefAbbr')}${dr})`;}
+    if(s.ast)out+=`  ${t('lineAstAbbr')}${s.ast}`;
+    if(s.stl)out+=`  ${t('lineStlAbbr')}${s.stl}`;if(s.blk)out+=`  ${t('lineBlkAbbr')}${s.blk}`;
+    if(s.foul)out+=`  ${t('lineFoulAbbr')}${s.foul}`;if(s.to)out+=`  ${t('lineToAbbr')}${s.to}`;
+    out+='\n';
     const sl=[];
-    if(s.twoA)sl.push(`2分 ${pc(s.twoM,s.twoA)}`);
-    if(s.threeA)sl.push(`3分 ${pc(s.threeM,s.threeA)}`);
-    if(s.ftA)sl.push(`罰球 ${pc(s.ftM,s.ftA)}`);
-    if(sl.length)t+=`  ${sl.join('｜')}\n`;
+    if(s.twoA)sl.push(`${t('line2p')} ${pc(s.twoM,s.twoA)}`);
+    if(s.threeA)sl.push(`${t('line3p')} ${pc(s.threeM,s.threeA)}`);
+    if(s.ftA)sl.push(`${t('lineFt')} ${pc(s.ftM,s.ftA)}`);
+    if(sl.length)out+=`  ${sl.join('｜')}\n`;
   });
   const tot=g.players.reduce((a,p)=>{
     ['pts','twoM','twoA','threeM','threeA','ftM','ftA','reb','oreb','ast','stl','blk','foul','to'].forEach(k=>a[k]+=(p.s[k]||0));return a;
   },{pts:0,twoM:0,twoA:0,threeM:0,threeA:0,ftM:0,ftA:0,reb:0,oreb:0,ast:0,stl:0,blk:0,foul:0,to:0});
-  t+=`──────────────────\n全隊 ${tot.pts}分  籃板${tot.reb}(攻${tot.oreb}/守${tot.reb-tot.oreb})  助攻${tot.ast}  搶斷${tot.stl}  蓋帽${tot.blk}\n`;
-  t+=`2分${pc(tot.twoM,tot.twoA)}｜3分${pc(tot.threeM,tot.threeA)}｜罰球${pc(tot.ftM,tot.ftA)}\n失誤${tot.to}  犯規${tot.foul}`;
-  return t;
+  out+=`──────────────────\n${t('lineTeamPrefix')}${tot.pts}${t('ptsWord')}  ${t('statReb')} ${tot.reb}(${t('lineOffAbbr')}${tot.oreb}/${t('lineDefAbbr')}${tot.reb-tot.oreb})  ${t('statAst')} ${tot.ast}  ${t('statStl')} ${tot.stl}  ${t('statBlk')} ${tot.blk}\n`;
+  out+=`${t('line2p')}${pc(tot.twoM,tot.twoA)}｜${t('line3p')}${pc(tot.threeM,tot.threeA)}｜${t('lineFt')}${pc(tot.ftM,tot.ftA)}\n${t('statTo')}${tot.to}  ${t('statFoul')}${tot.foul}`;
+  return out;
 }
 
 function genURL(g){
   try{
     const d={team:A.teamName,date:g.date,opp:g.opp,our:g.ourPts,opp2:g.oppPts,
-      players:g.players.map(p=>({n:p.n,name:p.name,s:p.s}))};
+      players:g.players.map(p=>({n:p.n,name:p.name,s:p.s})),
+      shots:(g.log||[]).filter(e=>e.loc).map(e=>({loc:e.loc,ms:e.ms}))};
     return window.location.href.split('#')[0]+'#v='+btoa(unescape(encodeURIComponent(JSON.stringify(d))));
   }catch(e){return null;}
 }
 
 function shareLineText(g){
-  const t=fmtLine(g);
-  if(navigator.clipboard)navigator.clipboard.writeText(t).then(()=>toast('已複製！貼到 LINE 群組即可'));
-  else toast('請手動複製','err');
+  const txt=fmtLine(g);
+  if(navigator.clipboard)navigator.clipboard.writeText(txt).then(()=>toast(t('toastCopiedLine')));
+  else toast(t('toastCopyManually'),'err');
 }
 function shareLinkURL(g){
   const url=genURL(g);
-  if(!url){toast('產生連結失敗','err');return;}
-  if(navigator.clipboard)navigator.clipboard.writeText(url).then(()=>toast('連結已複製！分享給其他家長'));
-  else toast('請手動複製','err');
+  if(!url){toast(t('toastLinkFail'),'err');return;}
+  if(navigator.clipboard)navigator.clipboard.writeText(url).then(()=>toast(t('toastCopiedLink')));
+  else toast(t('toastCopyManually'),'err');
 }
 
 function doShareLine(){if(A.cur)shareLineText(A.cur);}
@@ -841,10 +1189,10 @@ function initFirebase(cfg,tc){
     updFBUI();
     // Push local data to cloud on connect
     fbDb.ref('teams/'+tc).set(A).catch(()=>{});
-    toast('☁️ 雲端已連接');
+    toast(t('toastCloudConnected'));
   }catch(e){
     fbConnected=false;updFBUI();
-    toast('雲端連線失敗：請檢查設定','err');
+    toast(t('toastCloudFail'),'err');
     console.error('Firebase init:',e);
   }
 }
@@ -852,17 +1200,17 @@ function initFirebase(cfg,tc){
 async function saveFBConfig(){
   const raw=(document.getElementById('fbCfgTx').value||'').trim();
   let tc=(document.getElementById('fbTcIn').value||'').trim();
-  if(!raw){toast('請貼上 Firebase 設定 JSON','err');return;}
+  if(!raw){toast(t('toastNeedFBJson'),'err');return;}
   if(!tc)tc=genTC();
   let cfg;
-  try{cfg=JSON.parse(raw);}catch(e){toast('JSON 格式錯誤，請重新複製','err');return;}
-  if(!cfg.databaseURL){toast('設定中缺少 databaseURL 欄位','err');return;}
+  try{cfg=JSON.parse(raw);}catch(e){toast(t('toastBadJson'),'err');return;}
+  if(!cfg.databaseURL){toast(t('toastNoDbUrl'),'err');return;}
   localStorage.setItem('bball_fb_cfg',JSON.stringify(cfg));
   localStorage.setItem('bball_fb_tc',tc);
   FB_TC=tc;
-  toast('載入雲端SDK中…');
+  toast(t('toastLoadingSDK'));
   try{await loadFirebaseSDK();initFirebase(cfg,tc);}
-  catch(e){toast('載入 Firebase SDK 失敗，請檢查網路','err');}
+  catch(e){toast(t('toastSDKFail'),'err');}
 }
 
 function fbSave(){
@@ -872,7 +1220,7 @@ function fbSave(){
 
 function updFBUI(){
   const st=document.getElementById('fbStatus');
-  if(st){st.textContent=fbConnected?`✓ 已連接 · 代碼：${FB_TC}`:'✗ 未連接雲端';st.style.color=fbConnected?'var(--gl)':'var(--t2)';}
+  if(st){st.textContent=fbConnected?`${t('cloudConnected')}${FB_TC}`:t('cloudNotConnected');st.style.color=fbConnected?'var(--gl)':'var(--t2)';}
   const tc=localStorage.getItem('bball_fb_tc');
   const tcEl=document.getElementById('fbTcIn');if(tcEl&&tc)tcEl.value=tc;
   const show=fbConnected?'block':'none';
@@ -891,9 +1239,9 @@ function genFBURL(){
 
 function copyFBLink(){
   const url=genFBURL();
-  if(!url){toast('請先連接雲端','err');return;}
-  if(navigator.clipboard)navigator.clipboard.writeText(url).then(()=>toast('📡 即時連結已複製！其他家長開啟即可看到即時統計'));
-  else{prompt('複製此連結：',url);}
+  if(!url){toast(t('toastNeedCloudFirst'),'err');return;}
+  if(navigator.clipboard)navigator.clipboard.writeText(url).then(()=>toast(t('toastFBLinkCopied')));
+  else{prompt(t('promptCopyLink'),url);}
 }
 function doShareFB(){copyFBLink();}
 function hdShareFB(){copyFBLink();}
@@ -907,8 +1255,8 @@ function checkFBView(){
     if(!d.databaseURL||!d.teamCode)return false;
     showScreen('svScreen');
     const liveEl=document.getElementById('svLive');if(liveEl)liveEl.style.display='block';
-    document.getElementById('svT').textContent='📡 即時比賽統計';
-    document.getElementById('svM').textContent='連接中…';
+    document.getElementById('svT').textContent=t('svLiveTitle');
+    document.getElementById('svM').textContent=t('svConnecting');
     document.getElementById('svD').textContent='';
     document.getElementById('svTbl').innerHTML='';
     const url=d.databaseURL.replace(/\/$/,'')+'/teams/'+d.teamCode+'.json';
@@ -921,7 +1269,7 @@ function checkFBView(){
     });
     es.onerror=()=>{
       const m=document.getElementById('svM');if(m)m.style.color='var(--yellow)';
-      const d2=document.getElementById('svD');if(d2)d2.textContent='連線中斷，嘗試重新連接…';
+      const d2=document.getElementById('svD');if(d2)d2.textContent=t('svReconnecting');
     };
     return true;
   }catch(e){return false;}
@@ -929,9 +1277,9 @@ function checkFBView(){
 
 function renderFBLive(data){
   const g=data.cur;
-  document.getElementById('svT').textContent=(data.teamName||'球隊')+(g?` vs ${g.opp}`:'');
+  document.getElementById('svT').textContent=(data.teamName||t('svDefaultTeam'))+(g?` vs ${g.opp}`:'');
   if(!g){
-    document.getElementById('svM').textContent='比賽尚未開始';
+    document.getElementById('svM').textContent=t('svNotStarted');
     document.getElementById('svD').textContent='';
     document.getElementById('svTbl').innerHTML='';
     return;
@@ -940,7 +1288,7 @@ function renderFBLive(data){
   document.getElementById('svM').innerHTML=`${g.ourPts} : ${g.oppPts} ${w}`;
   document.getElementById('svM').style.color='';
   document.getElementById('svD').textContent=`Q${g.quarter||1} · ${g.date||''}`;
-  document.getElementById('svTbl').innerHTML=buildTbl(g.players||[]);
+  document.getElementById('svTbl').innerHTML=buildShotCard(g.log||[])+buildTbl(g.players||[]);
 }
 
 // ═══════════════════════════════════════════════════
@@ -955,7 +1303,7 @@ function checkSV(){
     document.getElementById('svT').textContent=`${d.team} vs ${d.opp}`;
     document.getElementById('svM').textContent=`${d.our} : ${d.opp2} ${w}`;
     document.getElementById('svD').textContent=d.date;
-    document.getElementById('svTbl').innerHTML=buildTbl(d.players);
+    document.getElementById('svTbl').innerHTML=buildShotCard(d.shots||[])+buildTbl(d.players);
     showScreen('svScreen');return true;
   }catch(e){return false;}
 }
@@ -966,46 +1314,46 @@ function checkSV(){
 let recog=null,listening=false,autoRestart=false;
 function initRecog(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){const h=document.getElementById('micHint');if(h)h.textContent='請用 Safari 開啟以使用語音';return;}
+  if(!SR){const h=document.getElementById('micHint');if(h)h.textContent=t('voiceNoSupport');return;}
   recog=new SR();recog.lang='zh-TW';recog.interimResults=true;recog.continuous=false;recog.maxAlternatives=3;
-  recog.onstart=()=>{listening=true;const b=document.getElementById('micBtn');if(b){b.classList.add('on');b.textContent='🔴';}const h=document.getElementById('micHint');if(h)h.textContent='正在聆聽…說出指令';const r=document.getElementById('micRes');if(r)r.innerHTML='';};
+  recog.onstart=()=>{listening=true;const b=document.getElementById('micBtn');if(b){b.classList.add('on');b.textContent='🔴';}const h=document.getElementById('micHint');if(h)h.textContent=t('voiceListening');const r=document.getElementById('micRes');if(r)r.innerHTML='';};
   recog.onresult=(ev)=>{const res=ev.results[ev.results.length-1];const tx=res[0].transcript;const r=document.getElementById('micRes');if(r)r.innerHTML=`<span class="rc">"${tx}"</span>`;if(res.isFinal)parseV(tx);};
   recog.onend=()=>{
     listening=false;
     const b=document.getElementById('micBtn');if(b){b.classList.remove('on');b.textContent='🎙';}
     if(autoRestart&&A.cur){
-      const h=document.getElementById('micHint');if(h)h.textContent='連續聆聽中…';
+      const h=document.getElementById('micHint');if(h)h.textContent=t('voiceContinuous');
       setTimeout(()=>{
         if(autoRestart&&A.cur){try{recog.start();}catch(e){initRecog();setTimeout(()=>recog&&recog.start(),150);}}
       },700);
     }else{
-      const h=document.getElementById('micHint');if(h)h.textContent='點擊麥克風 或 開啟連續模式';
+      const h=document.getElementById('micHint');if(h)h.textContent=t('voiceHintDefault');
     }
   };
-  recog.onerror=(ev)=>{listening=false;const b=document.getElementById('micBtn');if(b){b.classList.remove('on');b.textContent='🎙';}const m=ev.error==='not-allowed'?'請允許麥克風權限':ev.error==='no-speech'?'沒偵測到聲音':'語音識別錯誤';const h=document.getElementById('micHint');if(h)h.textContent=m;toast(m,'err');};
+  recog.onerror=(ev)=>{listening=false;const b=document.getElementById('micBtn');if(b){b.classList.remove('on');b.textContent='🎙';}const m=ev.error==='not-allowed'?t('voicePermission'):ev.error==='no-speech'?t('voiceNoSpeech'):t('voiceError');const h=document.getElementById('micHint');if(h)h.textContent=m;toast(m,'err');};
 }
 function toggleVoice(){
-  if(!A.cur){toast('請先開始一場比賽','warn');return;}
+  if(!A.cur){toast(t('voiceNeedGame'),'warn');return;}
   if(!recog)initRecog();if(!recog)return;
   if(listening){recog.stop();return;}
   try{recog.start();}catch(e){initRecog();setTimeout(()=>recog&&recog.start(),150);}
 }
 function toggleAuto(){
-  if(!A.cur){toast('請先開始一場比賽','warn');return;}
+  if(!A.cur){toast(t('voiceNeedGame'),'warn');return;}
   autoRestart=!autoRestart;
   updAutoBtn();
   if(autoRestart){
-    toast('連續模式開啟 — 說完自動繼續聆聽');
+    toast(t('voiceContOn'));
     if(!listening)toggleVoice();
   }else{
-    toast('連續模式已關閉');
+    toast(t('voiceContOff'));
     if(listening&&recog)recog.stop();
   }
 }
 function updAutoBtn(){
   const btn=document.getElementById('autoBtn');if(!btn)return;
-  if(autoRestart){btn.style.background='var(--red)';btn.style.color='#fff';btn.style.borderColor='var(--red)';btn.textContent='⏹ 停止連續';}
-  else{btn.style.background='var(--bg3)';btn.style.color='var(--t2)';btn.style.borderColor='var(--border)';btn.textContent='🔁 連續模式';}
+  if(autoRestart){btn.style.background='var(--red)';btn.style.color='#fff';btn.style.borderColor='var(--red)';btn.textContent=t('continuousOff');}
+  else{btn.style.background='var(--bg3)';btn.style.color='var(--t2)';btn.style.borderColor='var(--border)';btn.textContent=t('continuousOn');}
 }
 
 const CH={'零':0,'一':1,'二':2,'兩':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9};
@@ -1032,13 +1380,13 @@ function parseV(raw){
   if(/對方|對手|敵隊|他們|他方/.test(text)){
     let pts=2;
     if(text.includes('三分'))pts=3;else if(/罰球|一分/.test(text))pts=1;
-    oppScore(pts);html=`<span class="ok">✓ ${g.opp}得${pts}分</span>`;ok=true;
+    oppScore(pts);html=`<span class="ok">${t('voiceOppScoredA')}${g.opp}${t('voiceOppScoredB')}${pts}${t('voiceOppScoredC')}</span>`;ok=true;
   } else {
     const num=exNum(text);
-    if(num===null){html=`<span class="fail">✗ 未識別球員號碼</span>`;}
+    if(num===null){html=`<span class="fail">${t('voiceNoNum')}</span>`;}
     else{
       const p=g.players.find(x=>x.n===num);
-      if(!p){html=`<span class="fail">✗ 找不到${num}號球員</span>`;}
+      if(!p){html=`<span class="fail">${t('voiceNoPlayerA')}${num}${t('voiceNoPlayerB')}</span>`;}
       else{
         const ms=/不進|沒進|未進|未命中|沒中|打鐵|偏了/.test(text);
         let aid=null;
@@ -1059,8 +1407,11 @@ function parseV(raw){
             toast(`#${num} ${p.name} ${a.l}`);
           }
         }else if(!aid){
-          html=`<span style="color:var(--yellow)">找到 #${num}，請選擇動作</span>`;
-          setTimeout(()=>openModal(num),300);
+          html=`<span style="color:var(--yellow)">${t('voiceFoundA')}${num} ${p.name}${t('voiceSelectedB')}</span>`;
+          selP=num;
+          document.querySelectorAll('.psel-btn').forEach(b=>b.classList.toggle('active',+b.dataset.pn===selP));
+          const bar=document.getElementById('selBar');
+          if(bar){bar.innerHTML=selBarHTML(g);bar.className='selbar';}
         }
       }
     }
@@ -1119,6 +1470,7 @@ document.getElementById('nopp').addEventListener('keydown',e=>{if(e.key==='Enter
 // INIT
 // ═══════════════════════════════════════════════════
 load();
+applyI18N();
 loadFBConfig(); // async — syncs in background after local data is ready
 if(!checkSV()&&!checkFBView()){
   if(!A.roster.length){showScreen('setupScreen');renderRL('rList');}
