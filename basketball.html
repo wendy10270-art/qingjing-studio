@@ -123,6 +123,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 
 /* history */
 .hh{padding:13px 14px 8px;display:flex;align-items:center;justify-content:space-between}
+.team-logo-sm{height:28px;width:auto;display:block}
+.team-logo-lg{height:52px;width:auto;display:block;margin:0 auto 8px}
 .hl{padding:0 14px}
 .gi{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:7px;cursor:pointer;display:flex;align-items:center;gap:10px}
 .gi:active{background:var(--bg3)}
@@ -389,7 +391,10 @@ textarea:focus{outline:none;border-color:var(--gl)}
 <div class="screen" id="histScreen">
   <div class="pg">
     <div class="hh">
-      <div style="font-size:16px;font-weight:700" data-i18n="histTitle">📅 行事曆</div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:16px;font-weight:700">
+        <img src="bball-team-logo.png" alt="" class="team-logo-sm">
+        <span data-i18n="histTitle">行事曆</span>
+      </div>
       <button class="btn btn-g" data-i18n="newGameBtn" style="padding:7px 13px;font-size:13px" onclick="openNGD()">＋ 新比賽</button>
     </div>
     <div class="cal-nav">
@@ -521,6 +526,7 @@ textarea:focus{outline:none;border-color:var(--gl)}
 <!-- ── SHARE VIEW (read-only, URL #v=... or #fb=...) ── -->
 <div class="screen" id="svScreen">
   <div class="svh">
+    <img src="bball-team-logo.png" alt="" class="team-logo-lg">
     <div class="svt" id="svT"></div>
     <div class="svm" id="svM"></div>
     <div style="font-size:11px;color:var(--t2);margin-top:3px" id="svD"></div>
@@ -536,8 +542,9 @@ textarea:focus{outline:none;border-color:var(--gl)}
 
 <!-- ── ADMIN LOCK ── -->
 <div class="screen" id="lockScreen">
-  <div class="sw" style="padding-top:22vh">
-    <div style="text-align:center;font-size:44px;margin-bottom:10px">🔒</div>
+  <div class="sw" style="padding-top:18vh">
+    <img src="bball-team-logo.png" alt="" class="team-logo-lg" style="height:64px;margin-bottom:14px">
+    <div style="text-align:center;font-size:32px;margin-bottom:10px">🔒</div>
     <div class="big-ttl" style="font-size:20px" data-i18n="lockTitle">管理密碼</div>
     <div class="big-sub" data-i18n="lockSub">輸入密碼以進入記錄／管理畫面</div>
     <div class="ig">
@@ -606,7 +613,7 @@ const I18N={
     toastNeedDateOpp:'請輸入日期和對手',confirmDelSch:'確定刪除這筆賽程？',toastSchAdded:'已加入賽程',
     noGameSub:'點下方按鈕開始記錄',
     calLegendWin:'勝',calLegendLoss:'敗',calLegendDraw:'平',calLegendSch:'賽程',calNoEvents:'這天沒有安排的賽事',
-    histTitle:'📅 行事曆',backToHist:'← 返回行事曆',shareThisGame:'📤 分享這場統計',shareLiveLinkShort:'📡 即時連結',
+    histTitle:'行事曆',backToHist:'← 返回行事曆',shareThisGame:'📤 分享這場統計',shareLiveLinkShort:'📡 即時連結',
     teamMgmt:'⚙️ 球隊管理',teamNameFieldLbl:'隊名',saveTeamName:'儲存隊名',rosterTitle:'球員名單',
     dataMgmt:'資料管理',clearAllBtn:'🗑 清除所有資料',
     cloudSync:'☁️ 雲端同步（Firebase）',cloudNotConnected:'✗ 未連接雲端',cloudConnected:'✓ 已連接 · 代碼：',
@@ -700,7 +707,7 @@ const I18N={
     toastNeedDateOpp:'Enter a date and opponent',confirmDelSch:'Delete this fixture?',toastSchAdded:'Fixture added',
     noGameSub:'Tap the button below to start recording',
     calLegendWin:'Win',calLegendLoss:'Loss',calLegendDraw:'Draw',calLegendSch:'Fixture',calNoEvents:'No events on this day',
-    histTitle:'📅 Calendar',backToHist:'← Back to Calendar',shareThisGame:'📤 Share this game',shareLiveLinkShort:'📡 Live link',
+    histTitle:'Calendar',backToHist:'← Back to Calendar',shareThisGame:'📤 Share this game',shareLiveLinkShort:'📡 Live link',
     teamMgmt:'⚙️ Team Settings',teamNameFieldLbl:'Team Name',saveTeamName:'Save Team Name',rosterTitle:'Roster',
     dataMgmt:'Data',clearAllBtn:'🗑 Clear All Data',
     cloudSync:'☁️ Cloud Sync (Firebase)',cloudNotConnected:'✗ Not connected',cloudConnected:'✓ Connected · Code: ',
