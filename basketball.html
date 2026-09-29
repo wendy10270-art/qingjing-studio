@@ -226,6 +226,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .to-row{display:flex;gap:7px;padding:0 14px 10px}
 .to-btn{flex:1;padding:7px 4px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:11px;cursor:pointer;text-align:center}
 .to-btn:active{background:var(--bg3)}
+.eg-row{padding:0 14px 8px;text-align:right}
+.eg-link{background:none;border:none;color:var(--red);font-size:12px;font-weight:600;cursor:pointer;padding:2px 4px}
+.eg-link:active{opacity:.6}
 
 /* quarter score table */
 .qtbl{width:100%;border-collapse:collapse;font-size:12px}
@@ -1341,6 +1344,7 @@ function renderGame(){
       <button class="to-btn" id="ourTOBtn" onclick="useTimeout('our')">⏱ ${A.teamName} ${t('timeoutsLeft')} ${g.ourTimeouts??5}</button>
       <button class="to-btn" id="oppTOBtn" onclick="useTimeout('opp')">⏱ ${g.opp} ${t('timeoutsLeft')} ${g.oppTimeouts??5}</button>
     </div>
+    <div class="eg-row"><button class="eg-link" onclick="endGame()">${t('endGameBtn')}</button></div>
     <div class="sec" style="padding-top:2px">
       <div class="sec-ttl">${t('selPlayerStep')}</div>
       <div class="psel">${g.players.map(p=>`
