@@ -109,6 +109,14 @@ def gc_access_token():
     return data['access_token']
 
 
+def gc_list_calendars(token):
+    req = urllib.request.Request(
+        'https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=250',
+        headers={'Authorization': f'Bearer {token}'})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.load(r).get('items') or []
+
+
 def gc_tomorrow_events(token, cal_id, tmin_iso, tmax_iso):
     from urllib.parse import quote
     url = (f'https://www.googleapis.com/calendar/v3/calendars/{quote(cal_id, safe="")}/events'
@@ -158,8 +166,26 @@ def main():
     by_teacher = {}
     rent_by_teacher = {}
     cal_failed = []
+    auto_matched = []
     try:
         token = gc_access_token()
+        # App「日曆對照」頁的自動配對只是畫面預選，要按「儲存日曆對照」才會寫進雲端；
+        # 新加的老師（如 7u老師）沒存到就永遠查不到課。這裡對有電話卻沒對照的老師，
+        # 用同一套規則（日曆名稱包含老師名）補配，並標註提醒店長去存檔。
+        auto_matched = []
+        cal_norm0 = {norm_name(k) for k in cal_map}
+        missing = [t for t in teacher_phones if norm_name(t) not in cal_norm0]
+        if missing:
+            try:
+                cals = gc_list_calendars(token)
+                for t in missing:
+                    short = norm_name(re.sub(r'老師$', '', t))
+                    hit = next((c for c in cals if short and short in norm_name(c.get('summary'))), None)
+                    if hit:
+                        cal_map[t] = hit['id']
+                        auto_matched.append(f"{t}→{hit.get('summary')}")
+            except Exception as e:
+                print(f'讀日曆清單失敗，無法自動配對：{e}')
         tmin = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
         tmax = tmin + timedelta(days=1)
         for teacher, cal_id in cal_map.items():
@@ -251,6 +277,8 @@ def main():
         summary.append('❌ 推播失敗：' + '、'.join(f'{t}（{e}）' for t, e in failed))
     if cal_failed:
         summary.append('⚠️ 日曆讀取失敗（這幾位的課沒查到）：' + '、'.join(cal_failed))
+    if auto_matched:
+        summary.append('ℹ️ 日曆對照沒存到這些老師，已自動配對：' + '、'.join(auto_matched) + '（請開 App「Google日曆」按一次「儲存日曆對照」）')
     if no_cal:
         summary.append('⚠️ 日曆對照缺這些老師（查不到課）：' + '、'.join(no_cal))
     send_ntfy('輕境小幫手', '\n'.join(summary), 'warning' if (unbound or failed or cal_failed or no_cal) else 'herb')
