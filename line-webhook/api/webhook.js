@@ -1067,12 +1067,21 @@ async function findUpcomingBookings(s) {
     const calMap = (await fb('/qingjing_teacher_calmap', { method: 'GET' })) || {};
     if (!Object.keys(calMap).length) return [];
     const events = await gcSearchStudentEvents(accessToken, calMap, s.name, s.teacher, s.phone, UPCOMING_SHOW_LIMIT);
+    // Vercel 伺服器是 UTC，一律明確換算成台灣時間（Asia/Taipei），不能用 getHours()/getDate()
+    const tpe = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short',
+    });
+    const WD_IDX = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
     return events.map((ev) => {
-      const start = ev.start && ev.start.dateTime ? new Date(ev.start.dateTime) : ev.start && ev.start.date ? new Date(ev.start.date + 'T00:00:00') : null;
-      if (!start) return null;
-      const date = start.getFullYear() + '/' + String(start.getMonth() + 1).padStart(2, '0') + '/' + String(start.getDate()).padStart(2, '0');
-      const time = ev.start.dateTime ? String(start.getHours()).padStart(2, '0') + ':' + String(start.getMinutes()).padStart(2, '0') : '';
-      return { date, time, weekday: start.getDay() };
+      if (ev.start && ev.start.date && !ev.start.dateTime) {
+        const [y, m, d] = ev.start.date.split('-').map(Number);
+        return { date: `${y}/${String(m).padStart(2, '0')}/${String(d).padStart(2, '0')}`, time: '', weekday: new Date(Date.UTC(y, m - 1, d)).getUTCDay() };
+      }
+      if (!(ev.start && ev.start.dateTime)) return null;
+      const p = Object.fromEntries(tpe.formatToParts(new Date(ev.start.dateTime)).map((x) => [x.type, x.value]));
+      const hh = p.hour === '24' ? '00' : p.hour;
+      return { date: `${p.year}/${p.month}/${p.day}`, time: `${hh}:${p.minute}`, weekday: WD_IDX[p.weekday] };
     }).filter(Boolean);
   } catch (e) {
     console.error('findUpcomingBookings error', e.message);
