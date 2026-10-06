@@ -281,6 +281,41 @@ def main():
 
     sid_by_id = {x.get('id'): x for x in S}
 
+    def advance_queued(st):
+        # 對應 index.html 的 advanceQueuedCard / _archiveActivePeriod / _applyPackageToCard：
+        # 目前課卡上完且有排隊的下一期 → 封存舊期簽到記錄、把課卡換成下一期方案
+        q = st.get('queued')
+        if not q or st.get('used', 0) < st.get('total', 0):
+            return False
+        prev = st.setdefault('prevCourses', [])
+        prev.append({
+            'course': st.get('course'), 'total': st.get('total'), 'used': st.get('used'),
+            'price': st.get('price'), 'fee': st.get('fee'), 'payMethod': st.get('payMethod'),
+            'payDate': st.get('payDate'), 'actualPayment': st.get('actualPayment'),
+            'bonus': st.get('bonus'), 'note': st.get('note'), 'period': len(prev) + 1,
+        })
+        period = len(prev)
+        for r in R:
+            if r.get('sid') == st['id'] and not r.get('archived'):
+                r['archived'] = True
+                r['archivedPeriod'] = period
+        np = q.pop(0)
+        st['course'] = np.get('course'); st['total'] = np.get('total'); st['used'] = np.get('used') or 0
+        st['price'] = np.get('price'); st['fee'] = np.get('fee'); st['bonusNote'] = ''; st['note'] = np.get('note') or ''
+        if np.get('paymentStatus') == 'unpaid':
+            st['payMethod'] = ''; st['payDate'] = ''; st['actualPayment'] = 0; st['bonus'] = 0
+            st['paymentStatus'] = 'unpaid'
+            st['pendingAmount'] = np.get('pendingAmount') or np.get('price')
+            st['pendingType'] = np.get('pendingType') or 'renew'
+        else:
+            st['payMethod'] = np.get('payMethod') or ''; st['payDate'] = np.get('payDate') or ''
+            st['actualPayment'] = np.get('actualPayment') or 0; st['bonus'] = np.get('bonus') or 0
+            st['paymentStatus'] = 'paid'
+            st.pop('pendingAmount', None); st.pop('pendingType', None)
+        if not q:
+            st.pop('queued', None)
+        return True
+
     def same_stu(r, stu):
         if r.get('sid') == stu['id']:
             return True
@@ -329,11 +364,10 @@ def main():
             # （2026-08-24 查出：周芸巧、李柏穎、蘇湘閔都是這樣連續好幾週「被漏簽」）。
             # 改成照樣補一筆待確認紀錄讓它留在「核對課堂」畫面上看得到，但不動 used，
             # 避免堂數透支——店長要嘛幫學員加開新課卡，要嘛個別刪除，都在畫面上處理。
+            advance_queued(stu)  # 目前這張上完了、有下一期排隊 → 先切換再補（跟網頁端同順序）
             exhausted = stu.get('used', 0) >= stu.get('total', 0)
             if exhausted:
-                # 已排隊下一期的卡：這支腳本不會切換課卡，記錄會先留在舊期，開 App 後請到核對課堂確認
-                queued_note = '（已排隊下一期，請開 App 核對）' if stu.get('queued') else ''
-                skipped_exhausted.append(f"{teacher}・{stu['name']}{queued_note}")
+                skipped_exhausted.append(f"{teacher}・{stu['name']}")
             else:
                 stu['used'] = stu.get('used', 0) + 1
             is_sub = teacher != (stu.get('teacher') or '')
@@ -351,6 +385,7 @@ def main():
                 'confirmed': False, 'upgPayMethod': '', 'feeCollected': False,
                 'isRetro': True, 'gcBackfilled': True, 'cardExhausted': exhausted,
             })
+            advance_queued(stu)  # 這筆記錄已寫入，補完剛好上完且有排隊 → 現在才切換，記錄才會封存到舊期
             if not exhausted:
                 backfilled.append(f"{teacher}・{stu['name']}・{event_time(ev)}")
 
