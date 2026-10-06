@@ -5339,17 +5339,20 @@ function renderWage(){
     const rentDeductTotal=teacherRentDeduct.reduce((a,r)=>a+(r.fee||0),0);
     // 預付堂數扣款不影響金額，只是給店長對帳可見度用
     const teacherPrepaidRent=RENT.filter(r=>r.date&&wageInRange(r.date,mk)&&r.teacher===t&&r.mode==='prepaid');
+    // 已付現金／發薪日轉帳的場租不動薪資金額，但只有這種場租的老師也要出得了卡片、複製得到薪資條
+    const teacherRentCash=RENT.filter(r=>r.date&&wageInRange(r.date,mk)&&r.teacher===t&&(r.mode==='cash'||r.mode==='transfer'));
     const teacherBonus=LEDGER.filter(l=>wageInRange(l.createdAt,mk)&&l.teacher===t&&(l.bonus||0)>0);
     if(!sessions.length){
-      if(!teacherRentDeduct.length&&!teacherPrepaidRent.length&&!teacherBonus.length)return`<div class="wage-card no-data"><div class="wc-header"><div class="wc-name">${t}</div><div class="wc-no-data-lbl">尚無記錄</div></div><div class="wc-body"><div class="wc-no-record">本月尚無課堂</div></div></div>`;
+      if(!teacherRentDeduct.length&&!teacherPrepaidRent.length&&!teacherRentCash.length&&!teacherBonus.length)return`<div class="wage-card no-data"><div class="wc-header"><div class="wc-name">${t}</div><div class="wc-no-data-lbl">尚無記錄</div></div><div class="wc-body"><div class="wc-no-record">本月尚無課堂</div></div></div>`;
       const bonusPaid=teacherBonus.filter(l=>l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
       const bonusPend=teacherBonus.filter(l=>!l.bonusPaid).reduce((a,l)=>a+(l.bonus||0),0);
       const only=bonusPaid-rentDeductTotal;
       return`<div class="wage-card"><div class="wc-header"><div class="wc-name">${t}</div><div class="wc-total" style="color:${only<0?'var(--red)':'var(--green)'}">${only<0?'－':''}$${Math.abs(only).toLocaleString()}</div></div><div class="wc-divider"></div><div class="wc-body">
         ${teacherRentDeduct.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:13px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${r.date.slice(5)} ${r.time||''}</div><div style="flex:1;color:var(--red)">🏠 場租扣款${r.label?'・'+hEsc(r.label):''}</div><div style="color:var(--red);flex-shrink:0">－$${(r.fee||0).toLocaleString()}</div></div>`).join('')}
         ${teacherPrepaidRent.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:13px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${r.date.slice(5)} ${r.time||''}</div><div style="flex:1;color:var(--gold)">🏠 場租（預付扣堂）</div><div style="color:var(--gold);flex-shrink:0">剩${r.remainingAfter??'?'}堂</div></div>`).join('')}
+        ${teacherRentCash.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:13px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${r.date.slice(5)} ${r.time||''}</div><div style="flex:1;color:var(--gold)">🏠 場租（${r.mode==='transfer'?'發薪日轉帳':'已付現金'}）</div><div style="color:var(--gold);flex-shrink:0">$${(r.fee||0).toLocaleString()}</div></div>`).join('')}
         ${teacherBonus.map(l=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:13px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${(l.createdAt||'').slice(5)}</div><div style="flex:1;color:var(--teal)">🎁 續課獎金・${hEsc(l.name)}${l.course?'・'+hEsc(l.course):''}</div><div style="color:${l.bonusPaid?'var(--teal)':'var(--orange)'};flex-shrink:0">$${(l.bonus||0).toLocaleString()}${l.bonusPaid?'':'（待撥）'}</div></div>`).join('')}
-        <div class="wc-note" style="margin-top:6px">本月無課堂${teacherRentDeduct.length?'・已扣場租 $'+rentDeductTotal.toLocaleString():''}${teacherPrepaidRent.length?'・預付扣'+teacherPrepaidRent.length+'堂':''}${bonusPend?'・獎金待撥 $'+bonusPend.toLocaleString():''}</div>
+        <div class="wc-note" style="margin-top:6px">本月無課堂${teacherRentDeduct.length?'・已扣場租 $'+rentDeductTotal.toLocaleString():''}${teacherPrepaidRent.length?'・預付扣'+teacherPrepaidRent.length+'堂':''}${teacherRentCash.length?'・場租已付 $'+teacherRentCash.reduce((a,r)=>a+(r.fee||0),0).toLocaleString()+'（不列入扣款）':''}${bonusPend?'・獎金待撥 $'+bonusPend.toLocaleString():''}</div>
       </div>
       <div class="wc-footer"><button class="wc-btn wc-btn-copy" onclick="copyTeacher('${t}','${mk}')">📋 複製薪資</button>${TEACHER_EMAILS[t]?`<button class="wc-btn wc-btn-email" onclick="emailTeacher('${t}','${mk}')">📧 寄送Email</button>`:''}</div>
       </div>`;
