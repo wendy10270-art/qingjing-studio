@@ -648,8 +648,9 @@ function courseTypeColors(courseName) {
 }
 
 function todayStr() {
-  const d = new Date();
-  return d.getFullYear() + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0');
+  // Vercel 是 UTC：台北 00:00～08:00 之間 new Date().getDate() 還是前一天，必須明確換成 Asia/Taipei
+  const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  return p.replace(/-/g, '/');
 }
 
 function parseDateStr(str) {
@@ -1032,7 +1033,7 @@ async function gcSearchStudentEvents(accessToken, calMap, name, teacherName, pho
     const evStart = ev.start && ev.start.dateTime
       ? new Date(ev.start.dateTime)
       : ev.start && ev.start.date
-      ? new Date(ev.start.date + 'T23:59:59')
+      ? new Date(ev.start.date + 'T23:59:59+08:00')
       : null;
     if (evStart && evStart <= now) return false;
     if (ev.summary.includes(name)) return true;
