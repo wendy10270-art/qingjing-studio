@@ -4779,7 +4779,7 @@ async function renderGcSettle(ds){
       const effTeacher=ov.teacher||n.teacher;
       const g=gcGuessFee(effTeacher,n.calType);
       const fee=(ov.fee!=null)?ov.fee:g.fee;
-      _gcPend[key]={date:ds,time:n.time,teacher:effTeacher,name,course:g.course,ratio:g.ratio,fee,gcKey:key,type:n.calType};
+      _gcPend[key]={date:ds,time:n.time,teacher:effTeacher,name,phone:n.phone||'',course:g.course,ratio:g.ratio,fee,gcKey:key,type:n.calType};
       displayTeacher=effTeacher;
     }
     rows.push({key,teacher:displayTeacher,time:n.time,name,type:n.calType,settled,blocked});
@@ -5281,10 +5281,18 @@ function findDupWageEntries(mk){
   const monthG=GW.filter(g=>g.date&&wageInRange(g.date,mk));
   const dups=[];
   monthG.forEach(g=>{
-    const match=monthR.find(r=>{const s=S.find(x=>x.id===r.sid);return s&&s.name===g.name&&r.date===g.date});
+    // 姓名完全相等，或電話後 8 碼相同（日曆寫「小美」、學員檔是「王小美」時，光比姓名會漏抓；較新的核銷紀錄有存電話）
+    const gp=(g.phone||'').replace(/\D/g,'').slice(-8);
+    const match=monthR.find(r=>{const s=S.find(x=>x.id===r.sid);return s&&r.date===g.date&&(s.name===g.name||(gp&&(s.phone||'').replace(/\D/g,'').slice(-8)===gp))});
     if(match)dups.push({g,match});
   });
   return dups;
+}
+// 複製／寄出薪資前的重複計薪把關：薪資頁頂端有紅色警告，但複製與 Email 是直接加總，不攔就會多付
+function confirmDupWage(mk,teacher){
+  const dups=findDupWageEntries(mk).filter(d=>!teacher||d.g.teacher===teacher);
+  if(!dups.length)return true;
+  return confirm('⚠️ '+(teacher?teacher+' 老師':'本期')+'有 '+dups.length+' 筆可能重複計薪（同學員同一天，App 簽到跟 Google 核銷都有）：\n'+dups.map(d=>d.g.date.slice(5)+' '+d.g.name+' $'+(d.g.fee||0)).join('\n')+'\n\n請先到薪資頁處理。仍要繼續嗎？');
 }
 function setWageWeek(offset){ // 0=本週、-1=上週（週一～週日）
   const now=new Date();
@@ -5517,6 +5525,7 @@ function closeEditOut(e){if(e.target===document.getElementById('editOv'))closeEd
 
 // ── 複製薪資 ──
 function copyTeacher(teacher,mk){
+  if(!confirmDupWage(mk,teacher))return;
   const[y,mo]=mk.split('/');
   const sessions=[
     ...R.filter(r=>r.date&&wageInRange(r.date,mk)&&r.confirmed!==false).filter(r=>{const s=S.find(x=>x.id===r.sid);return s&&(r.isSub?r.subTeacher:s.teacher)===teacher}).map(r=>{const s=S.find(x=>x.id===r.sid);return{type:'regular',s,r,fee:getRecFee(r,s)}}),
@@ -5561,7 +5570,8 @@ function copyTeacher(teacher,mk){
   copyText(text,`${teacher} 薪資已複製`);
 }
 function copyAll(){
-  const mk=document.getElementById('monthSelect').value;const[y,mo]=mk.split('/');
+  const mk=document.getElementById('monthSelect').value;
+  if(!confirmDupWage(mk))return;const[y,mo]=mk.split('/');
   const period=(_wageMode==='range'&&_wageStart&&_wageEnd)?`${_wageStart}～${_wageEnd}（週結）`:`${y}年${parseInt(mo)}月`;
   let text=`輕境運動工作室 ${period} 師資費用總覽\n════════════════\n`;
   const tMap={};
@@ -5731,7 +5741,7 @@ async function sendPayrollEmail(teacher,mk,{silent}={}){
   const html=buildPayrollEmailHtml(teacher,mk);
   return sendPayrollHtmlEmail(email,`輕境運動工作室 ${period} 薪資明細・${teacher}`,html,{silent,successMsg:'✓ 已寄送給 '+teacher});
 }
-function emailTeacher(teacher,mk){sendPayrollEmail(teacher,mk);}
+function emailTeacher(teacher,mk){if(!confirmDupWage(mk,teacher))return;sendPayrollEmail(teacher,mk);}
 async function sendHourlyEmail(staff,mk,{silent}={}){
   const email=(HOURLY_STAFF[staff]?.email||'').trim();
   if(!email){if(!silent)showToast(staff+' 尚未設定 Email','r');return false;}
@@ -5743,6 +5753,7 @@ async function sendHourlyEmail(staff,mk,{silent}={}){
 function emailHourlyStaff(staff,mk){sendHourlyEmail(staff,mk);}
 async function emailAll(){
   const mk=document.getElementById('monthSelect').value;
+  if(!confirmDupWage(mk))return;
   // 當月完全沒資料的老師不寄（避免寄出「0 堂、合計 $0」的空薪資信）
   const hasData=t=>R.some(r=>r.date&&wageInRange(r.date,mk)&&r.confirmed!==false&&(()=>{const s=S.find(x=>x.id===r.sid);return s&&(r.isSub?r.subTeacher:s.teacher)===t})())
     ||T.some(x=>x.date&&wageInRange(x.date,mk)&&x.confirmed===true&&x.teacher===t)
