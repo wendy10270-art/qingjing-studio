@@ -6,10 +6,9 @@
 
 - [ ] 金鑰寫死在公開 repo／前端（GC_TOKEN_SECRET、CHECKIN/TEACHER/EMAIL_PUSH_SECRET，index.html:633-644、scripts/gc_backfill.py:32、teacher_reminder.py:18-19）。只輪替無效（新值仍在公開頁面）；正解：端點改驗 Firebase ID token＋腳本改讀 GitHub secret，終極是 App Check（2026-10-06）
 - [ ] Firebase 規則 `auth != null` 仍允許任何匿名登入者讀寫；終極解法 App Check（2026-10-06）
-- [ ] 確認 Vercel 線上是否為 10-05 之後版本（dashboard 顯示最近部署約 22 小時前）（2026-10-06）
 - [ ] 老闆：Vercel 帳號開啟 2FA（2026-10-06）
 - [ ] 【第二批殘留】gc_backfill.py 仍整包覆蓋 s/r 且不雙寫新結構；排隊期帶紙本堂數切換後不補簽到記錄（2026-10-06 健檢，需設計後再動）
-- [ ] 小項：editLedgerDate 不驗格式；取消預付購買不還原堂數；刪學員連帶刪歷史簽到；離線新增流水帳可能被覆蓋；._* 垃圾檔與 IG 影片 .gitignore（2026-10-06 健檢）
+- [ ] 小項：刪學員仍會連帶移走歷史簽到（已加警告，未改行為；是否改成「停用保留歷史」待老闆決定）；離線新增流水帳可能被覆蓋；IG 影片與 .mp4 加進 .gitignore（2026-10-06 健檢）
 
 ---
 
