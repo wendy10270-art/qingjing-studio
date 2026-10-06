@@ -1,0 +1,676 @@
+// pinyin-to-zhuyin — MIT License
+// Pinyin tone conversion tools
+// Constants at top of file, then helpers and then finally primary utilities
+// Primary utilities: toToneMarks, toToneNumbers
+// Both are heavily tested, but toToneNumbers is partially AI-generated
+// toToneMarks is partially modernized from an ancient, battle-tested version
+//
+// Copyright Mark Wilbur, MIT License
+
+// ----- Global Constants -----
+
+const toneMarkTable = {
+  a: ["ā", "á", "ǎ", "à"],
+  e: ["ē", "é", "ě", "è"],
+  i: ["ī", "í", "ǐ", "ì"],
+  o: ["ō", "ó", "ǒ", "ò"],
+  u: ["ū", "ú", "ǔ", "ù"],
+  "ü": ["ǖ", "ǘ", "ǚ", "ǜ"],
+  A: ["Ā", "Á", "Ǎ", "À"],
+  E: ["Ē", "É", "Ě", "È"],
+  I: ["Ī", "Í", "Ǐ", "Ì"],
+  O: ["Ō", "Ó", "Ǒ", "Ò"],
+  U: ["Ū", "Ú", "Ǔ", "Ù"],
+  //                        space for readability
+  "Ü": ["Ǖ", "Ǘ", "Ǚ", "Ǜ"],
+};
+
+const toneMarkedToBase = {};
+for (const [baseVowel, toneMarks] of Object.entries(toneMarkTable)) {
+  toneMarks.forEach((toneMark, index) => {
+    toneMarkedToBase[toneMark] = baseVowel.toLowerCase();
+  });
+}
+
+// Character class definitions
+const toneMarkedVowels = 'āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜĀÁǍÀĒÉĚÈĪÍǏÌŌÓǑÒŪÚǓÙǕǗǙǛ';
+const vowels = `aeiouvüAEIOUVÜ${toneMarkedVowels}`;
+const consonants = 'bpmfdtnlgkhjqxrzcsyw';
+const aoeVowels = 'aoeāáǎàēéěèōóǒò';
+const consonantsEnding = 'bcdfghjklmnpqrstvwxyz';
+
+// Pre-compiled regex patterns
+// Use Unicode-aware letters + digits plus explicit tone-marked vowels.
+const wordSplitPattern = new RegExp(`(\\s+|[^\\p{L}\\p{N}${toneMarkedVowels}]+)`, 'u');
+const wordPattern = new RegExp(`^[\\p{L}\\p{N}${toneMarkedVowels}]+$`, 'iu');
+
+
+// ----- Helper Utilities -----
+
+function buildSyllablePattern() {
+  // assumes tone marks are stripped
+  return new RegExp(
+    // Optional initial (including r, zh, ch, sh)
+    `(?:zh|ch|sh|[${consonants}])?` +
+    // Optional medial: only plain i/u/ü/v (tone marks never sit on the medial)
+    `(?:[iuvüIUVÜ])?` +
+    // Final (required): try longer, more complex finals first
+    `(?:` +
+    // Standalone "er" syllable: allowed only when the preceding character is NOT a vowel
+    `(?<![${vowels}])er|` +
+    `(?:iang|iong|uang|ueng|ian|iao|ing|ong|ang|eng|ai|ao|ei|ou)|` +
+    // Simpler compound finals, but don't absorb n/ng when a vowel follows (so "qiènuò" splits as "qiè" + "nuò")
+    `(?:[${vowels}](?:ng(?![${vowels}])|n(?![${vowels}])))|` +
+    // Finals ending in i/o/u (e.g. "ui", "ou", etc.)
+    `(?:[${vowels}](?:i|o|u))|` +
+    // Single-vowel finals
+    `(?:[${vowels}])` +
+    `)` +
+    // Erhua: r that is NOT followed by a vowel character; if a vowel follows, r is the next syllable's initial
+    `(?:r(?![${vowels}]))?`,
+    'gi'
+  );
+}
+
+const toneMarkedToNumber = {};
+for (const [baseVowel, toneMarks] of Object.entries(toneMarkTable)) {
+  toneMarks.forEach((toneMark, index) => {
+    toneMarkedToNumber[toneMark] = index + 1; // 1-4 for tones
+  });
+}
+
+function stripTonesAndLowercase(text) {
+  return text.split('').map(char => {
+    if (toneMarkedToBase[char]) { return toneMarkedToBase[char]; }
+    return char.toLowerCase();
+  }).join('');
+}
+
+// Determines syllable boundaries using pinyin orthography rules
+function findSyllableBoundaries(text) {
+  const normalizedText = stripTonesAndLowercase(text);
+  const boundaries = [];
+  const syllablePattern = buildSyllablePattern();
+
+  let match;
+  while ((match = syllablePattern.exec(normalizedText)) !== null) {
+    boundaries.push({ start: match.index, end: match.index + match[0].length });
+  }
+
+  const processedBoundaries = [];
+  for (let i = 0; i < boundaries.length; i++) {
+    const current = boundaries[i];
+    const next = boundaries[i + 1];
+
+    processedBoundaries.push(current);
+
+    // check if next syllable starts with a/o/e and should be separated
+    if (next) {
+      const currentSyllable = normalizedText.slice(current.start, current.end);
+      const currentEndsWithConsonant = new RegExp(`[${consonantsEnding}]$`, 'i').test(currentSyllable);
+
+      const nextSyllable = normalizedText.slice(next.start, next.end);
+      const nextStartsWithAOE = new RegExp(`^[${aoeVowels}]`, 'i').test(nextSyllable);
+      const nextStartsWithVowel = new RegExp(`^[${vowels}]`, 'i').test(nextSyllable);
+
+      // check if there's already an apostrophe between syllables
+      normalizedText.slice(current.end, next.start).includes("'");
+
+      const gap = normalizedText.slice(current.end, next.start);
+      const hasNoGap = gap.length === 0;
+      const ngFollowedByVowel = currentSyllable.endsWith('ng') && nextStartsWithVowel;
+      if (hasNoGap && (nextStartsWithAOE || ngFollowedByVowel)) {
+        if (currentSyllable.length > 1 && currentEndsWithConsonant) {
+          // Adjust current boundary to exclude the last consonant
+          processedBoundaries[processedBoundaries.length - 1] = {
+            start: current.start,
+            end: current.end - 1
+          };
+          // Adjust next boundary to include the consonant
+          boundaries[i + 1] = {
+            start: next.start - 1,
+            end: next.end
+          };
+        }
+      }
+    }
+  }
+  return processedBoundaries;
+}
+
+function extractToneNumber(syllable) {
+  for (const char of syllable) {
+    if (toneMarkedToNumber[char]) {
+      return toneMarkedToNumber[char];
+    }
+  }
+  // Treat no tone mark as neutral tone
+  return 5;
+}
+
+// strips tone marks from a syllable while preserving capitalization
+function stripToneFromSyllable(syllable) {
+  return syllable.split('').map(char => {
+    if (toneMarkedToBase[char]) {
+      return toneMarkedToBase[char];
+    }
+    return char;
+  }).join('');
+}
+
+// Does rough check of if a word is clearly non-Pinyin
+function isNonPinyinWord(word) {
+  const boundaries = findSyllableBoundaries(word);
+
+  // If no syllables were found, it's not pinyin
+  if (boundaries.length === 0) { return true; }
+
+  const totalSyllableLength =
+    boundaries.reduce((sum, b) => sum + (b.end - b.start), 0);
+
+  // If the syllables don't cover the entire word, it's not pinyin
+  if (totalSyllableLength < word.length) { return true; }
+
+  return false;
+}
+
+function toToneNumbers(text, options = {}) {
+  if (!text) return text;
+  const { erhuaTone = 'after-r', preserveApostrophes = false, showNeutralTone = true } = options;
+  const words = text.split(wordSplitPattern);
+
+  return words.map(word => {
+    // Don't preserve apostrophes for tone numbered pinyin. Only preserve for non-pinyin
+    if (!preserveApostrophes && (word === "'")) {
+      return "";
+    }
+
+    // Skip non-word characters (spaces, punctuation, etc.) and non-pinyin words
+    if (!wordPattern.test(word)) { return word; }
+    if (isNonPinyinWord(word)) { return word; }
+
+    // Process as Pinyin word
+    const boundaries = findSyllableBoundaries(word);
+    let result = '';
+    let lastBoundaryEnd = 0;
+
+    for (const boundary of boundaries) {
+      // Add any non-Pinyin text before this syllable (strip apostrophes)
+      if (boundary.start > lastBoundaryEnd) {
+        const gap = word.slice(lastBoundaryEnd, boundary.start);
+        result += gap.replace(/'$/, '');
+      }
+
+      const syllable = word.slice(boundary.start, boundary.end);
+      const toneNumber = extractToneNumber(syllable);
+      const baseSyllable = stripToneFromSyllable(syllable);
+
+      // Handle erhua tone placement
+      if (baseSyllable.endsWith('r') && baseSyllable.length > 1) {
+        const baseWithoutR = baseSyllable.slice(0, -1);
+
+        if (erhuaTone === 'after-r') {
+          result += baseWithoutR + 'r' + toneNumber;
+        }
+        else {
+          result += baseWithoutR + toneNumber + 'r';
+        }
+      }
+      // Regular syllable - add tone number at the end
+      else { result += baseSyllable + toneNumber; }
+
+      lastBoundaryEnd = boundary.end;
+    }
+
+    // Add any remaining non-Pinyin text
+    if (lastBoundaryEnd < word.length) {
+      result += word.slice(lastBoundaryEnd);
+    }
+
+    if (!showNeutralTone) {
+      result = result.replace(/5/g, '');
+    }
+
+    return result;
+  }).join('');
+}
+
+// Bidirectional Pinyin <-> Zhuyin converter
+// Uses tone-tool.js library to handle pinyin tone conversion
+// Constants at top of file, then helpers and then finally primary utilities
+// Primary utilities: p2z, z2p
+// 
+// Copyright Mark Wilbur, MIT License
+
+
+const bpmfFinals = [
+  "ㄧㄞ", "ㄧㄠ", "ㄧㄡ", "ㄧㄚ", "ㄧㄛ", "ㄧㄝ", "ㄧㄢ", "ㄧㄣ", "ㄧㄤ", "ㄧㄥ",
+  "ㄨㄣ", "ㄨㄞ", "ㄨㄟ", "ㄨㄛ", "ㄨㄚ", "ㄨㄢ", "ㄨㄥ", "ㄨㄤ",
+  "ㄩㄥ", "ㄩㄣ", "ㄩㄝ", "ㄩㄢ",
+  // single-symbol
+  "ㄤ", "ㄥ", "ㄢ", "ㄣ", "ㄞ", "ㄟ", "ㄠ", "ㄡ", "ㄚ", "ㄛ", "ㄜ", "ㄦ", "ㄧ", "ㄨ", "ㄩ"
+];
+
+const bpmfInitials = "ㄅㄆㄇㄈㄉㄊㄋㄌㄍㄎㄏㄐㄑㄒㄓㄔㄕㄖㄗㄘㄙ";
+const bpmfSyllabicOnly = "ㄓㄔㄕㄖㄗㄘㄙ";
+const bpmfTones = "˙ˊˇˋ";
+const ChineseToEnglishPunctuation = {
+  "，": ",", "。": ".", "？": "?", "！": "!", "；": ";", "：": ":",
+  "「": "“", "」": "”", "『": "‘", "』": "’" 
+};
+
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// create a regex that greedily matches the longest possible final
+const finalMatcher = `(?:${bpmfFinals.join("|")})`;
+// prefer (initial? + final) over syllabic-only in the alternation
+const syllableMatcher = new RegExp(
+  `(?:(?:[${bpmfInitials}]?${finalMatcher})|[${bpmfSyllabicOnly}])` + `[${bpmfTones}]?`,
+  "g"
+);
+
+const bpmfTransforms = [
+  // Pre-processing transformations (highest priority)
+  { "・": " " },      // turn name separator dot into a space
+  { "v": "ü" },       // v as ü
+  { "er([1-5])": "ㄦ$1" },     // er + tone number → ㄦ + tone number
+  { "r([1-5])": "ㄦ$1" },      // r + tone number → ㄦ + tone number (for erhua)
+  { "r(?=(?:$|[^a-zü'1-5]))": "ㄦ" }, // bare erhua 'r' before boundary → ㄦ
+  { "r$": "ㄦ" },     // erhua: trailing 'r' → ㄦ
+
+  // Complex syllable mappings (highest priority)
+  {
+    "yao": "ㄧㄠ", "you": "ㄧㄡ", "yue": "ㄩㄝ", "yong": "ㄩㄥ",
+    "yuan": "ㄩㄢ", "ying": "ㄧㄥ", "yun": "ㄩㄣ",
+    "yang": "ㄧㄤ", "yan": "ㄧㄢ", "yin": "ㄧㄣ", "yai": "ㄧㄞ",
+    "wei": "ㄨㄟ", "wang": "ㄨㄤ", "wan": "ㄨㄢ", "weng": "ㄨㄥ", "wen": "ㄨㄣ", "wai": "ㄨㄞ"
+  },
+  { "iang": "ㄧㄤ", "ing": "ㄧㄥ" },
+  { "iai": "ㄧㄞ", "iao": "ㄧㄠ", "iu": "ㄧㄡ", "ian": "ㄧㄢ", "in": "ㄧㄣ" },
+  {
+    "uai": "ㄨㄞ", "uang": "ㄨㄤ", "uan": "ㄨㄢ", "ua": "ㄨㄚ",
+    "uo": "ㄨㄛ", "ui": "ㄨㄟ", "un": "ㄨㄣ", "ün": "ㄩㄣ", "iong": "ㄩㄥ", "ong": "ㄨㄥ"
+  },
+  { "uan": "ㄩㄢ", "un": "ㄩㄣ", "ong": "ㄩㄥ", "ue": "ㄩㄝ" },
+  { "zhi": "ㄓ", "chi": "ㄔ", "shi": "ㄕ", "ri": "ㄖ", "ang": "ㄤ", "eng": "ㄥ", "ai": "ㄞ", "ei": "ㄟ", "ao": "ㄠ", "ou": "ㄡ", "er": "ㄦ" },
+  {
+    "an": "ㄢ", "en": "ㄣ", "wa": "ㄨㄚ", "wo": "ㄨㄛ", "wu": "ㄨ",
+    "ya": "ㄧㄚ", "yo": "ㄧㄛ", "ye": "ㄧㄝ", "yu": "ㄩ"
+  },
+  { "ia": "ㄧㄚ", "io": "ㄧㄛ", "ie": "ㄧㄝ" },
+  {
+    "zh": "ㄓ", "ch": "ㄔ", "sh": "ㄕ",
+    "zi": "ㄗ", "ci": "ㄘ", "si": "ㄙ",
+    "r": "ㄖ", "yi": "ㄧ", "üe": "ㄩㄝ"
+  },
+  {
+    "b": "ㄅ", "p": "ㄆ", "m": "ㄇ", "f": "ㄈ",
+    "d": "ㄉ", "t": "ㄊ", "n": "ㄋ", "l": "ㄌ",
+    "g": "ㄍ", "k": "ㄎ", "h": "ㄏ",
+    "j": "ㄐ", "q": "ㄑ", "x": "ㄒ",
+    "z": "ㄗ", "c": "ㄘ", "s": "ㄙ",
+    "i": "ㄧ", "u": "ㄨ", "ü": "ㄩ",
+    "a": "ㄚ", "o": "ㄛ", "e": "ㄜ"
+  },
+
+  // Post-processing transformations (after basic conversions)
+  { "(ㄐ|ㄑ|ㄒ)ㄨ": "$1ㄩ" }, // ju/qu/xu → ㄩ
+  { "'": " " }                // strip disambiguation apostrophes from pinyin (e.g., Xi'an)
+];
+
+const toneMarkToNumber = { "ˊ": "2", "ˇ": "3", "ˋ": "4", "˙": "5" }; // (no mark) → "1"
+
+// Zhuyin → Pinyin transforms (ordered; greedy)
+const pinyinTransforms = [
+  // ---- Zero-initial y-/w-/yu- forms (anchored) ----
+  { "^ㄧㄞ": "yai" }, { "^ㄧㄠ": "yao" }, { "^ㄧㄡ": "you" },
+  { "^ㄧㄢ": "yan" }, { "^ㄧㄣ": "yin" }, { "^ㄧㄤ": "yang" }, { "^ㄧㄥ": "ying" },
+  { "^ㄧㄚ": "ya" }, { "^ㄧㄛ": "yo" }, { "^ㄧㄝ": "ye" },
+  { "^ㄧ": "yi" },
+
+  { "^ㄨㄚ": "wa" }, { "^ㄨㄛ": "wo" }, { "^ㄨㄞ": "wai" }, { "^ㄨㄟ": "wei" },
+  { "^ㄨㄢ": "wan" }, { "^ㄨㄣ": "wen" }, { "^ㄨㄤ": "wang" }, { "^ㄨㄥ": "weng" },
+  { "^ㄨ": "wu" },
+
+  { "^ㄩㄝ": "yue" }, { "^ㄩㄢ": "yuan" }, { "^ㄩㄣ": "yun" }, { "^ㄩㄥ": "yong" },
+  { "^ㄩ": "yu" },
+
+  // ---- Syllabic-only (whole syllable is one of these) ----
+  { "^(ㄓ)$": "zhi" }, { "^(ㄔ)$": "chi" }, { "^(ㄕ)$": "shi" },
+  { "^(ㄖ)$": "ri" }, { "^(ㄗ)$": "zi" }, { "^(ㄘ)$": "ci" }, { "^(ㄙ)$": "si" },
+
+  // ---- Finals (with an initial present) ----
+  { "ㄩㄥ": "iong" }, { "ㄨㄥ": "ong" }, { "ㄨㄤ": "uang" }, { "ㄧㄥ": "ing" }, { "ㄧㄤ": "iang" },
+  { "ㄩㄣ": "ün" }, { "ㄩㄝ": "üe" }, { "ㄩㄢ": "üan" }, { "ㄨㄣ": "un" }, { "ㄨㄞ": "uai" },
+  { "ㄨㄟ": "ui" }, { "ㄨㄛ": "uo" }, { "ㄨㄚ": "ua" }, { "ㄧㄡ": "iu" }, { "ㄧㄠ": "iao" },
+  { "ㄧㄢ": "ian" }, { "ㄧㄣ": "in" }, { "ㄧㄝ": "ie" },
+
+  // Single finals
+  { "ㄤ": "ang" }, { "ㄥ": "eng" }, { "ㄢ": "an" }, { "ㄣ": "en" },
+  { "ㄞ": "ai" }, { "ㄟ": "ei" }, { "ㄠ": "ao" }, { "ㄡ": "ou" },
+  { "ㄚ": "a" }, { "ㄛ": "o" }, { "ㄜ": "e" }, { "ㄝ": "ê" },
+  { "ㄧ": "i" }, { "ㄨ": "u" }, { "ㄩ": "ü" },
+
+  // ---- Initials (start of syllable) ----
+  { "^ㄓ": "zh" }, { "^ㄔ": "ch" }, { "^ㄕ": "sh" },
+  { "^ㄖ": "r" }, { "^ㄗ": "z" }, { "^ㄘ": "c" }, { "^ㄙ": "s" },
+  { "^ㄅ": "b" }, { "^ㄆ": "p" }, { "^ㄇ": "m" }, { "^ㄈ": "f" },
+  { "^ㄉ": "d" }, { "^ㄊ": "t" }, { "^ㄋ": "n" }, { "^ㄌ": "l" },
+  { "^ㄍ": "g" }, { "^ㄎ": "k" }, { "^ㄏ": "h" },
+  { "^ㄐ": "j" }, { "^ㄑ": "q" }, { "^ㄒ": "x" },
+
+  // ---- j/q/x + ü → u (covers ü, üe, üan, ün) ----
+  { "^([jqx])ü": "$1u" }
+];
+
+// optional, conditional post-transforms for z2p
+const pinyinPostTransformsCollapse = [
+  // n/l + üan → uan  (keep lüe/nüe intact)
+  { "^([nl])ü(?=an)": "$1u" }
+];
+
+// --- helpers to keep z2p transform-driven but deterministic ---
+const INITIALS_SET = new Set(Array.from(bpmfInitials));
+const hasInitial = s => s && INITIALS_SET.has(s[0]);
+
+// bucket your existing transform rules once (by pattern shape)
+const noInitialRules = [];  // ^ㄧ / ^ㄨ / ^ㄩ → yi/… , wu/… , yu/…
+const initialRules = [];   // ^… (all other initials)
+const finalRules = [];    // finals usable regardless of initial
+
+for (const rule of pinyinTransforms) {
+  const pat = Object.keys(rule)[0];
+  if (/^\^(?:ㄧ|ㄨ|ㄩ)/.test(pat)) { noInitialRules.push(rule); }
+  else if (/^\^/.test(pat)) { initialRules.push(rule); }
+  else { finalRules.push(rule); }
+}
+
+function applyRules(s, rules) {
+  for (const r of rules) {
+    const [pat, rep] = Object.entries(r)[0];
+    s = s.replace(new RegExp(pat, "g"), rep);
+  }
+  return s;
+}
+
+// ----- Tone-mark helpers -----
+
+// Mark tone 1–4 on a single pinyin syllable (neutral/empty → unmarked)
+function applyToneMark(pinyinSyllable, toneNum) {
+  const n = parseInt(toneNum, 10);
+  if (!n || n < 1 || n > 4) return pinyinSyllable;
+
+  const s = pinyinSyllable;
+  const lower = s.toLowerCase();
+
+  // Priority: a > o > e > ou(mark 'o') > otherwise last vowel (handles iu/ui)
+  const place = (vowel) => {
+    const idx = lower.lastIndexOf(vowel);
+    if (idx === -1) return s;
+    const rep = toneMarkTable[vowel][n - 1];
+    return s.slice(0, idx) + rep + s.slice(idx + 1);
+  };
+
+  if (lower.includes("a")) return place("a");
+  if (lower.includes("o")) return place("o");
+  if (lower.includes("e")) return place("e");
+  if (lower.includes("ou")) {
+    const idx = lower.indexOf("ou");
+    const rep = toneMarkTable["o"][n - 1];
+    return s.slice(0, idx) + rep + s.slice(idx + 1);
+  }
+  const m = /[aeiouü](?!.*[aeiouü])/.exec(lower);
+  return m ? place(m[0]) : s;
+}
+
+// Convert the whole string from numbers → marks, auto-detecting erhua forms
+function numbersToMarks(s) {
+  let out = s;
+
+  // erhua (before-r): hua1r → huār
+  out = out.replace(/([a-zü]+)([1-4])r/gi, (_, base, n) => applyToneMark(base, n) + "r");
+  // erhua (after-r):  huar1 → huār
+  out = out.replace(/([a-zü]+)r([1-4])/gi, (_, base, n) => applyToneMark(base, n) + "r");
+
+  // non-erhua: bai1 → bāi
+  out = out.replace(/([a-zü]+)([1-4])/gi, (_, base, n) => applyToneMark(base, n));
+
+  // drop any leftover digits (neutral 5 or stragglers)
+  out = out.replace(/[1-5]/g, "");
+  return out;
+}
+
+function toChinesePunctuation(text) {
+  let out = text;
+  for (const [zh, en] of Object.entries(ChineseToEnglishPunctuation)) {
+    out = out.replace(new RegExp(escapeRegExp(en), "g"), zh);
+  }
+  // strip spaces after Chinese punctuation
+  return out.replace(/([，。？！；：])\s+(?=\S)/g, "$1");
+}
+
+function toEnglishPunctuation(text) {
+  let out = text;
+  // add space after ，。？！；： when not followed by end of string or closing quotes
+  // but only if there isn't already a space
+  out = out.replace(/([，。？！；：])(?!$|」|』|》|\s)/g, "$1 ");
+  // add space after ellipsis when not followed by end of string or closing quotes
+  out = out.replace(/(\.\.\.)(?!$|」|』|》|\s)/g, "$1 ");
+  // convert Chinese punctuation to English punctuation
+  for (const [zh, en] of Object.entries(ChineseToEnglishPunctuation)) {
+    out = out.replace(new RegExp(escapeRegExp(zh), "g"), en);
+  }
+  return out;
+}
+
+// Zhuyin syllable segmenter (regex + MoE-style erhua):
+// - Merge ONLY a bare "ㄦ" (no tone) to the previous syllable.
+// - If ㄦ has a tone, leave it as its own syllable.
+function segmentBpmf(str) {
+  const out = [];
+  let i = 0, m;
+  while ((m = syllableMatcher.exec(str))) {
+    if (m.index > i) { out.push(str.slice(i, m.index)); } // keep gaps/punct
+    out.push(m[0]);
+    i = syllableMatcher.lastIndex;
+  }
+  if (i < str.length) { out.push(str.slice(i)); }
+
+  // Merge leading neutral tone mark (˙) with the following zhuyin syllable
+  const norm = [];
+  for (let j = 0; j < out.length; j++) {
+    const t = out[j];
+    if (t === "˙" && j + 1 < out.length) {
+      const next = out[j + 1];
+      if (next && /[ㄅ-ㄩ]/.test(next[0])) {
+        norm.push(t + next);
+        j++;
+        continue;
+      }
+    }
+    norm.push(t);
+  }
+
+  return applyErhua(norm);
+}
+
+const applyErhua = (tokens) => {
+  const endsWithEr = /ㄦ(?:[˙ˊˇˋ])?$/;
+  return tokens.reduce((acc, t) => {
+    if (t === "ㄦ") {
+      const prev = acc[acc.length - 1];
+      if (prev && !endsWithEr.test(prev)) {
+        acc[acc.length - 1] = prev + "ㄦ";
+        return acc;
+      }
+    }
+    acc.push(t);
+    return acc;
+  }, []);
+};
+
+// Convert ONE segmented bpmf syllable → pinyin **with tone numbers**
+// - Neutral '5' is dropped when opts.markNeutralTone === false
+function bpmfSyllableToPinyin(zh, opts) {
+  const toneChar = zh.match(/[˙ˊˇˋ]/)?.[0];
+  let toneNum = toneChar ? toneMarkToNumber[toneChar] : "1";
+  let core = zh.replace(/[˙ˊˇˋ]/g, "");
+
+  // hide neutral '5' if requested
+  if (toneNum === "5" && !opts.markNeutralTone) toneNum = "";
+
+  // standalone ㄦ → er + number (or bare "er" if neutral hidden)
+  if (core === "ㄦ") return "er" + (toneNum || "");
+
+  // erhua: bare ㄦ suffix (segmenter only merges bare ㄦ)
+  const hasErhua = /ㄦ$/.test(core);
+  if (hasErhua) core = core.slice(0, -1);
+
+  // syllabic-only
+  if (/^[ㄓㄔㄕㄖㄗㄘㄙ]$/.test(core)) {
+    const map = { "ㄓ": "zhi", "ㄔ": "chi", "ㄕ": "shi", "ㄖ": "ri", "ㄗ": "zi", "ㄘ": "ci", "ㄙ": "si" };
+    const base = map[core];
+    if (hasErhua) {
+      return (opts.erhuaTone === "after-r")
+        ? base + "r" + (toneNum || "")
+        : base + (toneNum || "") + "r";
+    }
+    return base + (toneNum || "");
+  }
+
+  // deterministic, transform-driven mapping
+  let py;
+  if (hasInitial(core)) {
+    py = applyRules(core, finalRules);
+    py = applyRules(py, initialRules);
+  }
+  else {
+    py = applyRules(core, noInitialRules);
+    py = applyRules(py, finalRules);
+  }
+
+  // optional post-transforms (umlaut handling)
+  if (opts.nlUmlautU === "stripUmlaut") {
+    py = applyRules(py, pinyinPostTransformsCollapse);
+  }
+
+  if (hasErhua) {
+    return (opts.erhuaTone === "after-r")
+      ? py + "r" + (toneNum || "")
+      : py + (toneNum || "") + "r";
+  }
+  return py + (toneNum || "");
+}
+
+// Public API: full-string converter (tokenizes, converts each syllable)
+// Inserts apostrophes between adjacent syllables when next begins with a/o/e
+const z2p = function (zhuyin, options = {}) {
+  const {
+    erhuaTone = "after-r",
+    tonemarks = true,
+    convertPunctuation = false,   // does not convert ,.?!;: to ，,。？！；： 
+    markNeutralTone = !tonemarks, // treats zhe4ge in pinyin as zhe4ge5
+    apostrophes = "auto", // true to add, false to skip, auto to add only with tone marks
+    nlUmlautU = "preserveUmlaut", // "stripUmlaut" to collapse n/l + üan → uan
+  } = options;
+
+  const addApos = apostrophes === true || (apostrophes === "auto" && tonemarks === true);
+  const normalized = zhuyin.replace(/・/g, " ");
+
+  const tokens = segmentBpmf(normalized);
+
+  const pieces = [];
+  let prevWasSyllable = false;
+
+  for (const token of tokens) {
+    if (/[ㄅ-ㄩ˙ˊˇˋ]/.test(token)) {
+      const pyNum = bpmfSyllableToPinyin(token, { markNeutralTone, erhuaTone, nlUmlautU }); // numbers only
+      if (addApos && prevWasSyllable && /^[aoe]/i.test(pyNum)) pieces.push("'");
+      pieces.push(pyNum);
+      prevWasSyllable = true;
+    }
+    else {
+      pieces.push(token);
+      prevWasSyllable = false;
+    }
+  }
+
+  let output = pieces.join("");
+
+  if (convertPunctuation) { output = toEnglishPunctuation(output); }
+
+  // Single switch to marks (auto-detects erhua style)
+  return tonemarks ? numbersToMarks(output) : output;
+};
+
+const p2z = function (pinyin = "", options = {}) {
+  const {
+    tonemarks = true,           // true uses tone marks, false uses tone numbers
+    inputHasToneMarks = true,   // handles input with tone-marked pinyin
+    convertPunctuation = false  // does not convert ,.?!;: to ，,。？！；： 
+  } = options;
+  let output = pinyin;
+
+  if (inputHasToneMarks) { output = toToneNumbers(output); }
+  output = output.toLowerCase();
+
+  const tones = { "1": "", "2": "ˊ", "3": "ˇ", "4": "ˋ", "5": "˙" };
+
+  // Normalize erhua tones: move tone after 'r' onto the preceding syllable.
+  // Case 1: syllable+tone followed by 'r' and then another syllable start:
+  //   jinr1ge4 -> jin1r ge4  (so the existing erhua rules can treat 'r' as ㄦ)
+  output = output.replace(/([a-zü]+)r([1-5])([a-zü])/gi, (m, base, n, next) => {
+    return base.toLowerCase() === "e" ? m : `${base}${n}r ${next}`;
+  });
+
+  // Case 2: syllable+tone followed by 'r' at the end of a word/string or before
+  // non‑pinyin text (e.g., duor5 -> duo5r, hua1r -> hua1r).
+  output = output.replace(/([a-zü]+)r([1-5])/gi, (m, base, n) => {
+    return base.toLowerCase() === "e" ? m : `${base}${n}r`;
+  });
+
+  // Apostrophe boundary: treat as syllable break only if it does NOT precede a toned syllable
+  const danglingApostrophe = `'(?![a-zü]+[1-5])`;
+
+  // Neutral-marking boundary: end of string, non-letter, or the apostrophe above
+  const boundary = `(?:$|[^a-zü'1-5]|${danglingApostrophe})`;
+
+  // Vowel-final syllables (supports single-letter syllables like "a", and ü endings)
+  const vowelFinalSyllable = new RegExp(`([a-zü]*[${vowels}])(?=${boundary})`, "gi");
+  output = output.replace(vowelFinalSyllable, "$15");
+
+  // Consonant-final syllables (e.g., tong) — exclude lone 'r' (erhua handled later)
+  const consonantFinalSyllable = new RegExp(`([a-zü]+[${consonants}])(?=${boundary})`, "gi");
+  output = output.replace(consonantFinalSyllable, (match) => {
+    return match.toLowerCase() === "r" ? match : match + "5";
+  });
+
+  // Add spaces after each (syllable + tone) followed immediately by another syllable,
+  // but do NOT split when the next char is an erhua 'r' (keep ...1r intact)
+  const notErhuaNext = `(?!r(?:$|[1-5]|[^a-zü'1-5]))`;
+  output = output.replace(new RegExp(`([a-zü]+[1-5])(?=${notErhuaNext}[a-zü])`, "g"), "$1 ");
+
+  bpmfTransforms.forEach(function (transformationSet) {
+    Object.keys(transformationSet).forEach((key) => {
+      const rexp = new RegExp(key, "g");
+      output = output.replace(rexp, transformationSet[key]);
+    });
+  });
+
+  if (tonemarks) {
+    // Convert neutral tone (5) to ˙ and place it before the syllable
+    output = output.replace(new RegExp(`(${syllableMatcher.source})5`, "g"), "˙$1");
+
+    // Convert tones numbers 2, 3, and 4 to tone marks after the syllable
+    Object.keys(tones).forEach((key) => {
+      const rexp = new RegExp(`(${syllableMatcher.source})${key}`, "g");
+      output = output.replace(rexp, `$1${tones[key]}`);
+    });
+  }
+
+  if (convertPunctuation) { output = toChinesePunctuation(output); }
+
+  return output;
+};
+
+export { bpmfTransforms, p2z, pinyinTransforms, z2p };
