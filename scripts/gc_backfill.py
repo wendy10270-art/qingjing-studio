@@ -272,6 +272,21 @@ def main():
             all_evs.append((teacher, ev))
     # 每位學員當天比對到的正課堂數（場租／體驗不計入）
     sid_day_count = {}
+
+    def stu_key(st):
+        # 跟 index.html 的 _stuKey 同口徑：姓名（去空白）＋電話後 8 碼，同一個人不同課卡視為同一人
+        name = re.sub(r'\s+', '', st.get('name') or '').strip()
+        phone = re.sub(r'\D', '', st.get('phone') or '')[-8:]
+        return name + '|' + phone
+
+    sid_by_id = {x.get('id'): x for x in S}
+
+    def same_stu(r, stu):
+        if r.get('sid') == stu['id']:
+            return True
+        rs = sid_by_id.get(r.get('sid'))
+        return bool(rs and stu_key(rs) != '|' and stu_key(rs) == stu_key(stu))
+
     for teacher, ev in all_evs:
         if ev.get('status') == 'cancelled':
             continue
@@ -280,7 +295,8 @@ def main():
             continue
         s = match_student(p, teacher, S)
         if s:
-            sid_day_count[s['id']] = sid_day_count.get(s['id'], 0) + 1
+            k = stu_key(s)
+            sid_day_count[k] = sid_day_count.get(k, 0) + 1
     if True:
         for teacher, ev in all_evs:
             if ev.get('status') == 'cancelled':
@@ -302,10 +318,10 @@ def main():
             # 只有共用課卡一天多堂（同一 sid 當天 ≥2 個日曆事件）才比對到「時段」，避免把第二堂
             # 誤判成重複濾掉（小鈴姐 8/18 13:00 自己、14:00 換媽媽）；一般一人一堂只比對 sid+日期。
             ev_time = event_time(ev)
-            if (sid_day_count.get(stu['id'], 0) > 1):
-                dup = any(r for r in R if r.get('sid') == stu['id'] and r.get('date') == td and r.get('time') == ev_time)
+            if (sid_day_count.get(stu_key(stu), 0) > 1):
+                dup = any(r for r in R if same_stu(r, stu) and r.get('date') == td and r.get('time') == ev_time)
             else:
-                dup = any(r for r in R if r.get('sid') == stu['id'] and r.get('date') == td)
+                dup = any(r for r in R if same_stu(r, stu) and r.get('date') == td)
             if dup:
                 continue  # 已經有這天的紀錄（不論真人簽到或先前補簽），不重複
             # 課卡堂數用完：以前整筆直接跳過、只靠 ntfy 推播提醒一次，店長沒點開通知
@@ -315,7 +331,9 @@ def main():
             # 避免堂數透支——店長要嘛幫學員加開新課卡，要嘛個別刪除，都在畫面上處理。
             exhausted = stu.get('used', 0) >= stu.get('total', 0)
             if exhausted:
-                skipped_exhausted.append(f"{teacher}・{stu['name']}")
+                # 已排隊下一期的卡：這支腳本不會切換課卡，記錄會先留在舊期，開 App 後請到核對課堂確認
+                queued_note = '（已排隊下一期，請開 App 核對）' if stu.get('queued') else ''
+                skipped_exhausted.append(f"{teacher}・{stu['name']}{queued_note}")
             else:
                 stu['used'] = stu.get('used', 0) + 1
             is_sub = teacher != (stu.get('teacher') or '')

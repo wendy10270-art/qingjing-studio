@@ -3820,10 +3820,11 @@ function confirmRetro(sid){
   const note=document.getElementById('retroNote').value.trim();
   s.used++;
   dualWriteIncrementUsed(sid,1);
-  advanceQueuedCard(s);
   const retroRec={id:'r'+Date.now(),sid,date,time:'',session:s.used,sig:null,isSub:false,subTeacher:'',isUpgraded:false,upgradedTo:'',upgradeDiff:0,actualFee:getDefaultFee(s.teacher,s.course),manualFee:null,manualNote:note,confirmed:false,upgPayMethod:'',feeCollected:false,isRetro:true};
   R.push(retroRec);
   dualWriteAddRecord(retroRec);
+  // 記錄要先寫進去，才能切換到下一期：切換時會封存「舊期記錄」，晚一步寫就會掛到新一期
+  advanceQueuedCard(s);
   document.getElementById('retroOv')?.remove();
   save();renderTeachers();renderCard(sid);
   showToast('✓ 已補簽 '+date);
@@ -8907,10 +8908,11 @@ async function gcMatchDay(ds,opts){
           const isSub=teacher!==(stu.teacher||'');
           const exhausted=(stu.used||0)>=(stu.total||0);
           if(!exhausted){stu.used=(stu.used||0)+1;dualWriteIncrementUsed(stu.id,1);}
-          advanceQueuedCard(stu);
           const gcRec={id:'r'+Date.now()+Math.random().toString(36).slice(2,6),sid:stu.id,date:ds,time,session:stu.used||0,sig:null,isSub,subTeacher:isSub?teacher:'',isUpgraded:false,upgradedTo:'',upgradeDiff:0,actualFee:getDefaultFee(stu.teacher,stu.course),manualFee:null,manualNote:exhausted?'課卡已用完，日曆仍排課（需先幫學員加開課卡才能核銷）':'GC比對，未簽到',confirmed:false,upgPayMethod:'',feeCollected:false,isRetro:true,gcBackfilled:true,cardExhausted:exhausted};
           R.push(gcRec);
           dualWriteAddRecord(gcRec);
+          // 記錄先寫入再切換下一期，這筆才會被封存到舊期（順序反了會掛到新一期）
+          advanceQueuedCard(stu);
           // exhausted 分支也要算進 rBackfilled：呼叫端只在 rBackfilled>0 時才 save() 並重畫
           // 清單，先前只在非 exhausted 才++，害這筆新紀錄寫進記憶體後從沒存檔、白補了
           rBackfilled++;
