@@ -5350,7 +5350,7 @@ function renderWage(){
       return`<div class="wage-card"><div class="wc-header"><div class="wc-name">${t}</div><div class="wc-total" style="color:${only<0?'var(--red)':'var(--green)'}">${only<0?'－':''}$${Math.abs(only).toLocaleString()}</div></div><div class="wc-divider"></div><div class="wc-body">
         ${teacherRentDeduct.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:13px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${r.date.slice(5)} ${r.time||''}</div><div style="flex:1;color:var(--red)">🏠 場租扣款${r.label?'・'+hEsc(r.label):''}</div><div style="color:var(--red);flex-shrink:0">－$${(r.fee||0).toLocaleString()}</div></div>`).join('')}
         ${teacherPrepaidRent.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:13px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${r.date.slice(5)} ${r.time||''}</div><div style="flex:1;color:var(--gold)">🏠 場租（預付扣堂）</div><div style="color:var(--gold);flex-shrink:0">剩${r.remainingAfter??'?'}堂</div></div>`).join('')}
-        ${teacherRentCash.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:13px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${r.date.slice(5)} ${r.time||''}</div><div style="flex:1;color:var(--gold)">🏠 場租（${r.mode==='transfer'?'發薪日轉帳':'已付現金'}）</div><div style="color:var(--gold);flex-shrink:0">$${(r.fee||0).toLocaleString()}</div></div>`).join('')}
+        ${teacherRentCash.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:13px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${r.date.slice(5)} ${r.time||''}</div><div style="flex:1;color:var(--gold)">🏠 ${r.sessions?'場租預付購買'+r.sessions+'堂':'場租（'+(r.mode==='transfer'?'發薪日轉帳':'已付現金')+'）'}</div><div style="color:var(--gold);flex-shrink:0">$${(r.fee||0).toLocaleString()}</div></div>`).join('')}
         ${teacherBonus.map(l=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:13px"><div style="color:var(--ink3);width:78px;flex-shrink:0">${(l.createdAt||'').slice(5)}</div><div style="flex:1;color:var(--teal)">🎁 續課獎金・${hEsc(l.name)}${l.course?'・'+hEsc(l.course):''}</div><div style="color:${l.bonusPaid?'var(--teal)':'var(--orange)'};flex-shrink:0">$${(l.bonus||0).toLocaleString()}${l.bonusPaid?'':'（待撥）'}</div></div>`).join('')}
         <div class="wc-note" style="margin-top:6px">本月無課堂${teacherRentDeduct.length?'・已扣場租 $'+rentDeductTotal.toLocaleString():''}${teacherPrepaidRent.length?'・預付扣'+teacherPrepaidRent.length+'堂':''}${teacherRentCash.length?'・場租已付 $'+teacherRentCash.reduce((a,r)=>a+(r.fee||0),0).toLocaleString()+'（不列入扣款）':''}${bonusPend?'・獎金待撥 $'+bonusPend.toLocaleString():''}</div>
       </div>
@@ -5396,12 +5396,17 @@ function renderWage(){
           <div style="flex:1;color:var(--gold)">🏠 場租（預付扣堂）</div>
           <div style="color:var(--gold);flex-shrink:0">剩${r.remainingAfter??'?'}堂</div>
         </div>`).join('')}
+        ${teacherRentCash.map(r=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:13px">
+          <div style="color:var(--ink3);width:78px;flex-shrink:0">${r.date.slice(5)} ${r.time||''}</div>
+          <div style="flex:1;color:var(--gold)">🏠 ${r.sessions?'場租預付購買'+r.sessions+'堂':'場租（'+(r.mode==='transfer'?'發薪日轉帳':'已付現金')+'）'}</div>
+          <div style="color:var(--gold);flex-shrink:0">$${(r.fee||0).toLocaleString()}</div>
+        </div>`).join('')}
         ${bonusEntries.map(l=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg2);font-size:13px">
           <div style="color:var(--ink3);width:78px;flex-shrink:0">${(l.createdAt||'').slice(5)}</div>
           <div style="flex:1;color:var(--teal)">🎁 續課獎金・${hEsc(l.name)}${l.course?'・'+hEsc(l.course):''}</div>
           <div style="color:${l.bonusPaid?'var(--teal)':'var(--orange)'};flex-shrink:0">$${(l.bonus||0).toLocaleString()}${l.bonusPaid?'':'（待撥）'}</div>
         </div>`).join('')}
-        <div class="wc-note" style="margin-top:6px">${sessions.length} 堂${tp?' ・ '+tp+' 人次':''}${trialCount?' ・ 含體驗 '+trialCount+' 堂':''}${gcCount?' ・ 含GC核銷 '+gcCount+' 堂':''}${adjSessions.length?' ・ 含 '+adjSessions.length+' 筆調整':''}${teacherRentDeduct.length?' ・ 已扣場租 $'+rentDeductTotal.toLocaleString():''}${teacherPrepaidRent.length?' ・ 預付扣'+teacherPrepaidRent.length+'堂':''}${bonusPending>0?' ・ 獎金待撥 $'+bonusPending.toLocaleString():''}</div>
+        <div class="wc-note" style="margin-top:6px">${sessions.length} 堂${tp?' ・ '+tp+' 人次':''}${trialCount?' ・ 含體驗 '+trialCount+' 堂':''}${gcCount?' ・ 含GC核銷 '+gcCount+' 堂':''}${adjSessions.length?' ・ 含 '+adjSessions.length+' 筆調整':''}${teacherRentDeduct.length?' ・ 已扣場租 $'+rentDeductTotal.toLocaleString():''}${teacherPrepaidRent.length?' ・ 預付扣'+teacherPrepaidRent.length+'堂':''}${teacherRentCash.length?' ・ 場租已付 $'+teacherRentCash.reduce((a,r)=>a+(r.fee||0),0).toLocaleString()+'（不列入扣款）':''}${bonusPending>0?' ・ 獎金待撥 $'+bonusPending.toLocaleString():''}</div>
       </div>
       <div class="wc-footer"><button class="wc-btn wc-btn-copy" onclick="copyTeacher('${t}','${mk}')">📋 複製薪資</button>${TEACHER_EMAILS[t]?`<button class="wc-btn wc-btn-email" onclick="emailTeacher('${t}','${mk}')">📧 寄送Email</button>`:''}</div>
     </div>`;
@@ -5538,7 +5543,7 @@ function copyTeacher(teacher,mk){
     text+=`\n場租明細：\n`;
     rentDeduct.sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{text+=`${r.date.slice(5)} ${r.time||''} 場租${r.label?'・'+r.label:''} －$${(r.fee||0).toLocaleString()}\n`});
     rentPrepaid.sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{text+=`${r.date.slice(5)} ${r.time||''} 場租（預付扣堂）${r.label?'・'+r.label:''} 剩${r.remainingAfter??'?'}堂\n`});
-    rentCash.sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{text+=`${r.date.slice(5)} ${r.time||''} 場租（${r.mode==='transfer'?'發薪日轉帳':'已付現金'}）${r.label?'・'+r.label:''} $${(r.fee||0).toLocaleString()}\n`});
+    rentCash.sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{text+=`${r.date.slice(5)} ${r.time||''} ${r.sessions?'場租預付購買'+r.sessions+'堂':'場租（'+(r.mode==='transfer'?'發薪日轉帳':'已付現金')+'）'}${r.label?'・'+r.label:''} $${(r.fee||0).toLocaleString()}\n`});
   }
   if(bonusEntries.length){
     text+=`\n續課獎金明細：\n`;
@@ -5656,7 +5661,7 @@ function buildPayrollEmailHtml(teacher,mk){
     </tr>`).join(''):'';
 
   const rentInfoRows=[...rentPrepaid.map(r=>({r,d:`場租（預付扣堂）${r.label?'・'+hEsc(r.label):''}`,v:`剩${r.remainingAfter??'?'}堂`})),
-    ...rentCash.map(r=>({r,d:`場租（${r.mode==='transfer'?'發薪日轉帳':'已付現金'}）${r.label?'・'+hEsc(r.label):''}`,v:`$${(r.fee||0).toLocaleString()}`}))]
+    ...rentCash.map(r=>({r,d:`${r.sessions?'場租預付購買'+r.sessions+'堂':'場租（'+(r.mode==='transfer'?'發薪日轉帳':'已付現金')+'）'}${r.label?'・'+hEsc(r.label):''}`,v:`$${(r.fee||0).toLocaleString()}`}))]
     .sort((a,b)=>a.r.date.localeCompare(b.r.date));
   const rentInfoHtml=rentInfoRows.length?`<tr><td colspan="3" style="padding:14px 6px 6px;font-size:14px;font-weight:600;color:#3a332a">場租（不列入扣款）</td></tr>`+
     rentInfoRows.map(({r,d,v})=>`<tr>
@@ -5729,7 +5734,13 @@ async function sendHourlyEmail(staff,mk,{silent}={}){
 function emailHourlyStaff(staff,mk){sendHourlyEmail(staff,mk);}
 async function emailAll(){
   const mk=document.getElementById('monthSelect').value;
-  const teacherTargets=ALL_TEACHERS.filter(t=>(TEACHER_EMAILS[t]||'').trim());
+  // 當月完全沒資料的老師不寄（避免寄出「0 堂、合計 $0」的空薪資信）
+  const hasData=t=>R.some(r=>r.date&&wageInRange(r.date,mk)&&r.confirmed!==false&&(()=>{const s=S.find(x=>x.id===r.sid);return s&&(r.isSub?r.subTeacher:s.teacher)===t})())
+    ||T.some(x=>x.date&&wageInRange(x.date,mk)&&x.confirmed===true&&x.teacher===t)
+    ||GW.some(g=>g.date&&wageInRange(g.date,mk)&&g.teacher===t)
+    ||RENT.some(r=>r.date&&wageInRange(r.date,mk)&&r.teacher===t)
+    ||LEDGER.some(l=>wageInRange(l.createdAt,mk)&&l.teacher===t&&(l.bonus||0)>0);
+  const teacherTargets=ALL_TEACHERS.filter(t=>(TEACHER_EMAILS[t]||'').trim()&&hasData(t));
   const hourlyTargets=Object.keys(HOURLY_STAFF).filter(n=>(HOURLY_STAFF[n].email||'').trim());
   const total=teacherTargets.length+hourlyTargets.length;
   if(!total){showToast('尚未有任何老師／工讀生設定 Email','r');return;}
@@ -6402,6 +6413,7 @@ function saveEditStu(){
   const name=document.getElementById('eName').value.trim();
   if(!name){showToast('請填寫姓名','r');return}
   const prevPayment=s.actualPayment,prevPayDate=s.payDate,prevPayMethod=s.payMethod;
+  const wasUnpaid=s.paymentStatus==='unpaid';
   s.name=name;
   s.phone=document.getElementById('ePhone').value.trim();
   s.teacher=document.getElementById('eTeacher').value;
@@ -6413,7 +6425,8 @@ function saveEditStu(){
   s.payDate=getDateSel('ePayDate');
   s.actualPayment=parseInt(document.getElementById('eActualPayment').value)||0;
   // 有填付款方式或實際金額 → 自動標記已付款；否則沿用按鈕狀態
-  s.paymentStatus=(s.payMethod||s.actualPayment>0)?'paid':eGetPayStatus();
+  // 待收款（unpaid）的學員不在這裡自動轉已付：這裡不會記流水帳，轉了就永遠漏營收＋獎金；必須走「收款完成」
+  s.paymentStatus=wasUnpaid?eGetPayStatus():((s.payMethod||s.actualPayment>0)?'paid':eGetPayStatus());
   s.note=document.getElementById('eNote').value.trim();
   s.installment=document.getElementById('eInstallment')?.checked||false;
   s.installEvery=parseInt(document.getElementById('eInstallmentEvery')?.value)||5;
@@ -6424,7 +6437,8 @@ function saveEditStu(){
   s.lineEn=document.getElementById('eLineEn')?.checked||false;
   // 課卡的付款金額/日期/方式如果被改過，同步到流水帳裡這位學員最新一筆記錄，
   // 否則流水帳（月報表收入依據）會一直停在編輯前的舊金額，跟課卡對不上
-  if(s.actualPayment!==prevPayment||s.payDate!==prevPayDate||s.payMethod!==prevPayMethod){
+  // 待收款的學員還沒有屬於這期的流水帳，「最新一筆」是上一期的，不能拿來覆蓋
+  if(!wasUnpaid&&(s.actualPayment!==prevPayment||s.payDate!==prevPayDate||s.payMethod!==prevPayMethod)){
     const ledgerEntry=LEDGER.filter(l=>l.sid===s.id).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''))[0];
     if(ledgerEntry){
       ledgerEntry.actualPayment=s.actualPayment;
@@ -6437,7 +6451,7 @@ function saveEditStu(){
   dualWriteSetStudent(s.id,s);
   save();renderMgrList();renderTeachers();
   closeOvById('editStuOv');
-  showToast('✓ '+name+' 的資料已更新');
+  showToast(wasUnpaid&&s.paymentStatus==='paid'?'⚠️ '+name+' 已改成已付款，但流水帳沒有記這筆；請改走課卡的「收款完成」':'✓ '+name+' 的資料已更新');
 }
 
 // ── LINE 訊息 ──
@@ -7382,6 +7396,8 @@ function collectSelectPM(el,method){
 }
 function confirmCollectPay(){
   const s=S.find(x=>x.id===collectPayId);if(!s)return;
+  // 防重複入帳：另一台裝置／舊分頁已收過款、或連點時，這張卡已不是待收款
+  if(s.paymentStatus!=='unpaid'){closeOvById('collectPayOv');showToast(s.name+' 已不是待收款狀態，未重複入帳','r');return}
   if(!collectPayMethod){showToast('請選擇繳款方式','r');return}
   const amount=parseInt(document.getElementById('collectAmount').value)||0;
   const payDate=getDateSel('collectPayDate');
