@@ -1903,9 +1903,27 @@ function _applyServerTs(resolved){
 let _pendingWrite=localStorage.getItem('qjf_pendingWrite')==='1';
 function _setPendingWrite(v){_pendingWrite=v;localStorage.setItem('qjf_pendingWrite',v?'1':'0');}
 let _writeRetryTimer=null;
+// 整包陣列型資料（流水帳／場租／GC核銷／場租設定／支出）的「未確認寫入」保護：
+// 以前寫入失敗（離線、配額、規則擋下）只 console.warn，本機有新增、雲端沒有；下次載入時
+// loadXxxFromFB 會直接拿雲端舊資料蓋掉本機，新增的帳就無聲消失。
+// 現在每個集合各自記一個 pending 旗標（localStorage），寫入確認成功才清；旗標還在時，載入一律
+// 不覆蓋本機並改為重送，失敗會每 15 秒自動重試。
+const _colRetry={};
+const _colPendKey=path=>'qjf_pend_'+path;
+function _colIsPending(path){try{return localStorage.getItem(_colPendKey(path))==='1'}catch(e){return false}}
+function fbSetCollection(path,getVal){
+  try{localStorage.setItem(_colPendKey(path),'1')}catch(e){}
+  clearTimeout(_colRetry[path]);
+  return db.ref(path).set(getVal()).then(()=>{
+    try{localStorage.removeItem(_colPendKey(path))}catch(e){}
+  }).catch(e=>{
+    console.warn(path+' sync error（15 秒後重試）:',e);
+    _colRetry[path]=setTimeout(()=>fbSetCollection(path,getVal),15000);
+  });
+}
 function doFirebaseWrite(){
   const writesSch=_schChanged;
-  db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync:',e));
+  fbSetCollection('qingjing_ledger',()=>LEDGER);
   const payload=writesSch
     ?{s:S, r:R, sch:encSchKeys(SCH), t:T, l:L, lastUpdated:{'.sv':'timestamp'}}
     :{s:S, r:R, t:T, l:L, lastUpdated:{'.sv':'timestamp'}};
@@ -2042,6 +2060,7 @@ function loadFromFirebase(callback){
 }
 
 function loadLedgerFromFB(callback){
+  if(_colIsPending('qingjing_ledger')){fbSetCollection('qingjing_ledger',()=>LEDGER);if(callback)callback();return;}
   const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000));
   Promise.race([db.ref('qingjing_ledger').once('value'),timeout]).then(snap=>{
     const d=snap.val();
@@ -2055,9 +2074,10 @@ function loadLedgerFromFB(callback){
 
 function saveGW(){
   localStorage.setItem('qjf_gw',JSON.stringify(GW));
-  db.ref('qingjing_gw').set(GW).catch(e=>console.warn('GW sync error:',e));
+  fbSetCollection('qingjing_gw',()=>GW);
 }
 function loadGwFromFB(){
+  if(_colIsPending('qingjing_gw')){fbSetCollection('qingjing_gw',()=>GW);return;}
   db.ref('qingjing_gw').once('value').then(snap=>{
     const d=snap.val();
     if(d&&Array.isArray(d)){GW=d;localStorage.setItem('qjf_gw',JSON.stringify(GW));}
@@ -2065,9 +2085,10 @@ function loadGwFromFB(){
 }
 function saveRent(){
   localStorage.setItem('qjf_rent',JSON.stringify(RENT));
-  db.ref('qingjing_rent').set(RENT).catch(e=>console.warn('Rent sync error:',e));
+  fbSetCollection('qingjing_rent',()=>RENT);
 }
 function loadRentFromFB(){
+  if(_colIsPending('qingjing_rent')){fbSetCollection('qingjing_rent',()=>RENT);return;}
   db.ref('qingjing_rent').once('value').then(snap=>{
     const d=snap.val();
     if(d&&Array.isArray(d)){RENT=d;localStorage.setItem('qjf_rent',JSON.stringify(RENT));}
@@ -2075,9 +2096,10 @@ function loadRentFromFB(){
 }
 function saveRentCfg(){
   localStorage.setItem('qjf_rcfg',JSON.stringify(RENT_CFG));
-  db.ref('qingjing_rent_cfg').set(RENT_CFG).catch(e=>console.warn('RentCfg sync error:',e));
+  fbSetCollection('qingjing_rent_cfg',()=>RENT_CFG);
 }
 function loadRentCfgFromFB(){
+  if(_colIsPending('qingjing_rent_cfg')){fbSetCollection('qingjing_rent_cfg',()=>RENT_CFG);return;}
   db.ref('qingjing_rent_cfg').once('value').then(snap=>{
     const d=snap.val();
     if(d&&typeof d==='object'){RENT_CFG=d;localStorage.setItem('qjf_rcfg',JSON.stringify(RENT_CFG));}
@@ -7763,18 +7785,19 @@ function addLedgerEntry(entry){
   LEDGER.push(entry);
   localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
   // 同步到 Firebase
-  db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync error:',e));
+  fbSetCollection('qingjing_ledger',()=>LEDGER);
 }
 
 function saveLedger(){
   localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
-  db.ref('qingjing_ledger').set(LEDGER).catch(e=>console.warn('Ledger sync error:',e));
+  fbSetCollection('qingjing_ledger',()=>LEDGER);
 }
 function saveExpenses(){
   localStorage.setItem('qjf_expenses',JSON.stringify(EXPENSES));
-  db.ref('qingjing_expenses').set(EXPENSES).catch(e=>console.warn('Expenses sync error:',e));
+  fbSetCollection('qingjing_expenses',()=>EXPENSES);
 }
 function loadExpensesFromFB(callback){
+  if(_colIsPending('qingjing_expenses')){fbSetCollection('qingjing_expenses',()=>EXPENSES);if(callback)callback();return;}
   const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000));
   Promise.race([db.ref('qingjing_expenses').once('value'),timeout]).then(snap=>{
     const d=snap.val();
@@ -7849,6 +7872,7 @@ function saveInstallmentPayment(){
 }
 
 function loadLedgerFromFirebase(callback){
+  if(_colIsPending('qingjing_ledger')){fbSetCollection('qingjing_ledger',()=>LEDGER);if(callback)callback();return;}
   db.ref('qingjing_ledger').once('value').then(snap=>{
     const data=snap.val();
     if(data&&Array.isArray(data)&&data.length>0){
