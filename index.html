@@ -4998,8 +4998,16 @@ function gcRentEditFee(id){
   showToast('✓ 場租金額已調整為 $'+n.toLocaleString());
 }
 function gcRentUnmark(id){
-  if(!confirm('取消這筆場租標記？'))return;
+  const r0=RENT.find(x=>x.id===id);
+  const isPurchase=!!(r0&&r0.sessions&&(r0.mode==='cash'||r0.mode==='transfer'));
+  if(!confirm(isPurchase?'取消這筆「預付購買 '+r0.sessions+' 堂」登記？會一併扣回該老師的預付堂數。':'取消這筆場租標記？'))return;
   const r=RENT.find(x=>x.id===id);
+  // 取消的是「預付購買」紀錄：把當初加上去的總堂數／剩餘堂數扣回，不然堂數憑空多出來又沒有對應收入
+  if(isPurchase&&RENT_CFG[r.teacher]&&RENT_CFG[r.teacher].mode==='prepaid'){
+    RENT_CFG[r.teacher].total=Math.max(0,(RENT_CFG[r.teacher].total||0)-r.sessions);
+    RENT_CFG[r.teacher].remaining=Math.max(0,(RENT_CFG[r.teacher].remaining||0)-r.sessions);
+    saveRentCfg();
+  }
   // 預付堂數的取消要把堂數加回去，不然堂數會平白消失
   if(r&&r.mode==='prepaid'&&RENT_CFG[r.teacher]&&RENT_CFG[r.teacher].mode==='prepaid'){
     RENT_CFG[r.teacher].remaining=(RENT_CFG[r.teacher].remaining||0)+1;
@@ -7963,7 +7971,10 @@ function editLedgerDate(id){
   // 用 prompt 的方式不夠好，改用內嵌方式
   const newDate=prompt('修改入帳日期（目前：'+l.createdAt+'）\n格式：YYYY/MM/DD',l.createdAt);
   if(!newDate)return;
-  l.createdAt=newDate.replace(/-/g,'/');
+  // 格式必須是 YYYY/MM/DD（月日補零）：像「2026/9/5」會讓月份歸屬字串對不上，這筆從所有月份消失
+  const dm=newDate.trim().match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+  if(!dm||+dm[2]<1||+dm[2]>12||+dm[3]<1||+dm[3]>31){alert('日期格式不正確，請輸入 YYYY/MM/DD，例如 2026/09/05');return;}
+  l.createdAt=dm[1]+'/'+dm[2].padStart(2,'0')+'/'+dm[3].padStart(2,'0');
   l.payDate=l.createdAt;
   saveLedger();renderLedger();
   showToast('✓ 日期已修改為 '+l.createdAt);
