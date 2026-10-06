@@ -1641,7 +1641,7 @@ function getDefaultFee(t,c){
   const fee=getTeacherFee(t,p[0],p[1]);
   return fee||800;
 }
-function getRecFee(r,s){if(r.manualFee!=null)return r.manualFee;if(r.actualFee)return r.actualFee;const t=r.isSub?r.subTeacher:(s?.teacher||'');return getDefaultFee(t,s?.course||'')}
+function getRecFee(r,s){if(r.manualFee!=null)return r.manualFee;if(r.actualFee)return r.actualFee;const t=r.feeTeacher||(r.isSub?r.subTeacher:(s?.teacher||''));return getDefaultFee(t,s?.course||'')}
 function isAdj(r){return r.manualFee!=null}
 
 // 升級選項
@@ -5840,7 +5840,7 @@ function renderMgrList(){
         '<div class="smc-pay-row"><span>實際入帳</span><span style="font-weight:500;color:var(--green)">'+pay+'</span></div>'+
         (s.paymentStatus==='unpaid'?'<div class="smc-pay-row"><span style="color:var(--orange)">待收金額</span><span style="font-weight:600;color:var(--orange)">$'+((s.pendingAmount||s.price||0).toLocaleString())+'</span></div>':'')+
         (s.payDate?'<div class="smc-pay-row"><span>入帳日期</span><span>'+s.payDate+'</span></div>':'')+
-        '<div class="smc-pay-row" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--bg2)"><span style="color:var(--teal);font-weight:500">續課獎金</span><span style="font-weight:600;color:var(--teal)">$'+(s.bonus!=null?s.bonus:Math.round((s.price||0)*0.03)).toLocaleString()+'</span></div>'+
+        '<div class="smc-pay-row" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--bg2)"><span style="color:var(--teal);font-weight:500">續課獎金</span><span style="font-weight:600;color:var(--teal)">$'+(s.bonus!=null?s.bonus:calcBonus(s.price,s.payMethod,s.actualPayment)).toLocaleString()+'</span></div>'+
         (s.bonusNote?'<div style="font-size:13px;color:var(--ink3);margin-top:2px">'+s.bonusNote+'</div>':'')+
         '<span class="smc-pay-method '+pmCls+'">'+pmLabel+'</span>'+
         (s.note?'<div style="font-size:13px;color:var(--ink3);margin-top:4px">'+s.note+'</div>':'')+
@@ -5964,6 +5964,11 @@ function calcPayment(price,method){
   if(method==='cash')return{amount:Math.max(0,price-1000),feeLabel:'現金折抵',feeAmount:-1000};
   return{amount:price,feeLabel:null,feeAmount:0};
 }
+// 續課獎金（3%）基準：刷卡／匯款等 → 按定價；現金有折抵優惠 → 按優惠後的實收總額（店長 2026-10-06 定的規則）
+function calcBonus(price,method,actual){
+  const base=method==='cash'?((actual>0)?actual:Math.max(0,(price||0)-1000)):(price||0);
+  return Math.round(base*0.03);
+}
 function updatePaymentSummary(){
   const summary=document.getElementById('paymentSummary');
   if(!selPrice||!selPayMethod){summary.style.display='none';return}
@@ -6025,14 +6030,14 @@ function addStu(){
   if(!teacher){showToast('請選擇指導老師','r');return}
   if(nPayStatusVal==='paid'&&!selPayMethod){showToast('請選擇繳款方式','r');return}
   const pay=calcPayment(selPrice,selPayMethod);
-  const bonus=Math.round(selPrice*0.03);
+  const bonus=Math.round(selPrice*0.03); // 已不使用（獎金改下面依付款方式用 calcBonus 算），保留變數避免動到其他參照
   const isPaid=nPayStatusVal==='paid';
   const manualActual=parseInt(document.getElementById('nActualPayment')?.value)||0;
   const finalActual=isPaid?(manualActual||pay.amount):0;
   const paperUsed=parseInt(document.getElementById('nPaperUsed')?.value)||0;
   const isInstallment=document.getElementById('nInstallment')?.checked||false;
   const installEvery=parseInt(document.getElementById('nInstallmentEvery')?.value)||5;
-  S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:paperUsed,price:selPrice,fee,payMethod:isPaid?selPayMethod:'',payDate:isPaid?payDate:'',actualPayment:finalActual,note,bonus:isPaid?Math.round(finalActual*0.03):0,bonusNote:'',paymentStatus:isPaid?'paid':'unpaid',pendingAmount:isPaid?undefined:selPrice,pendingType:isPaid?undefined:'purchase',installment:isInstallment,installEvery:isInstallment?installEvery:null,expiryDate:getDateSel('nExpiry')||'',healthNotes:document.getElementById('nHealthNotes')?.value.trim()||''});
+  S.push({id:'s'+Date.now(),name,phone,course:selPlan,teacher,total:selN,used:paperUsed,price:selPrice,fee,payMethod:isPaid?selPayMethod:'',payDate:isPaid?payDate:'',actualPayment:finalActual,note,bonus:isPaid?calcBonus(selPrice,selPayMethod,finalActual):0,bonusNote:'',paymentStatus:isPaid?'paid':'unpaid',pendingAmount:isPaid?undefined:selPrice,pendingType:isPaid?undefined:'purchase',installment:isInstallment,installEvery:isInstallment?installEvery:null,expiryDate:getDateSel('nExpiry')||'',healthNotes:document.getElementById('nHealthNotes')?.value.trim()||''});
   // 產生紙本簽到記錄
   if(paperUsed>0){
     const newStu=S[S.length-1];
@@ -6042,7 +6047,7 @@ function addStu(){
   // 新學員整包物件（含上面紙本簽到已套用的 used）雙寫進新結構，避免只靠
   // newStoreIncrementStudentUsed 建出只有 used 欄位的殘缺節點
   dualWriteSetStudent(S[S.length-1].id,S[S.length-1]);
-  if(isPaid)addLedgerEntry({type:'purchase',sid:S[S.length-1].id,name,teacher,course:selPlan,total:selN,price:selPrice,actualPayment:finalActual,payMethod:selPayMethod,payDate,bonus:Math.round(finalActual*0.03),bonusPaid:false});
+  if(isPaid)addLedgerEntry({type:'purchase',sid:S[S.length-1].id,name,teacher,course:selPlan,total:selN,price:selPrice,actualPayment:finalActual,payMethod:selPayMethod,payDate,bonus:calcBonus(selPrice,selPayMethod,finalActual),bonusPaid:false});
   save();renderTeachers();renderMgrList();closeAddOv();
   // 若由 GC 未匹配觸發，新增後自動排入今日課表
   if(_gcAfterAdd){
@@ -6370,7 +6375,7 @@ function openEditStu(sid){
   const eInst=document.getElementById('eInstallment');if(eInst)eInst.checked=s.installment||false;
   const eInstD=document.getElementById('eInstallmentDetail');if(eInstD)eInstD.style.display=s.installment?'flex':'none';
   const eInstE=document.getElementById('eInstallmentEvery');if(eInstE)eInstE.value=s.installEvery||5;
-  document.getElementById('eBonus').value=s.bonus!=null?s.bonus:Math.round((s.price||0)*0.03);
+  document.getElementById('eBonus').value=s.bonus!=null?s.bonus:calcBonus(s.price,s.payMethod,s.actualPayment);
   document.getElementById('eBonusNote').value=s.bonusNote||'';
   setDateSel('eExpiry',s.expiryDate||'');
   const eHN=document.getElementById('eHealthNotes');if(eHN)eHN.value=s.healthNotes||'';
@@ -6450,7 +6455,7 @@ function saveEditStu(){
   s.note=document.getElementById('eNote').value.trim();
   s.installment=document.getElementById('eInstallment')?.checked||false;
   s.installEvery=parseInt(document.getElementById('eInstallmentEvery')?.value)||5;
-  s.bonus=parseInt(document.getElementById('eBonus').value)||Math.round((s.price||0)*0.03);
+  s.bonus=parseInt(document.getElementById('eBonus').value)||calcBonus(s.price,s.payMethod,s.actualPayment);
   s.bonusNote=document.getElementById('eBonusNote').value.trim();
   s.expiryDate=getDateSel('eExpiry')||'';
   s.healthNotes=document.getElementById('eHealthNotes')?.value.trim()||'';
@@ -7358,7 +7363,7 @@ function confirmRenew(){
   const pay=isUnpaid?{amount:0}:calcPayment(renewSelPrice,renewPayMethod);
   const manualActual=parseInt(document.getElementById('renewActualPayment')?.value)||0;
   const finalActual=isUnpaid?0:(manualActual||pay.amount);
-  const bonus=Math.round(renewSelPrice*0.03);
+  const bonus=calcBonus(renewSelPrice,renewPayMethod,finalActual);
   const np={
     course:renewSelPlan, total:renewSelN, used:paperUsed, price:renewSelPrice, fee, note,
     payMethod:isUnpaid?'':renewPayMethod, payDate:isUnpaid?'':payDate,
@@ -7422,7 +7427,7 @@ function confirmCollectPay(){
   const amount=parseInt(document.getElementById('collectAmount').value)||0;
   const payDate=getDateSel('collectPayDate');
   const planPrice=s.pendingAmount||s.price||0;
-  const bonus=Math.round(planPrice*0.03);
+  const bonus=calcBonus(planPrice,collectPayMethod,amount);
   const entryType=s.pendingType||(s.prevCourses&&s.prevCourses.length?'renew':'purchase');
   s.payMethod=collectPayMethod;
   s.payDate=payDate;
@@ -7618,7 +7623,7 @@ function confirmHomePurchase(){
   const pay=isUnpaid?{amount:0}:calcPayment(_hpSelPrice,_hpPayMethod);
   const manualActual=parseInt(document.getElementById('hpActualPayment')?.value)||0;
   const finalActual=isUnpaid?0:(manualActual||pay.amount);
-  const bonus=Math.round(_hpSelPrice*0.03);
+  const bonus=calcBonus(_hpSelPrice,_hpPayMethod,finalActual);
   let stuName='';
   if(_hpIsNew){
     // 建立新學員

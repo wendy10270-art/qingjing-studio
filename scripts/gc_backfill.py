@@ -380,6 +380,8 @@ def main():
                 # actualFee 故意留 None：getRecFee() 在瀏覽器端會自動用 getDefaultFee 現算，
                 # 不用把師資費率表另外複製一份到伺服器端維護
                 'actualFee': None, 'manualFee': None,
+                # 代課付「原老師」的費率（店長 2026-10-06 規則；有異動手動改）。getRecFee 優先用 feeTeacher 現算
+                'feeTeacher': (stu.get('teacher') or ''),
                 'manualNote': '課卡已用完，日曆仍排課（每日排程補登，需先幫學員加開課卡才能核銷）'
                     if exhausted else 'GC比對，未簽到（每日排程補登）',
                 'confirmed': False, 'upgPayMethod': '', 'feeCollected': False,
