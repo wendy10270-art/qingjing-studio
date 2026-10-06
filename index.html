@@ -6269,7 +6269,13 @@ let editStuId='', ePayMethod='';
 // 差別只是資料不會真的消失，可在「學員管理→已刪除學員」復原。
 async function deleteStu(sid){
   const s=S.find(x=>x.id===sid);if(!s)return;
-  if(!confirm('確定要刪除「'+s.name+'」的所有資料？\n（可在下方「已刪除學員」復原）'))return;
+  // 刪除會連同簽到記錄一起拿掉：已結算月份的老師薪資是用簽到記錄算的，刪了那幾個月的薪資就會憑空變少
+  const _confirmedRecs=R.filter(x=>x.sid===sid&&x.confirmed!==false);
+  const _byMonth={};
+  _confirmedRecs.forEach(r=>{const m=(r.date||'').slice(0,7);if(m)_byMonth[m]=(_byMonth[m]||0)+getRecFee(r,s)});
+  const _impact=Object.keys(_byMonth).sort().map(m=>m+' 少 $'+_byMonth[m].toLocaleString()).join('、');
+  const _warn=_confirmedRecs.length?'\n\n⚠️ 這位學員有 '+_confirmedRecs.length+' 筆已確認的簽到記錄，刪除後這些月份的老師薪資會變少：\n'+_impact+'\n（若這些月份已發過薪，建議不要刪；復原後記錄會回來）':'';
+  if(!confirm('確定要刪除「'+s.name+'」的所有資料？\n（可在下方「已刪除學員」復原）'+_warn))return;
   const recs=R.filter(x=>x.sid===sid);
   const ledgerRecs=L.filter(x=>x.sid===sid);
   const trashKey=sid+'_'+Date.now();
