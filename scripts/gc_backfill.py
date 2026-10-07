@@ -315,6 +315,12 @@ def main():
                 st['actualPayment'] = np.get('actualPayment') or 0; st['bonus'] = np.get('bonus') or 0
                 st['paymentStatus'] = 'paid'
                 st.pop('pendingAmount', None); st.pop('pendingType', None)
+            # 排隊時 np['used'] 是「紙本已簽到堂數」，當時沒補簽到記錄；切換這一刻才補（跟 index.html advanceQueuedCard 一致）
+            for i in range(1, (np.get('used') or 0) + 1):
+                R.append({'id': f"r{int(datetime.now().timestamp() * 1000)}p{i}", 'sid': st['id'],
+                          'date': np.get('payDate') or datetime.now(ZoneInfo('Asia/Taipei')).strftime('%Y/%m/%d'),
+                          'time': '--:--', 'session': i, 'note': '紙本簽到', 'sig': None,
+                          'isUpgraded': False, 'isSub': False})
             if not q:
                 st.pop('queued', None)
             return True

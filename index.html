@@ -7436,7 +7436,12 @@ function advanceQueuedCard(s){
   // 剛簽到、還在可撤銷視窗內：撤銷是對同一筆 s 做 used--，先別切換
   if(typeof _lastSignInSid!=='undefined'&&_lastSignInSid===s.id&&typeof _undoSecs!=='undefined'&&_undoSecs>0)return false;
   _archiveActivePeriod(s);
-  _applyPackageToCard(s,s.queued.shift());
+  const np=s.queued.shift();
+  _applyPackageToCard(s,np);
+  // 排隊時 np.used 存的是「紙本已簽到堂數」，當時沒補簽到記錄（只有直接啟用才補）；
+  // 切換到這一期的此刻才補，課卡才會是「已用 N 堂＋N 筆紙本簽到記錄」，跟 LINE 查詢卡口徑一致。
+  // 必須在 _archiveActivePeriod 之後補，否則這幾筆會被當成舊期記錄封存。
+  if((np.used||0)>0)genPaperSigninRecords(s.id,np.used,np.payDate||todayStr());
   if(!s.queued.length)delete s.queued;
   return true;
 }
