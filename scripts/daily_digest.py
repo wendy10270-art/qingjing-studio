@@ -48,7 +48,7 @@ def main():
         send('輕境小幫手', f'⚠️ 雲端資料讀取失敗（{e}）\n可能是 Firebase 規則又失效了，請檢查 Realtime Database → 規則。', 'warning')
         return
 
-    S = d.get('s') or []
+    S = [x for x in (d.get('s') or []) if x and not x.get('inactive')]  # 停用學員不列入提醒／警示
     SCH = d.get('sch') or {}
     T = d.get('t') or []
     lu = d.get('lastUpdated') or 0

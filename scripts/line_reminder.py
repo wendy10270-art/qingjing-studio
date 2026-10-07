@@ -77,7 +77,7 @@ def main():
         send_ntfy('輕境小幫手', f'⚠️ 上課提醒讀取雲端資料失敗（{e}）\n多半是 scripts-db proxy 金鑰錯或 Vercel 服務異常，請檢查 line-webhook 部署與 SCRIPTS_DB_SECRET。', 'warning')
         return
 
-    S = d.get('s') or []
+    S = [x for x in (d.get('s') or []) if x and not x.get('inactive')]  # 停用學員不發提醒
     SCH = d.get('sch') or {}
     T = d.get('t') or []
 

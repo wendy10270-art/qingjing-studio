@@ -138,7 +138,7 @@ def match_student(parsed, teacher, students):
     for scope_this_teacher in (True, False):
         candidates = []
         for s in students:
-            if not s:
+            if not s or s.get('inactive'):   # 停用學員不參與日曆比對（不補簽）
                 continue
             if scope_this_teacher and s.get('teacher') != teacher:
                 continue

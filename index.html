@@ -957,6 +957,10 @@ const db={
       </div>
       <div id="mgrStuList"></div>
       <div style="margin-top:22px;border-top:1px dashed var(--border);padding-top:12px">
+        <div onclick="toggleInactivePanel()" style="cursor:pointer;color:var(--ink3);font-size:13px;display:flex;align-items:center;gap:5px">
+          <span id="inactivePanelArrow">▸</span> 已停用學員（保留歷史，可復原）
+        </div>
+        <div id="inactivePanel" style="display:none;margin-top:10px;margin-bottom:14px"></div>
         <div onclick="toggleTrashPanel()" style="cursor:pointer;color:var(--ink3);font-size:13px;display:flex;align-items:center;gap:5px">
           <span id="trashPanelArrow">▸</span> 已刪除學員（可復原）
         </div>
@@ -2996,7 +3000,7 @@ function renderStudentZone(){
   const td=todayStr();
   const todaySids=new Set();
   Object.values(SCH[td]||{}).forEach(slots=>slots.forEach(sl=>todaySids.add(sl.sid)));
-  let list=S.filter(s=>{
+  let list=S.filter(s=>{if(s.inactive)return false;
     if(q&&!s.name.includes(q)&&!(s.phone||'').includes(q))return false;
     const remain=s.total-s.used;
     if(_stuFilter==='today')return todaySids.has(s.id);
@@ -3070,7 +3074,7 @@ function onHomeSearch(val){
   const res=document.getElementById('homeSearchResults');if(!res)return;
   const v=val.trim();
   if(!v){res.style.display='none';return;}
-  const hits=S.filter(s=>s.name.includes(v)||(s.phone||'').includes(v));
+  const hits=S.filter(s=>!s.inactive&&(s.name.includes(v)||(s.phone||'').includes(v)));
   if(!hits.length){
     res.style.display='block';
     res.innerHTML='<div style="padding:14px 16px;font-size:14px;color:var(--ink3)">找不到符合的學員</div>';
@@ -3102,7 +3106,7 @@ function homeSearchSelect(sid){
   let s=S.find(x=>x.id===sid);
   // 點到已用完的課卡，但同一個人另有還沒上完的課卡 → 自動改開那張
   if(s&&s.total-s.used<=0){
-    const sibs=S.filter(x=>x.id!==sid&&x.name===s.name&&(x.phone||'')===(s.phone||'')&&x.total-x.used>0);
+    const sibs=S.filter(x=>!x.inactive&&x.id!==sid&&x.name===s.name&&(x.phone||'')===(s.phone||'')&&x.total-x.used>0);
     const alt=sibs.find(x=>x.course===s.course)||sibs[0];
     if(alt){showToast('已改開「'+alt.course+'」還有 '+(alt.total-alt.used)+' 堂的課卡');sid=alt.id;s=alt;}
   }
@@ -3200,7 +3204,7 @@ function onSearch(val){
   const v=val.trim();
   document.getElementById('searchClear').classList.toggle('show',v.length>0);
   if(!v){document.getElementById('searchResultArea').style.display='none';document.getElementById('stuListArea').style.display='block';return}
-  const results=S.filter(s=>s.name.includes(v)||(s.phone||'').includes(v));
+  const results=S.filter(s=>!s.inactive&&(s.name.includes(v)||(s.phone||'').includes(v)));
   const td=todayStr();
   document.getElementById('stuListArea').style.display='none';
   document.getElementById('searchResultArea').style.display='block';
@@ -3999,7 +4003,7 @@ function onTrialSearch(val){
   if(!v){resultsEl.style.display='none';return}
 
   // Search existing students
-  const stuMatches=S.filter(s=>s.name.includes(v)||(s.phone||'').includes(v));
+  const stuMatches=S.filter(s=>!s.inactive&&(s.name.includes(v)||(s.phone||'').includes(v)));
   // Search past trial records
   const trialMatches=T.filter(t=>(t.name||'').includes(v)).filter((t,i,arr)=>arr.findIndex(x=>x.name===t.name)===i);
 
@@ -4256,7 +4260,7 @@ function renderCalendar(){
           type:rec?'signed':lv?'leave':'confirmed',leaveType:lv?.type});
       });
     });
-    S.forEach(s=>{
+    S.forEach(s=>{if(s.inactive)return;
       if(!s.recurring||!s.recurring.length)return;
       s.recurring.forEach(r=>{
         if(r.day!==dow)return;
@@ -4266,7 +4270,7 @@ function renderCalendar(){
           evs.push({sid:s.id,stuName:s.name,course:s.course,teacher:s.teacher,time:r.time,type:'recurring'});
       });
     });
-    S.forEach(s=>{
+    S.forEach(s=>{if(s.inactive)return;
       if(!s.nextBooking||s.nextBooking.date!==ds)return;
       if(!evs.find(e=>e.sid===s.id)&&s.used<s.total)
         evs.push({sid:s.id,stuName:s.name,course:s.course,teacher:s.teacher,time:s.nextBooking.time,type:'next'});
@@ -4437,7 +4441,7 @@ const WD_NAMES=['日','一','二','三','四','五','六'];
 function getTodaySuggestions(dateStr){
   const d=parseDate(dateStr);const dow=d.getDay();
   const suggestions=[];
-  S.forEach(s=>{
+  S.forEach(s=>{if(s.inactive)return;
     // Skip if no remaining sessions
     if(s.used>=s.total)return;
     // Weekly recurring
@@ -4578,7 +4582,7 @@ function renderSchEditor(resetTmp){
   <button class="save-sch-btn" onclick="saveSch()">儲存今日開課設定</button>`;
 }
 function renderTSC(t){
-  const isOn=!!(tmpSch[t]&&tmpSch[t].length);const slots=tmpSch[t]||[];const myS=S.filter(s=>s.teacher===t);
+  const isOn=!!(tmpSch[t]&&tmpSch[t].length);const slots=tmpSch[t]||[];const myS=S.filter(s=>!s.inactive&&s.teacher===t);
   return`<div class="tsc"><div class="tsc-hd" onclick="toggleT('${t}')">
     <div class="tsc-chk${isOn?' on':''}">${isOn?'✓':''}</div>
     <div class="tsc-tname">${t}</div>
@@ -4621,7 +4625,7 @@ function onSlotSearchFocus(t,i,inp){
 }
 
 function showSlotQuickPick(t,i){
-  const myS=S.filter(s=>s.teacher===t);
+  const myS=S.filter(s=>!s.inactive&&s.teacher===t);
   const resId='slotResults-'+t.replace(/[^a-zA-Z0-9]/g,'_')+'-'+i;
   const el=document.getElementById(resId);if(!el)return;
   if(!myS.length){el.style.display='none';return}
@@ -4635,7 +4639,7 @@ function onSlotSearch(t,i,val){
   const el=document.getElementById(resId);if(!el)return;
   const v=val.trim();
   if(!v){showSlotQuickPick(t,i);return}
-  const results=S.filter(s=>s.name.includes(v)||(s.phone||'').includes(v));
+  const results=S.filter(s=>!s.inactive&&(s.name.includes(v)||(s.phone||'').includes(v)));
   if(!results.length){el.style.display='block';el.innerHTML='<div style="font-size:14px;color:var(--ink3);padding:10px 14px">找不到符合的學員</div>';return}
   el.style.display='block';
   el.innerHTML=results.map(s=>slotStuRow(t,i,s)).join('');
@@ -5925,7 +5929,8 @@ function renderMgrList(){
   const PAY_NAME={'transfer_fubon':'匯款聯邦','transfer_cathay':'匯款國泰','card':'刷卡','cash':'付現金'};
   const PAY_CLS={'transfer_fubon':'transfer','transfer_cathay':'transfer','card':'card','cash':'cash'};
   const mgrQ=(document.getElementById('mgrSearchInp')?.value||'').trim();
-  const filteredS=mgrQ?S.filter(s=>s.name.includes(mgrQ)||( s.phone&&s.phone.includes(mgrQ))):S;
+  const _activeS=S.filter(s=>!s.inactive);
+  const filteredS=mgrQ?_activeS.filter(s=>s.name.includes(mgrQ)||( s.phone&&s.phone.includes(mgrQ))):_activeS;
   document.getElementById('mgrStuList').innerHTML=filteredS.length?filteredS.map(s=>{
     const rem=s.total-s.used;
     const pill=rem<=0?'<span class="pill p-r">已用完</span>':rem<=3?'<span class="pill p-y">剩'+rem+'</span>':'<span class="pill p-g">剩'+rem+'</span>';
@@ -5948,7 +5953,7 @@ function renderMgrList(){
         '<div>'+
           '<div style="display:flex;align-items:center;gap:8px">'+
             '<div class="smc-name">'+_ctChip+s.name+pill+(s.queued&&s.queued.length?'<span style="display:inline-block;background:#EEF0FF;color:#3D47C4;border:1px solid #B8BEF0;border-radius:4px;padding:1px 8px;font-size:13px;margin-left:6px;vertical-align:middle">📦 下一期 x'+s.queued.length+'</span>':'')+(s.paymentStatus==="unpaid"?'<span style="display:inline-block;background:var(--orange2);color:var(--orange);border:1px solid var(--orange3);border-radius:4px;padding:1px 8px;font-size:13px;margin-left:6px;vertical-align:middle">待收款 ⚠</span>':'')+'</div>'+
-            ('<button onclick="selectStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--gold4);border:1px solid var(--gold2);border-radius:6px;font-size:13px;cursor:pointer;color:var(--gold)">課卡</button>')+('<button onclick="openEditStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:13px;cursor:pointer;color:var(--ink2);margin-left:5px">編輯</button>')+('<button onclick="openRenewStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--teal2);border:1px solid var(--teal3);border-radius:6px;font-size:13px;cursor:pointer;color:var(--teal);margin-left:5px">續課</button>')+(s.paymentStatus==='unpaid'?('<button onclick="openCollectPay(\'' + s.id + '\')" style="padding:3px 10px;background:var(--orange2);border:1px solid var(--orange3);border-radius:6px;font-size:13px;cursor:pointer;color:var(--orange);margin-left:5px;font-weight:600">收款完成</button>'):'')+('<button onclick="openAddPlanForStu(\'' + s.id + '\')" style="padding:3px 10px;background:#EEF0FF;border:1px solid #B8BEF0;border-radius:6px;font-size:13px;cursor:pointer;color:#3D47C4;margin-left:5px">＋方案</button>')+('<button onclick="deleteStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--red2);border:1px solid var(--red3);border-radius:6px;font-size:13px;cursor:pointer;color:var(--red);margin-left:5px">刪除</button>')+
+            ('<button onclick="selectStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--gold4);border:1px solid var(--gold2);border-radius:6px;font-size:13px;cursor:pointer;color:var(--gold)">課卡</button>')+('<button onclick="openEditStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:13px;cursor:pointer;color:var(--ink2);margin-left:5px">編輯</button>')+('<button onclick="openRenewStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--teal2);border:1px solid var(--teal3);border-radius:6px;font-size:13px;cursor:pointer;color:var(--teal);margin-left:5px">續課</button>')+(s.paymentStatus==='unpaid'?('<button onclick="openCollectPay(\'' + s.id + '\')" style="padding:3px 10px;background:var(--orange2);border:1px solid var(--orange3);border-radius:6px;font-size:13px;cursor:pointer;color:var(--orange);margin-left:5px;font-weight:600">收款完成</button>'):'')+('<button onclick="openAddPlanForStu(\'' + s.id + '\')" style="padding:3px 10px;background:#EEF0FF;border:1px solid #B8BEF0;border-radius:6px;font-size:13px;cursor:pointer;color:#3D47C4;margin-left:5px">＋方案</button>')+('<button onclick="deactivateStu(\'' + s.id + '\')" title="停用：名單、課表、搜尋不再顯示，歷史簽到、薪資、帳本完整保留，可隨時復原" style="padding:3px 10px;background:var(--orange2);border:1px solid var(--orange);border-radius:6px;font-size:13px;cursor:pointer;color:var(--orange);margin-left:5px">停用</button>')+
           '</div>'+
           '<div class="smc-sub">'+s.course+'・'+s.teacher+'老師<br>師資費 $'+getDefaultFee(s.teacher,s.course)+'/堂'+(s.installment?' ・ <span style="color:var(--orange)">分期每'+s.installEvery+'堂</span>':'')+'</div>'+
         '</div>'+
@@ -6395,7 +6400,7 @@ async function deleteStu(sid){
   _confirmedRecs.forEach(r=>{const m=(r.date||'').slice(0,7);if(m)_byMonth[m]=(_byMonth[m]||0)+getRecFee(r,s)});
   const _impact=Object.keys(_byMonth).sort().map(m=>m+' 少 $'+_byMonth[m].toLocaleString()).join('、');
   const _warn=_confirmedRecs.length?'\n\n⚠️ 這位學員有 '+_confirmedRecs.length+' 筆已確認的簽到記錄，刪除後這些月份的老師薪資會變少：\n'+_impact+'\n（若這些月份已發過薪，建議不要刪；復原後記錄會回來）':'';
-  if(!confirm('確定要刪除「'+s.name+'」的所有資料？\n（可在下方「已刪除學員」復原）'+_warn))return;
+  if(!confirm('⚠️ 永久刪除「'+s.name+'」？（想保留歷史請改用「停用」）\n歷史簽到會一併移走。可在下方「已刪除學員」復原。'+_warn))return;
   const recs=R.filter(x=>x.sid===sid);
   const ledgerRecs=L.filter(x=>x.sid===sid);
   const trashKey=sid+'_'+Date.now();
@@ -6428,6 +6433,60 @@ async function deleteStu(sid){
   });
   markSchChanged();save();renderMgrList();renderTeachers();
   showToast('✓ '+s.name+' 已刪除（可在「已刪除學員」復原）');
+}
+
+// ── 停用學員（保留歷史）──
+// 與「刪除」不同：學員仍留在 S，歷史簽到記錄、帳本、已發薪月份的老師費全部不動；只是從名單、搜尋、
+// 課表、排課、提醒、日曆比對中隱藏（s.inactive=true）。復原就是拿掉旗標。
+function deactivateStu(sid){
+  const s=S.find(x=>x.id===sid);if(!s)return;
+  const rem=(s.total||0)-(s.used||0);
+  if(!confirm('停用「'+s.name+'」？\n\n• 名單、搜尋、課表、提醒不再出現\n• 歷史簽到、薪資、帳本完整保留\n• 可在「已停用學員」隨時復原'+(rem>0?'\n\n⚠️ 這位學員還有 '+rem+' 堂未上':'')))return;
+  s.inactive=true;s.inactiveAt=todayStr();
+  // 排課：把這位學員未來的課表時段清掉（跟刪除一致），復原後需重新排
+  Object.keys(SCH).forEach(date=>{
+    Object.keys(SCH[date]).forEach(teacher=>{
+      SCH[date][teacher]=SCH[date][teacher].filter(sl=>sl.sid!==sid);
+      if(!SCH[date][teacher].length)delete SCH[date][teacher];
+    });
+    if(!Object.keys(SCH[date]).length)delete SCH[date];
+  });
+  dualWriteSetStudent(sid,s);
+  markSchChanged();save();renderMgrList();renderTeachers();
+  if(_inactiveOpen)renderInactiveList();
+  showToast('✓ '+s.name+' 已停用（歷史保留，可在「已停用學員」復原）');
+}
+function reactivateStu(sid){
+  const s=S.find(x=>x.id===sid);if(!s)return;
+  delete s.inactive;delete s.inactiveAt;
+  dualWriteSetStudent(sid,s);
+  save();renderMgrList();renderTeachers();renderInactiveList();
+  showToast('✓ '+s.name+' 已復原');
+}
+let _inactiveOpen=false;
+function toggleInactivePanel(){
+  _inactiveOpen=!_inactiveOpen;
+  document.getElementById('inactivePanel').style.display=_inactiveOpen?'block':'none';
+  document.getElementById('inactivePanelArrow').textContent=_inactiveOpen?'▾':'▸';
+  if(_inactiveOpen)renderInactiveList();
+}
+function renderInactiveList(){
+  const el=document.getElementById('inactivePanel');if(!el)return;
+  const list=S.filter(s=>s.inactive).sort((a,b)=>(b.inactiveAt||'').localeCompare(a.inactiveAt||''));
+  if(!list.length){el.innerHTML='<div style="color:var(--ink3);font-size:13px">目前沒有停用的學員</div>';return;}
+  el.innerHTML=list.map(s=>{
+    const nRec=R.filter(r=>r.sid===s.id).length;
+    return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div style="font-size:13px;color:var(--ink2)">
+        <div style="font-weight:600;color:var(--ink)">${hEsc(s.name||'（無姓名）')}</div>
+        <div style="color:var(--ink3)">${hEsc(s.phone||'')}　${hEsc(s.course||'')}　停用於 ${hEsc(s.inactiveAt||'')}・歷史簽到 ${nRec} 筆</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button onclick="reactivateStu('${jsQ(s.id)}')" style="padding:6px 12px;background:var(--teal2);border:1px solid var(--teal3);border-radius:8px;font-size:13px;cursor:pointer;color:var(--teal);white-space:nowrap">復原</button>
+        <button onclick="deleteStu('${jsQ(s.id)}')" title="永久刪除：進回收站，歷史簽到會一併移走，已發薪月份的薪資會變少" style="padding:6px 12px;background:var(--red2);border:1px solid var(--red3);border-radius:8px;font-size:13px;cursor:pointer;color:var(--red);white-space:nowrap">永久刪除</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // ── 已刪除學員（回收站）──
@@ -7594,7 +7653,7 @@ function hpSearch(q){
   const el=document.getElementById('hpSearchResults');
   if(!q.trim()){el.innerHTML='';return;}
   const lq=q.toLowerCase();
-  const hits=S.filter(s=>(s.name||'').toLowerCase().includes(lq)||(s.phone||'').includes(q)).slice(0,8);
+  const hits=S.filter(s=>!s.inactive&&((s.name||'').toLowerCase().includes(lq)||(s.phone||'').includes(q))).slice(0,8);
   if(!hits.length){el.innerHTML=`<div style="text-align:center;padding:12px;color:var(--brown3);font-size:14px">找不到學員</div>`;return;}
   el.innerHTML=hits.map(s=>`<div onclick="hpSelectStu('${s.id}')" style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:6px;cursor:pointer;background:var(--white)">
     <div style="font-size:15px;font-weight:500;color:var(--ink)">${s.name}</div>
@@ -7946,7 +8005,7 @@ function saveTrialFee(){
 // 簽到當下只會跳「請提醒學員繳費」的 toast，收到後續期款時系統本身沒有記帳的地方，
 // 導致分期課賣出後只有第一期會進流水帳、後面收到的錢永遠不會出現在營業額裡（見月報表稽核）
 function dueInstallmentStudents(){
-  return S.filter(s=>s.installment&&s.installEvery&&s.used>0&&s.used%s.installEvery===0&&s.used<s.total);
+  return S.filter(s=>!s.inactive&&s.installment&&s.installEvery&&s.used>0&&s.used%s.installEvery===0&&s.used<s.total);
 }
 function toggleInstallmentPanel(){
   const p=document.getElementById('installmentPanel');if(!p)return;
@@ -8293,7 +8352,7 @@ function calLoadStudents(){
   const teacher=document.getElementById('calAddTeacher').value;
   const sel=document.getElementById('calAddStudent');
   if(!teacher){sel.innerHTML='<option value="">── 先選老師 ──</option>';return}
-  const stus=S.filter(s=>s.used<s.total); // 所有還有堂數的學員
+  const stus=S.filter(s=>!s.inactive&&s.used<s.total); // 所有還有堂數的學員
   sel.innerHTML='<option value="">── 選擇學員 ──</option>'+
     stus.map(s=>`<option value="${s.id}">${s.name}（${s.course}・剩${s.total-s.used}堂）${s.teacher===teacher?'':' ★'+s.teacher}</option>`).join('');
 }
@@ -8921,7 +8980,7 @@ function gcMatchStudent(parsed,teacher){
   // 先從「此老師」找，找不到再從「所有老師」找（應對空中Amanda等別名情況）
   let stu=null;
   for(const scope of[true,false]){
-    const candidates=S.filter(s=>{
+    const candidates=S.filter(s=>{if(s.inactive)return false;
       if(scope&&s.teacher!==teacher)return false;
       const sp=(s.phone||'').replace(/[\s\-]/g,'');
       // 1. 電話完整比對
@@ -9174,7 +9233,7 @@ function gcManualMatch(idx, td){
   const item=window._gcNotFound&&window._gcNotFound[idx];
   if(!item)return;
   // 優先顯示同老師的學員，再顯示所有學員
-  const stuList=S.filter(s=>s.teacher===item.teacher).concat(S.filter(s=>s.teacher!==item.teacher));
+  const stuList=S.filter(s=>!s.inactive&&s.teacher===item.teacher).concat(S.filter(s=>!s.inactive&&s.teacher!==item.teacher));
   const opts=stuList.map(s=>`<option value="${s.id}">${s.name}（${s.teacher}・${s.course}）</option>`).join('');
   const html=`<div style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:16px;padding:20px;max-width:400px;width:90%;max-height:80vh;overflow-y:auto">
@@ -9570,7 +9629,7 @@ function dayScheduleItems(dateObj){
     if(sl.skip)return;const s=S.find(x=>x.id===sl.sid);if(!s)return;
     items.push({sid:s.id,name:s.name,teacher,time:sl.time||'',trial:false,evType:'confirmed'});
   })});
-  S.forEach(s=>{
+  S.forEach(s=>{if(s.inactive)return;
     (s.recurring||[]).forEach(rc=>{
       if(rc.day!==dow)return;
       const skipped=Object.values(sch).some(slots=>slots.some(sl=>sl.sid===s.id&&sl.skip));
@@ -9647,7 +9706,7 @@ function helperStatsRange(startStr,endStr){
 }
 // 目前有沒有正在流失風險的學員：堂數已用完但沒有排下一堂／固定課，跟日期區間無關，是即時狀態
 function helperChurnRisk(){
-  return S.filter(s=>s.used>=s.total&&!((s.recurring&&s.recurring.length)||s.nextBooking));
+  return S.filter(s=>!s.inactive&&s.used>=s.total&&!((s.recurring&&s.recurring.length)||s.nextBooking));
 }
 // 計算「上一期」的日期區間，用來算成長率
 function helperPrevRange(view,startStr,endStr){
@@ -9803,7 +9862,7 @@ async function runDataCheck(){
   el.innerHTML='<div style="font-size:14px;color:var(--ink3);padding:8px 0">🔍 檢查中…</div>';
   const issues=[];
   const now=new Date();
-  S.forEach(s=>{
+  S.forEach(s=>{if(s.inactive)return;
     if(s.used>s.total)issues.push({lv:'err',msg:`${s.name}：已使用 ${s.used} 堂，超過總堂數 ${s.total} 堂（堂數異常）`});
     if(!s.phone)issues.push({lv:'warn',msg:`${s.name}：沒有電話號碼（Google 日曆比對與搜尋會不準）`});
     if(s.used>=s.total&&s.recurring&&s.recurring.length)issues.push({lv:'warn',msg:`${s.name}：堂數已用完，但每週固定課還排著，請確認是否續購`});

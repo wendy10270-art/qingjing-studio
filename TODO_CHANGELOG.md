@@ -7,7 +7,6 @@
 - [ ] 推播金鑰（CHECKIN/TEACHER/EMAIL_PUSH_SECRET、GC_TOKEN_SECRET）仍寫死在公開前端；gc-token 金鑰外洩＝可換到日曆完整讀寫 access_token。無便宜根治法（App Check 試過三次失敗，匿名登入權杖人人拿得到）；可選：gc-token 加「管理 PIN」伺服器驗證、縮小 OAuth scope（目前完整 calendar）、收件人白名單已有（2026-10-07）
 - [ ] 金鑰寫死在公開 repo／前端（GC_TOKEN_SECRET、CHECKIN/TEACHER/EMAIL_PUSH_SECRET，index.html:633-644、scripts/gc_backfill.py:32、teacher_reminder.py:18-19）。只輪替無效（新值仍在公開頁面）；正解：端點改驗 Firebase ID token＋腳本改讀 GitHub secret，終極是 App Check（2026-10-06）
 - [ ] 老闆：Vercel 帳號開啟 2FA（2026-10-06）
-- [ ] 小項：刪學員仍會連帶移走歷史簽到（已加警告，未改行為；是否改成「停用保留歷史」待老闆決定）（2026-10-06 健檢）
 
 ---
 
@@ -16,6 +15,7 @@
 > 2026-07 ～ 2026-10 由 git 歷史整理（268 個 commit 精選）；之後每筆格式：`日期｜改了什麼｜原因｜commit`
 
 ### 2026-10
+- 10-07｜學員「停用但保留歷史」：名單卡上「刪除」改「停用」（s.inactive=true，歷史簽到／薪資／帳本不動，可在「已停用學員」復原；該面板另有「永久刪除」走原回收站）。停用學員從名單、搜尋、課表、排課、固定課建議、日曆補簽比對、每日摘要與 LINE 課前提醒中隱藏／略過；薪資、帳本、課卡查詢仍可找到他的歷史｜原本刪除會連簽到記錄一起移走，已發薪月份老師費憑空變少｜待 commit（網頁端只驗語法；腳本以模擬測過停用學員不被補簽）
 - 10-07｜①Firebase 規則由「登入就能讀寫全部」改為逐節點白名單（18 個 app 會用的節點），qingjing_gc_refresh_token、qingjing_backups 等只有伺服器用的節點預設拒絕（Admin SDK 不受影響）②老闆在 Google 帳號撤銷舊的「Motivation-Admin」日曆授權並重新連接，產生新 refresh token；已驗證 gc-token 能換到新 access_token｜refresh token（日曆完整讀寫）存在對任何匿名登入者可讀的節點，且 7/17 起一度完全公開｜（console 設定，無 commit）
 - 10-07｜.gitignore 加入 ig_video_output/、ig_video_raw/、*.mp4、__pycache__/｜IG 影片素材共 370MB 未追蹤，避免誤 commit 進公開 repo｜`130d1da`
 - 10-07｜排隊期帶「紙本已簽到堂數」：切換到該期時才補紙本簽到記錄（index.html advanceQueuedCard、gc_backfill.py advance_queued；封存舊期之後再補，不會被當舊期記錄）｜原本排隊時只存堂數、切換後課卡變「已用 N 堂但 0 筆記錄」，LINE 查詢卡簽到清單與堂數對不上｜`46fe058`（腳本以模擬測過；網頁端只驗語法）
