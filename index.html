@@ -1921,9 +1921,106 @@ function fbSetCollection(path,getVal){
     _colRetry[path]=setTimeout(()=>fbSetCollection(path,getVal),15000);
   });
 }
+
+// ── 陣列型資料（流水帳／場租／GC核銷／支出）的三向合併寫入 ──
+// 以前每次儲存都把「本機整份」PUT 上去，兩台裝置各記一筆，先存的那筆會被後存的蓋掉。
+// 現在：先讀雲端 → 用「上次同步的快照(base)」三向合併（依每筆 id）→ 寫回；
+//   只有我新增→留、只有別台新增→留、我刪的→刪、我改過的→用我的、沒改的→用雲端的。
+// 寫回時盡量帶 if-match(ETag) 做版本檢查，被別台搶先改了(412)就重新讀取再合併，最多 4 次。
+// 讀取失敗／合併例外 → 退回舊行為（直接存本機），不會讓使用者存不進去。
+function _colEMap(arr){
+  const m=new Map(),seen={};
+  (Array.isArray(arr)?arr:[]).forEach(e=>{
+    const base=(e&&e.id!=null)?'i'+e.id:'j'+JSON.stringify(e);
+    const n=(seen[base]=(seen[base]||0)+1);          // 同 id 重複（舊資料可能有）用出現次序區分，避免被併掉
+    m.set(base+'#'+n,e);
+  });
+  return m;
+}
+const _colBaseKey=path=>'qjf_base_'+path;
+function _colLoadBase(path){try{const j=localStorage.getItem(_colBaseKey(path));return j?JSON.parse(j):null}catch(e){return null}}
+function _colSaveBase(path,arr){
+  try{const o={};_colEMap(arr).forEach((e,k)=>{o[k]=JSON.stringify(e)});localStorage.setItem(_colBaseKey(path),JSON.stringify(o));}catch(e){}
+}
+function colMerge(base,local,cloud){
+  const L=_colEMap(local),C=_colEMap(cloud);
+  // 雲端是空的但本機有資料：不當成「別台把全部刪了」，以本機為準（避免把雲端被清空的事故擴散）
+  if(!C.size)return Array.isArray(local)?local.slice():[];
+  const B=base||{};
+  const out=[];
+  C.forEach((c,k)=>{
+    const l=L.get(k),b=B[k];
+    if(l!==undefined){
+      const localChanged=(b===undefined)||JSON.stringify(l)!==b;
+      out.push(localChanged?l:c);
+    }else if(b===undefined){
+      out.push(c);                                    // 別台新增
+    }// 否則：我這台刪了 → 不放進結果
+  });
+  L.forEach((l,k)=>{
+    if(C.has(k))return;
+    const b=B[k];
+    if(b===undefined)out.push(l);                     // 我新增
+    else if(JSON.stringify(l)!==b)out.push(l);        // 別台刪了、但我改過 → 保留我的
+  });
+  return out;
+}
+const _colQueue={};
+function fbSyncCollection(path,getLocal,setLocal){
+  try{localStorage.setItem(_colPendKey(path),'1')}catch(e){}
+  clearTimeout(_colRetry[path]);
+  const run=async()=>{
+    for(let attempt=0;attempt<4;attempt++){
+      const q=await _authQuery();
+      let etag=null,cloud;
+      try{
+        const res=await fetch(FB_URL+'/'+path+'.json'+q,{headers:{'X-Firebase-ETag':'true'}});
+        if(!res.ok)throw new Error('GET '+res.status);
+        etag=res.headers.get('ETag');
+        cloud=await res.json();
+      }catch(e){cloud=undefined;etag=null;console.warn(path+' 讀取雲端失敗，退回直接寫入:',e);}
+      const snapJson=JSON.stringify(getLocal());
+      let out=JSON.parse(snapJson);
+      if(cloud!==undefined){
+        try{out=colMerge(_colLoadBase(path),out,Array.isArray(cloud)?cloud:(cloud&&typeof cloud==='object'?Object.values(cloud):[]));}
+        catch(e){console.warn(path+' 合併失敗，退回直接寫入:',e);out=JSON.parse(snapJson);etag=null;}
+      }
+      // 合併後跟雲端一模一樣 → 不必寫
+      if(cloud!==undefined&&Array.isArray(cloud)&&JSON.stringify(out)===JSON.stringify(cloud)){
+        _colSaveBase(path,out);
+        if(JSON.stringify(getLocal())===snapJson)setLocal(out);
+        return;
+      }
+      const headers={'Content-Type':'application/json'};
+      if(etag)headers['if-match']=etag;
+      const put=await fetch(FB_URL+'/'+path+'.json'+q,{method:'PUT',headers,body:JSON.stringify(out)});
+      if(put.status===412)continue;                    // 被別台搶先改了 → 重新讀、重新合併
+      if(!put.ok)throw new Error('PUT '+put.status);
+      _colSaveBase(path,out);
+      // 寫的當下本機若又有新變動就不覆蓋（那次變動自己會再觸發一次儲存）
+      if(JSON.stringify(getLocal())===snapJson)setLocal(out);
+      return;
+    }
+    throw new Error('多次版本衝突');
+  };
+  _colQueue[path]=(_colQueue[path]||Promise.resolve()).then(run).then(()=>{
+    try{localStorage.removeItem(_colPendKey(path))}catch(e){}
+  }).catch(e=>{
+    console.warn(path+' sync error（15 秒後重試）:',e);
+    _colRetry[path]=setTimeout(()=>fbSyncCollection(path,getLocal,setLocal),15000);
+  });
+  return _colQueue[path];
+}
+const _COLS={
+  qingjing_ledger:{get:()=>LEDGER,set:v=>{LEDGER=v;localStorage.setItem('qjf_ledger',JSON.stringify(v));}},
+  qingjing_gw:{get:()=>GW,set:v=>{GW=v;localStorage.setItem('qjf_gw',JSON.stringify(v));}},
+  qingjing_rent:{get:()=>RENT,set:v=>{RENT=v;localStorage.setItem('qjf_rent',JSON.stringify(v));}},
+  qingjing_expenses:{get:()=>EXPENSES,set:v=>{EXPENSES=v;localStorage.setItem('qjf_expenses',JSON.stringify(v));}}
+};
+function fbSyncCol(path){return fbSyncCollection(path,_COLS[path].get,_COLS[path].set);}
 function doFirebaseWrite(){
   const writesSch=_schChanged;
-  fbSetCollection('qingjing_ledger',()=>LEDGER);
+  fbSyncCol('qingjing_ledger');
   const payload=writesSch
     ?{s:S, r:R, sch:encSchKeys(SCH), t:T, l:L, lastUpdated:{'.sv':'timestamp'}}
     :{s:S, r:R, t:T, l:L, lastUpdated:{'.sv':'timestamp'}};
@@ -2060,13 +2157,14 @@ function loadFromFirebase(callback){
 }
 
 function loadLedgerFromFB(callback){
-  if(_colIsPending('qingjing_ledger')){fbSetCollection('qingjing_ledger',()=>LEDGER);if(callback)callback();return;}
+  if(_colIsPending('qingjing_ledger')){fbSyncCol('qingjing_ledger');if(callback)callback();return;}
   const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000));
   Promise.race([db.ref('qingjing_ledger').once('value'),timeout]).then(snap=>{
     const d=snap.val();
     if(d&&Array.isArray(d)&&d.length>0){
       LEDGER=d;
       localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
+      _colSaveBase('qingjing_ledger',LEDGER);
     }
     if(callback)callback();
   }).catch(e=>{console.warn('Ledger load error:',e);if(callback)callback();});
@@ -2074,24 +2172,24 @@ function loadLedgerFromFB(callback){
 
 function saveGW(){
   localStorage.setItem('qjf_gw',JSON.stringify(GW));
-  fbSetCollection('qingjing_gw',()=>GW);
+  fbSyncCol('qingjing_gw');
 }
 function loadGwFromFB(){
-  if(_colIsPending('qingjing_gw')){fbSetCollection('qingjing_gw',()=>GW);return;}
+  if(_colIsPending('qingjing_gw')){fbSyncCol('qingjing_gw');return;}
   db.ref('qingjing_gw').once('value').then(snap=>{
     const d=snap.val();
-    if(d&&Array.isArray(d)){GW=d;localStorage.setItem('qjf_gw',JSON.stringify(GW));}
+    if(d&&Array.isArray(d)){GW=d;localStorage.setItem('qjf_gw',JSON.stringify(GW));_colSaveBase('qingjing_gw',GW);}
   }).catch(e=>{});
 }
 function saveRent(){
   localStorage.setItem('qjf_rent',JSON.stringify(RENT));
-  fbSetCollection('qingjing_rent',()=>RENT);
+  fbSyncCol('qingjing_rent');
 }
 function loadRentFromFB(){
-  if(_colIsPending('qingjing_rent')){fbSetCollection('qingjing_rent',()=>RENT);return;}
+  if(_colIsPending('qingjing_rent')){fbSyncCol('qingjing_rent');return;}
   db.ref('qingjing_rent').once('value').then(snap=>{
     const d=snap.val();
-    if(d&&Array.isArray(d)){RENT=d;localStorage.setItem('qjf_rent',JSON.stringify(RENT));}
+    if(d&&Array.isArray(d)){RENT=d;localStorage.setItem('qjf_rent',JSON.stringify(RENT));_colSaveBase('qingjing_rent',RENT);}
   }).catch(e=>{});
 }
 function saveRentCfg(){
@@ -7785,23 +7883,23 @@ function addLedgerEntry(entry){
   LEDGER.push(entry);
   localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
   // 同步到 Firebase
-  fbSetCollection('qingjing_ledger',()=>LEDGER);
+  fbSyncCol('qingjing_ledger');
 }
 
 function saveLedger(){
   localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
-  fbSetCollection('qingjing_ledger',()=>LEDGER);
+  fbSyncCol('qingjing_ledger');
 }
 function saveExpenses(){
   localStorage.setItem('qjf_expenses',JSON.stringify(EXPENSES));
-  fbSetCollection('qingjing_expenses',()=>EXPENSES);
+  fbSyncCol('qingjing_expenses');
 }
 function loadExpensesFromFB(callback){
-  if(_colIsPending('qingjing_expenses')){fbSetCollection('qingjing_expenses',()=>EXPENSES);if(callback)callback();return;}
+  if(_colIsPending('qingjing_expenses')){fbSyncCol('qingjing_expenses');if(callback)callback();return;}
   const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000));
   Promise.race([db.ref('qingjing_expenses').once('value'),timeout]).then(snap=>{
     const d=snap.val();
-    if(d&&Array.isArray(d)){EXPENSES=d;localStorage.setItem('qjf_expenses',JSON.stringify(EXPENSES));}
+    if(d&&Array.isArray(d)){EXPENSES=d;localStorage.setItem('qjf_expenses',JSON.stringify(EXPENSES));_colSaveBase('qingjing_expenses',EXPENSES);}
     if(callback)callback();
   }).catch(e=>{console.warn('Expenses load error:',e);if(callback)callback();});
 }
@@ -7872,12 +7970,13 @@ function saveInstallmentPayment(){
 }
 
 function loadLedgerFromFirebase(callback){
-  if(_colIsPending('qingjing_ledger')){fbSetCollection('qingjing_ledger',()=>LEDGER);if(callback)callback();return;}
+  if(_colIsPending('qingjing_ledger')){fbSyncCol('qingjing_ledger');if(callback)callback();return;}
   db.ref('qingjing_ledger').once('value').then(snap=>{
     const data=snap.val();
     if(data&&Array.isArray(data)&&data.length>0){
       LEDGER=data;
       localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
+      _colSaveBase('qingjing_ledger',LEDGER);
     }
     if(callback)callback();
   }).catch(e=>{if(callback)callback();});
