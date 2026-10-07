@@ -256,7 +256,7 @@ def main():
     tmin = target.replace(hour=0, minute=0, second=0, microsecond=0)
     tmax = tmin + timedelta(days=1)
 
-    backfilled, skipped_exhausted, unmatched, read_errors = [], [], [], []
+    read_errors = []
     # 先收齊當天所有老師的日曆事件，再統一處理——這樣才能先數出「同一位學員當天有幾堂課」，
     # 供下方去重判斷是不是共用課卡一天多堂的情況。
     all_evs = []
@@ -270,133 +270,184 @@ def main():
             continue
         for ev in evs:
             all_evs.append((teacher, ev))
-    # 每位學員當天比對到的正課堂數（場租／體驗不計入）
-    sid_day_count = {}
+    def process(S, R):
+        # 把「比對＋補簽」整段包成函式，才能在寫回前發現資料被別台改過時，用最新資料重跑一次
+        backfilled, skipped_exhausted, unmatched = [], [], []
+        # 每位學員當天比對到的正課堂數（場租／體驗不計入）
+        sid_day_count = {}
 
-    def stu_key(st):
-        # 跟 index.html 的 _stuKey 同口徑：姓名（去空白）＋電話後 8 碼，同一個人不同課卡視為同一人
-        name = re.sub(r'\s+', '', st.get('name') or '').strip()
-        phone = re.sub(r'\D', '', st.get('phone') or '')[-8:]
-        return name + '|' + phone
+        def stu_key(st):
+            # 跟 index.html 的 _stuKey 同口徑：姓名（去空白）＋電話後 8 碼，同一個人不同課卡視為同一人
+            name = re.sub(r'\s+', '', st.get('name') or '').strip()
+            phone = re.sub(r'\D', '', st.get('phone') or '')[-8:]
+            return name + '|' + phone
 
-    sid_by_id = {x.get('id'): x for x in S}
+        sid_by_id = {x.get('id'): x for x in S}
 
-    def advance_queued(st):
-        # 對應 index.html 的 advanceQueuedCard / _archiveActivePeriod / _applyPackageToCard：
-        # 目前課卡上完且有排隊的下一期 → 封存舊期簽到記錄、把課卡換成下一期方案
-        q = st.get('queued')
-        if not q or st.get('used', 0) < st.get('total', 0):
-            return False
-        prev = st.setdefault('prevCourses', [])
-        prev.append({
-            'course': st.get('course'), 'total': st.get('total'), 'used': st.get('used'),
-            'price': st.get('price'), 'fee': st.get('fee'), 'payMethod': st.get('payMethod'),
-            'payDate': st.get('payDate'), 'actualPayment': st.get('actualPayment'),
-            'bonus': st.get('bonus'), 'note': st.get('note'), 'period': len(prev) + 1,
-        })
-        period = len(prev)
-        for r in R:
-            if r.get('sid') == st['id'] and not r.get('archived'):
-                r['archived'] = True
-                r['archivedPeriod'] = period
-        np = q.pop(0)
-        st['course'] = np.get('course'); st['total'] = np.get('total'); st['used'] = np.get('used') or 0
-        st['price'] = np.get('price'); st['fee'] = np.get('fee'); st['bonusNote'] = ''; st['note'] = np.get('note') or ''
-        if np.get('paymentStatus') == 'unpaid':
-            st['payMethod'] = ''; st['payDate'] = ''; st['actualPayment'] = 0; st['bonus'] = 0
-            st['paymentStatus'] = 'unpaid'
-            st['pendingAmount'] = np.get('pendingAmount') or np.get('price')
-            st['pendingType'] = np.get('pendingType') or 'renew'
-        else:
-            st['payMethod'] = np.get('payMethod') or ''; st['payDate'] = np.get('payDate') or ''
-            st['actualPayment'] = np.get('actualPayment') or 0; st['bonus'] = np.get('bonus') or 0
-            st['paymentStatus'] = 'paid'
-            st.pop('pendingAmount', None); st.pop('pendingType', None)
-        if not q:
-            st.pop('queued', None)
-        return True
-
-    def same_stu(r, stu):
-        if r.get('sid') == stu['id']:
+        def advance_queued(st):
+            # 對應 index.html 的 advanceQueuedCard / _archiveActivePeriod / _applyPackageToCard：
+            # 目前課卡上完且有排隊的下一期 → 封存舊期簽到記錄、把課卡換成下一期方案
+            q = st.get('queued')
+            if not q or st.get('used', 0) < st.get('total', 0):
+                return False
+            prev = st.setdefault('prevCourses', [])
+            prev.append({
+                'course': st.get('course'), 'total': st.get('total'), 'used': st.get('used'),
+                'price': st.get('price'), 'fee': st.get('fee'), 'payMethod': st.get('payMethod'),
+                'payDate': st.get('payDate'), 'actualPayment': st.get('actualPayment'),
+                'bonus': st.get('bonus'), 'note': st.get('note'), 'period': len(prev) + 1,
+            })
+            period = len(prev)
+            for r in R:
+                if r.get('sid') == st['id'] and not r.get('archived'):
+                    r['archived'] = True
+                    r['archivedPeriod'] = period
+            np = q.pop(0)
+            st['course'] = np.get('course'); st['total'] = np.get('total'); st['used'] = np.get('used') or 0
+            st['price'] = np.get('price'); st['fee'] = np.get('fee'); st['bonusNote'] = ''; st['note'] = np.get('note') or ''
+            if np.get('paymentStatus') == 'unpaid':
+                st['payMethod'] = ''; st['payDate'] = ''; st['actualPayment'] = 0; st['bonus'] = 0
+                st['paymentStatus'] = 'unpaid'
+                st['pendingAmount'] = np.get('pendingAmount') or np.get('price')
+                st['pendingType'] = np.get('pendingType') or 'renew'
+            else:
+                st['payMethod'] = np.get('payMethod') or ''; st['payDate'] = np.get('payDate') or ''
+                st['actualPayment'] = np.get('actualPayment') or 0; st['bonus'] = np.get('bonus') or 0
+                st['paymentStatus'] = 'paid'
+                st.pop('pendingAmount', None); st.pop('pendingType', None)
+            if not q:
+                st.pop('queued', None)
             return True
-        rs = sid_by_id.get(r.get('sid'))
-        return bool(rs and stu_key(rs) != '|' and stu_key(rs) == stu_key(stu))
 
-    for teacher, ev in all_evs:
-        if ev.get('status') == 'cancelled':
-            continue
-        p = parse_title(ev.get('summary') or '')
-        if not p or is_rent(p['type']) or '體驗' in p['type']:
-            continue
-        s = match_student(p, teacher, S)
-        if s:
-            k = stu_key(s)
-            sid_day_count[k] = sid_day_count.get(k, 0) + 1
-    if True:
+        def same_stu(r, stu):
+            if r.get('sid') == stu['id']:
+                return True
+            rs = sid_by_id.get(r.get('sid'))
+            return bool(rs and stu_key(rs) != '|' and stu_key(rs) == stu_key(stu))
+
         for teacher, ev in all_evs:
             if ev.get('status') == 'cancelled':
                 continue
-            parsed = parse_title(ev.get('summary') or '')
-            if not parsed or is_rent(parsed['type']) or '體驗' in parsed['type']:
+            p = parse_title(ev.get('summary') or '')
+            if not p or is_rent(p['type']) or '體驗' in p['type']:
                 continue
-            # 第二層防呆：不管上面的日期判斷有沒有算對，這堂課的時間還沒真的過（含下課後
-            # 2 小時緩衝）就絕對不能判定「沒簽到」——這支腳本本來就該只在深夜跑，正常情況
-            # 這裡永遠是 True，只有在 target 判斷失準時才會擋下（2026-09-17 事故後加）。
-            if not event_ended(ev, now):
-                continue
-            stu = match_student(parsed, teacher, S)
-            if not stu:
-                unmatched.append(f"{teacher}・{parsed['name']}{(' ' + parsed['phone']) if parsed['phone'] else ''}・{event_time(ev)}")
-                continue
-            # 去重：學員實際簽到時間存的是按簽名板當下（nowTime()），跟日曆排課整點對不上
-            # （2026-08-31 查出：整天沒共用課卡，卻因為硬比對 time 而堂堂多補一筆「未簽到・GC比對」）。
-            # 只有共用課卡一天多堂（同一 sid 當天 ≥2 個日曆事件）才比對到「時段」，避免把第二堂
-            # 誤判成重複濾掉（小鈴姐 8/18 13:00 自己、14:00 換媽媽）；一般一人一堂只比對 sid+日期。
-            ev_time = event_time(ev)
-            if (sid_day_count.get(stu_key(stu), 0) > 1):
-                dup = any(r for r in R if same_stu(r, stu) and r.get('date') == td and r.get('time') == ev_time)
-            else:
-                dup = any(r for r in R if same_stu(r, stu) and r.get('date') == td)
-            if dup:
-                continue  # 已經有這天的紀錄（不論真人簽到或先前補簽），不重複
-            # 課卡堂數用完：以前整筆直接跳過、只靠 ntfy 推播提醒一次，店長沒點開通知
-            # 就等於這堂課從此在系統裡完全消失，之後每週同一時段都會重複無聲漏掉
-            # （2026-08-24 查出：周芸巧、李柏穎、蘇湘閔都是這樣連續好幾週「被漏簽」）。
-            # 改成照樣補一筆待確認紀錄讓它留在「核對課堂」畫面上看得到，但不動 used，
-            # 避免堂數透支——店長要嘛幫學員加開新課卡，要嘛個別刪除，都在畫面上處理。
-            advance_queued(stu)  # 目前這張上完了、有下一期排隊 → 先切換再補（跟網頁端同順序）
-            exhausted = stu.get('used', 0) >= stu.get('total', 0)
-            if exhausted:
-                skipped_exhausted.append(f"{teacher}・{stu['name']}")
-            else:
-                stu['used'] = stu.get('used', 0) + 1
-            is_sub = teacher != (stu.get('teacher') or '')
-            R.append({
-                'id': 'r' + str(int(now.timestamp() * 1000)) + str(len(backfilled) + len(skipped_exhausted)),
-                'sid': stu['id'], 'date': td, 'time': event_time(ev),
-                'session': stu.get('used', 0), 'sig': None,
-                'isSub': is_sub, 'subTeacher': teacher if is_sub else '',
-                'isUpgraded': False, 'upgradedTo': '', 'upgradeDiff': 0,
-                # actualFee 故意留 None：getRecFee() 在瀏覽器端會自動用 getDefaultFee 現算，
-                # 不用把師資費率表另外複製一份到伺服器端維護
-                'actualFee': None, 'manualFee': None,
-                # 代課付「原老師」的費率（店長 2026-10-06 規則；有異動手動改）。getRecFee 優先用 feeTeacher 現算
-                'feeTeacher': (stu.get('teacher') or ''),
-                'manualNote': '課卡已用完，日曆仍排課（每日排程補登，需先幫學員加開課卡才能核銷）'
-                    if exhausted else 'GC比對，未簽到（每日排程補登）',
-                'confirmed': False, 'upgPayMethod': '', 'feeCollected': False,
-                'isRetro': True, 'gcBackfilled': True, 'cardExhausted': exhausted,
-            })
-            advance_queued(stu)  # 這筆記錄已寫入，補完剛好上完且有排隊 → 現在才切換，記錄才會封存到舊期
-            if not exhausted:
-                backfilled.append(f"{teacher}・{stu['name']}・{event_time(ev)}")
+            s = match_student(p, teacher, S)
+            if s:
+                k = stu_key(s)
+                sid_day_count[k] = sid_day_count.get(k, 0) + 1
+        if True:
+            for teacher, ev in all_evs:
+                if ev.get('status') == 'cancelled':
+                    continue
+                parsed = parse_title(ev.get('summary') or '')
+                if not parsed or is_rent(parsed['type']) or '體驗' in parsed['type']:
+                    continue
+                # 第二層防呆：不管上面的日期判斷有沒有算對，這堂課的時間還沒真的過（含下課後
+                # 2 小時緩衝）就絕對不能判定「沒簽到」——這支腳本本來就該只在深夜跑，正常情況
+                # 這裡永遠是 True，只有在 target 判斷失準時才會擋下（2026-09-17 事故後加）。
+                if not event_ended(ev, now):
+                    continue
+                stu = match_student(parsed, teacher, S)
+                if not stu:
+                    unmatched.append(f"{teacher}・{parsed['name']}{(' ' + parsed['phone']) if parsed['phone'] else ''}・{event_time(ev)}")
+                    continue
+                # 去重：學員實際簽到時間存的是按簽名板當下（nowTime()），跟日曆排課整點對不上
+                # （2026-08-31 查出：整天沒共用課卡，卻因為硬比對 time 而堂堂多補一筆「未簽到・GC比對」）。
+                # 只有共用課卡一天多堂（同一 sid 當天 ≥2 個日曆事件）才比對到「時段」，避免把第二堂
+                # 誤判成重複濾掉（小鈴姐 8/18 13:00 自己、14:00 換媽媽）；一般一人一堂只比對 sid+日期。
+                ev_time = event_time(ev)
+                if (sid_day_count.get(stu_key(stu), 0) > 1):
+                    dup = any(r for r in R if same_stu(r, stu) and r.get('date') == td and r.get('time') == ev_time)
+                else:
+                    dup = any(r for r in R if same_stu(r, stu) and r.get('date') == td)
+                if dup:
+                    continue  # 已經有這天的紀錄（不論真人簽到或先前補簽），不重複
+                # 課卡堂數用完：以前整筆直接跳過、只靠 ntfy 推播提醒一次，店長沒點開通知
+                # 就等於這堂課從此在系統裡完全消失，之後每週同一時段都會重複無聲漏掉
+                # （2026-08-24 查出：周芸巧、李柏穎、蘇湘閔都是這樣連續好幾週「被漏簽」）。
+                # 改成照樣補一筆待確認紀錄讓它留在「核對課堂」畫面上看得到，但不動 used，
+                # 避免堂數透支——店長要嘛幫學員加開新課卡，要嘛個別刪除，都在畫面上處理。
+                advance_queued(stu)  # 目前這張上完了、有下一期排隊 → 先切換再補（跟網頁端同順序）
+                exhausted = stu.get('used', 0) >= stu.get('total', 0)
+                if exhausted:
+                    skipped_exhausted.append(f"{teacher}・{stu['name']}")
+                else:
+                    stu['used'] = stu.get('used', 0) + 1
+                is_sub = teacher != (stu.get('teacher') or '')
+                R.append({
+                    'id': 'r' + str(int(now.timestamp() * 1000)) + str(len(backfilled) + len(skipped_exhausted)),
+                    'sid': stu['id'], 'date': td, 'time': event_time(ev),
+                    'session': stu.get('used', 0), 'sig': None,
+                    'isSub': is_sub, 'subTeacher': teacher if is_sub else '',
+                    'isUpgraded': False, 'upgradedTo': '', 'upgradeDiff': 0,
+                    # actualFee 故意留 None：getRecFee() 在瀏覽器端會自動用 getDefaultFee 現算，
+                    # 不用把師資費率表另外複製一份到伺服器端維護
+                    'actualFee': None, 'manualFee': None,
+                    # 代課付「原老師」的費率（店長 2026-10-06 規則；有異動手動改）。getRecFee 優先用 feeTeacher 現算
+                    'feeTeacher': (stu.get('teacher') or ''),
+                    'manualNote': '課卡已用完，日曆仍排課（每日排程補登，需先幫學員加開課卡才能核銷）'
+                        if exhausted else 'GC比對，未簽到（每日排程補登）',
+                    'confirmed': False, 'upgPayMethod': '', 'feeCollected': False,
+                    'isRetro': True, 'gcBackfilled': True, 'cardExhausted': exhausted,
+                })
+                advance_queued(stu)  # 這筆記錄已寫入，補完剛好上完且有排隊 → 現在才切換，記錄才會封存到舊期
+                if not exhausted:
+                    backfilled.append(f"{teacher}・{stu['name']}・{event_time(ev)}")
+        return backfilled, skipped_exhausted, unmatched
 
+    # 寫回前樂觀檢查：這支腳本從讀資料到寫回中間要讀日曆、比對，可能要幾十秒；期間若有人在 App
+    # 簽到／續課，舊版直接整包 PATCH 會把那些新寫入蓋掉。現在寫回前再讀一次，跟一開始讀到的
+    # 不一樣就用最新資料重跑比對（最多 3 次），一樣才寫。
+    def snap(x):
+        return json.dumps(x, sort_keys=True, ensure_ascii=False)
+
+    backfilled, skipped_exhausted, unmatched = [], [], []
+    S1, R1, R0 = S, R, R
+    write_ok = False
+    for attempt in range(3):
+        S0, R0 = S, R
+        S1, R1 = json.loads(snap(S0)), json.loads(snap(R0))
+        backfilled, skipped_exhausted, unmatched = process(S1, R1)
+        if not (backfilled or skipped_exhausted):
+            write_ok = True   # 沒有要寫的
+            break
+        try:
+            S2 = db_get('qingjing/s') or []
+            R2 = db_get('qingjing/r') or []
+        except Exception as e:
+            send_ntfy('輕境小幫手', f'⚠️ 每日補簽：寫回前重讀雲端失敗（{e}），這次沒有補進任何紀錄', 'warning')
+            return
+        if snap(S2) == snap(S0) and snap(R2) == snap(R0):
+            try:
+                fb_patch('/qingjing', {'s': S1, 'r': R1})
+                write_ok = True
+            except Exception as e:
+                send_ntfy('輕境小幫手', f'⚠️ 每日補簽：比對完但寫回 Firebase 失敗（{e}），這次沒有補進任何紀錄', 'warning')
+                return
+            break
+        S, R = S2, R2   # 資料這段時間被改過 → 用最新的重跑
+    if not write_ok:
+        send_ntfy('輕境小幫手', '⚠️ 每日補簽：比對期間資料一直被修改，連續 3 次放棄寫回，這次沒有補進任何紀錄（明天會再跑）', 'warning')
+        return
+
+    # 雙寫新結構（qingjing/records、qingjing/students），跟 index.html 的 dualWrite 同口徑；
+    # 失敗只通知、不影響上面已寫好的主資料。
     if backfilled or skipped_exhausted:
         try:
-            fb_patch('/qingjing', {'s': S, 'r': R})
+            old_r = {r.get('id'): snap(r) for r in R0 if isinstance(r, dict)}
+            old_s = {s_.get('id'): snap(s_) for s_ in S0 if isinstance(s_, dict)}
+            upd = {}
+            for r in R1:
+                if isinstance(r, dict) and r.get('id') and old_r.get(r['id']) != snap(r):
+                    upd['records/' + str(r['id'])] = r
+            for s_ in S1:
+                if isinstance(s_, dict) and s_.get('id') and old_s.get(s_['id']) != snap(s_):
+                    upd['students/' + str(s_['id'])] = s_
+            if upd:
+                fb_patch('/qingjing', upd)
         except Exception as e:
-            send_ntfy('輕境小幫手', f'⚠️ 每日補簽：比對完但寫回 Firebase 失敗（{e}），這次沒有補進任何紀錄', 'warning')
-            return
+            send_ntfy('輕境小幫手', f'⚠️ 每日補簽：主資料已寫入，但同步新資料結構失敗（{e}），之後需用 migrate_records_students.py --verify 補齊', 'warning')
+
 
     lines = [f'📋 每日補簽核對 {now.month}/{now.day}']
     if backfilled:
