@@ -18,3 +18,11 @@ TokenMeter_1.1.dmg
 .claude/scheduled_tasks.lock
 .claude/worktrees/
 請貼到GitHub後刪除_GC_BACKFILL_DB_SECRET.txt
+
+# IG 影片素材與輸出（體積大、不該進公開 repo）
+ig_video_output/
+ig_video_raw/
+*.mp4
+
+# Python 快取
+__pycache__/

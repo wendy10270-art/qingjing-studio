@@ -7,7 +7,7 @@
 - [ ] 金鑰寫死在公開 repo／前端（GC_TOKEN_SECRET、CHECKIN/TEACHER/EMAIL_PUSH_SECRET，index.html:633-644、scripts/gc_backfill.py:32、teacher_reminder.py:18-19）。只輪替無效（新值仍在公開頁面）；正解：端點改驗 Firebase ID token＋腳本改讀 GitHub secret，終極是 App Check（2026-10-06）
 - [ ] Firebase 規則 `auth != null` 仍允許任何匿名登入者讀寫；終極解法 App Check（2026-10-06）
 - [ ] 老闆：Vercel 帳號開啟 2FA（2026-10-06）
-- [ ] 小項：刪學員仍會連帶移走歷史簽到（已加警告，未改行為；是否改成「停用保留歷史」待老闆決定）；IG 影片與 .mp4 加進 .gitignore（2026-10-06 健檢）
+- [ ] 小項：刪學員仍會連帶移走歷史簽到（已加警告，未改行為；是否改成「停用保留歷史」待老闆決定）（2026-10-06 健檢）
 
 ---
 
@@ -16,6 +16,7 @@
 > 2026-07 ～ 2026-10 由 git 歷史整理（268 個 commit 精選）；之後每筆格式：`日期｜改了什麼｜原因｜commit`
 
 ### 2026-10
+- 10-07｜.gitignore 加入 ig_video_output/、ig_video_raw/、*.mp4、__pycache__/｜IG 影片素材共 370MB 未追蹤，避免誤 commit 進公開 repo｜待 commit
 - 10-07｜排隊期帶「紙本已簽到堂數」：切換到該期時才補紙本簽到記錄（index.html advanceQueuedCard、gc_backfill.py advance_queued；封存舊期之後再補，不會被當舊期記錄）｜原本排隊時只存堂數、切換後課卡變「已用 N 堂但 0 筆記錄」，LINE 查詢卡簽到清單與堂數對不上｜`46fe058`（腳本以模擬測過；網頁端只驗語法）
 - 10-07｜gc_backfill.py：①寫回前重讀雲端，與一開始讀到的不同就用最新資料重跑比對（最多 3 次），一樣才寫，不再蓋掉比對期間 App 的新簽到／續課②補簽後同步寫入新結構 qingjing/records、qingjing/students（多路徑 PATCH，失敗只通知不影響主資料）③比對補簽邏輯包成 process() 供重跑｜夜間腳本整包覆蓋會蓋掉執行期間的新寫入、且不寫新結構（階段 1 比對會出現差異）｜`99a6707`（已用模擬環境測過正常／競態／最後一堂切換／用完無排隊四種情境；未對正式資料實跑，多路徑 PATCH 經 Vercel 代理的行為未實測）
 - 10-07｜流水帳／場租／GC核銷／支出改「三向合併寫入」（fbSyncCollection/colMerge）：存之前先讀雲端，依每筆 id 與上次同步快照合併（我新增留、別台新增留、我刪的刪、我改的用我的），寫回帶 if-match 版本檢查、衝突 412 重讀重合併最多 4 次；讀取失敗退回直接寫入；雲端被清空時以本機為準；合併後與雲端相同就不寫｜兩台裝置各記一筆，先存的被後存的整份蓋掉｜`70bf583`（已用模擬雙裝置＋412 衝突測過合併邏輯，未在正式站實測；RENT_CFG 為物件仍用整包寫入）
