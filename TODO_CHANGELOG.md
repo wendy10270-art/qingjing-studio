@@ -4,8 +4,8 @@
 
 ## 待修／想做
 
+- [ ] 推播金鑰（CHECKIN/TEACHER/EMAIL_PUSH_SECRET、GC_TOKEN_SECRET）仍寫死在公開前端；gc-token 金鑰外洩＝可換到日曆完整讀寫 access_token。無便宜根治法（App Check 試過三次失敗，匿名登入權杖人人拿得到）；可選：gc-token 加「管理 PIN」伺服器驗證、縮小 OAuth scope（目前完整 calendar）、收件人白名單已有（2026-10-07）
 - [ ] 金鑰寫死在公開 repo／前端（GC_TOKEN_SECRET、CHECKIN/TEACHER/EMAIL_PUSH_SECRET，index.html:633-644、scripts/gc_backfill.py:32、teacher_reminder.py:18-19）。只輪替無效（新值仍在公開頁面）；正解：端點改驗 Firebase ID token＋腳本改讀 GitHub secret，終極是 App Check（2026-10-06）
-- [ ] Firebase 規則 `auth != null` 仍允許任何匿名登入者讀寫；終極解法 App Check（2026-10-06）
 - [ ] 老闆：Vercel 帳號開啟 2FA（2026-10-06）
 - [ ] 小項：刪學員仍會連帶移走歷史簽到（已加警告，未改行為；是否改成「停用保留歷史」待老闆決定）（2026-10-06 健檢）
 
@@ -16,6 +16,7 @@
 > 2026-07 ～ 2026-10 由 git 歷史整理（268 個 commit 精選）；之後每筆格式：`日期｜改了什麼｜原因｜commit`
 
 ### 2026-10
+- 10-07｜①Firebase 規則由「登入就能讀寫全部」改為逐節點白名單（18 個 app 會用的節點），qingjing_gc_refresh_token、qingjing_backups 等只有伺服器用的節點預設拒絕（Admin SDK 不受影響）②老闆在 Google 帳號撤銷舊的「Motivation-Admin」日曆授權並重新連接，產生新 refresh token；已驗證 gc-token 能換到新 access_token｜refresh token（日曆完整讀寫）存在對任何匿名登入者可讀的節點，且 7/17 起一度完全公開｜（console 設定，無 commit）
 - 10-07｜.gitignore 加入 ig_video_output/、ig_video_raw/、*.mp4、__pycache__/｜IG 影片素材共 370MB 未追蹤，避免誤 commit 進公開 repo｜`130d1da`
 - 10-07｜排隊期帶「紙本已簽到堂數」：切換到該期時才補紙本簽到記錄（index.html advanceQueuedCard、gc_backfill.py advance_queued；封存舊期之後再補，不會被當舊期記錄）｜原本排隊時只存堂數、切換後課卡變「已用 N 堂但 0 筆記錄」，LINE 查詢卡簽到清單與堂數對不上｜`46fe058`（腳本以模擬測過；網頁端只驗語法）
 - 10-07｜gc_backfill.py：①寫回前重讀雲端，與一開始讀到的不同就用最新資料重跑比對（最多 3 次），一樣才寫，不再蓋掉比對期間 App 的新簽到／續課②補簽後同步寫入新結構 qingjing/records、qingjing/students（多路徑 PATCH，失敗只通知不影響主資料）③比對補簽邏輯包成 process() 供重跑｜夜間腳本整包覆蓋會蓋掉執行期間的新寫入、且不寫新結構（階段 1 比對會出現差異）｜`99a6707`（已用模擬環境測過正常／競態／最後一堂切換／用完無排隊四種情境；未對正式資料實跑，多路徑 PATCH 經 Vercel 代理的行為未實測）
