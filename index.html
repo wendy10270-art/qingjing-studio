@@ -8735,6 +8735,8 @@ const GC={
       // 顯示的其實是學員剛剛簽到的那堂課本身，而不是真的未來場次。這裡另外用「開始時間」擋掉。
       const evStart=ev.start?.dateTime?new Date(ev.start.dateTime):(ev.start?.date?new Date(ev.start.date+'T23:59:59'):null);
       if(evStart&&evStart<=now)return false;
+      // 全天事件（沒有 dateTime）不是正課，是備註／占位，顯示出來會變成沒星期沒時間的假課程
+      if(!ev.start?.dateTime)return false;
       if(ev.summary.includes(name))return true;
       const parsed=this.parseTitle(ev.summary);
       if(parsed&&parsed.name){
