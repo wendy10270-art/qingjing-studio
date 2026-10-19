@@ -43,6 +43,22 @@ async function pruneOldBackups(allBackups, keepDateKey) {
   return removed;
 }
 
+// 2026-10-19：消失偵測。拿今天的快照跟「前一份備份」比對，前一份有、今天沒有的學員／
+// 簽到記錄就回報出去（由排程 workflow 推播到 ntfy）。正常情況（沒人刪）應該是 0；
+// 有人刻意永久刪除學員也會被列出，看到再確認是不是自己刪的即可。
+const toArr = (v) => (Array.isArray(v) ? v : v && typeof v === 'object' ? Object.values(v) : []);
+function findDisappeared(prevData, curData) {
+  const prevS = toArr(prevData && prevData.qingjing && prevData.qingjing.s);
+  const curS = toArr(curData && curData.qingjing && curData.qingjing.s);
+  const prevR = toArr(prevData && prevData.qingjing && prevData.qingjing.r);
+  const curR = toArr(curData && curData.qingjing && curData.qingjing.r);
+  const curSIds = new Set(curS.map((x) => x && x.id));
+  const curRIds = new Set(curR.map((x) => x && x.id));
+  const missingStudents = prevS.filter((x) => x && !curSIds.has(x.id)).map((x) => `${x.name || '?'}（${x.course || ''}）`);
+  const missingRecords = prevR.filter((x) => x && !curRIds.has(x.id)).length;
+  return { missingStudents, missingRecords };
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -68,6 +84,15 @@ module.exports = async (req, res) => {
     }
 
     const dateKey = todayDateKey();
+    // 先找前一份備份（寫入今天這份之前），供消失偵測用
+    let alerts = { missingStudents: [], missingRecords: 0, comparedWith: null };
+    try {
+      const prevAll = await fb('/qingjing_backups', { method: 'GET' });
+      const prevKey = Object.keys(prevAll || {}).filter((k) => k < dateKey).sort().pop();
+      if (prevKey) {
+        alerts = { ...findDisappeared(prevAll[prevKey].data, snapshot), comparedWith: prevKey };
+      }
+    } catch (e) { alerts.error = e.message; }
     const backedUpAt = new Date().toISOString();
     await fb(`/qingjing_backups/${dateKey}`, {
       method: 'PUT',
@@ -89,6 +114,7 @@ module.exports = async (req, res) => {
         ledger: Array.isArray(snapshot.qingjing_ledger) ? snapshot.qingjing_ledger.length : 0,
       },
       removedOldBackups: removed,
+      alerts,
     });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });

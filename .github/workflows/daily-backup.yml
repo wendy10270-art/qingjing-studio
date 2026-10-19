@@ -1,7 +1,12 @@
 name: 每日全庫自動備份
+# 2026-09-18：學員「盧韻如」的主檔被 deleteStu 永久刪除、事後救不回來，才發現系統
+# 從來沒有排程備份。這支排程每天固定時間打 line-webhook 的 backup-db API，把整個
+# qingjing（s/r/sch/t/l）+ qingjing_ledger 存進 Firebase 的 qingjing_backups/{日期}
+# 節點（30 天內自動輪替）。不落地存本機、不進 git——這個 repo 是公開的，備份裡有
+# 學員姓名電話等個資，寫進任何公開可見的地方都是外洩。
 on:
   schedule:
-    - cron: '0 18 * * *'
+    - cron: '0 18 * * *'   # UTC 18:00 = 台北凌晨 02:00，避開白天尖峰跟 08:00/10:00/23:30 既有排程
   workflow_dispatch: {}
 jobs:
   backup:
@@ -10,6 +15,7 @@ jobs:
       - name: 呼叫 backup-db API 觸發今日備份
         env:
           BACKUP_SECRET: ${{ secrets.BACKUP_SECRET }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: |
           set -e
           resp=$(curl -sS -w '\n%{http_code}' "https://line-webhook-gules.vercel.app/api/backup-db?key=${BACKUP_SECRET}")
@@ -20,3 +26,21 @@ jobs:
             echo "備份失敗，HTTP $code"
             exit 1
           fi
+          # 消失偵測：前一份備份有、今天沒有的學員／簽到記錄 → 推播給老闆
+          python3 - "$body" <<'PY'
+          import json, os, sys, urllib.request
+          a = (json.loads(sys.argv[1]).get('alerts') or {})
+          ms, mr = a.get('missingStudents') or [], a.get('missingRecords') or 0
+          if ms or mr:
+              msg = f"跟 {a.get('comparedWith')} 的備份比對：\n"
+              if ms: msg += f"消失的學員 {len(ms)} 位：" + '、'.join(ms[:15]) + "\n"
+              if mr: msg += f"消失的簽到記錄 {mr} 筆\n"
+              msg += "若不是你刻意刪除，請先別動資料，從 qingjing_backups 還原。"
+              topic = os.environ.get('NTFY_TOPIC', '').strip()
+              print(msg)
+              if topic:
+                  body = json.dumps({'topic': topic, 'title': '⚠️ 輕境資料疑似消失', 'message': msg, 'tags': ['warning']}).encode()
+                  urllib.request.urlopen(urllib.request.Request('https://ntfy.sh', data=body, headers={'Content-Type': 'application/json'}), timeout=20)
+          else:
+              print('消失偵測：與前一份備份比對無異常')
+          PY
