@@ -1904,6 +1904,7 @@ function _applyServerTs(resolved){
 // 誤判雲端比較新，把本機真正的簽到資料整包蓋掉、直接消失，且完全沒有警告。
 // 有這個 flag 之後：寫入失敗就不清掉它，loadFromFirebase/SSE 收到遠端資料時只要看到
 // 這個 flag 還是 true，就絕對不接受覆蓋，並自動重試寫入，直到真的成功為止。
+let _saveGen=0; // 每次 syncToFirebase +1；寫入完成時用來判斷期間有沒有新變動
 let _pendingWrite=localStorage.getItem('qjf_pendingWrite')==='1';
 function _setPendingWrite(v){_pendingWrite=v;localStorage.setItem('qjf_pendingWrite',v?'1':'0');}
 let _writeRetryTimer=null;
@@ -2022,24 +2023,80 @@ const _COLS={
   qingjing_expenses:{get:()=>EXPENSES,set:v=>{EXPENSES=v;localStorage.setItem('qjf_expenses',JSON.stringify(v));}}
 };
 function fbSyncCol(path){return fbSyncCollection(path,_COLS[path].get,_COLS[path].set);}
+// ── 主資料 s/r/t/l（學員／簽到記錄／體驗課／請假）的三向合併寫入（2026-10-19）──
+// 以前 doFirebaseWrite 把本機整包 S/R/T/L 直接 PATCH 上去：任何一台裝置（或留在背景的舊分頁）
+// 只要持有舊資料又存了一次檔，就把別台剛建的學員／簽到整份蓋掉，「建檔後過一陣子課卡不見」。
+// 現在比照流水帳：先讀雲端 → 用上次同步快照(base)依每筆 id 三向合併 → 寫回（if-match 版本檢查，
+// 衝突 412 重讀重合併）。舊資料的裝置存檔只會「加上自己的變動」，不會抹掉別台新增的資料。
+const _MAIN_COLS={
+  s:{get:()=>S,set:v=>{S=v;localStorage.setItem('qjf_s',JSON.stringify(v));}},
+  r:{get:()=>R,set:v=>{R=v;localStorage.setItem('qjf_r',JSON.stringify(v));}},
+  t:{get:()=>T,set:v=>{T=v;localStorage.setItem('qjf_t',JSON.stringify(v));}},
+  l:{get:()=>L,set:v=>{L=v;localStorage.setItem('qjf_l',JSON.stringify(v));}}
+};
+function _mainSaveBases(d){['s','r','t','l'].forEach(k=>{if(Array.isArray(d&&d[k]))_colSaveBase('qingjing/'+k,d[k]);});}
+async function fbSyncMainKey(key){
+  const path='qingjing/'+key,col=_MAIN_COLS[key];
+  for(let attempt=0;attempt<4;attempt++){
+    const q=await _authQuery();
+    const res=await fetch(FB_URL+'/'+path+'.json'+q,{headers:{'X-Firebase-ETag':'true'}});
+    if(!res.ok)throw new Error('GET '+path+' '+res.status);
+    const etag=res.headers.get('ETag');
+    const cloudRaw=await res.json();
+    const cloud=Array.isArray(cloudRaw)?cloudRaw:(cloudRaw&&typeof cloudRaw==='object'?Object.values(cloudRaw):[]);
+    const snapJson=JSON.stringify(col.get());
+    const out=colMerge(_colLoadBase(path),JSON.parse(snapJson),cloud);
+    // 防呆：合併結果比雲端少超過一半（本機是空的／壞掉的舊資料），絕不寫回，改採雲端
+    if(cloud.length>=10&&out.length<cloud.length*0.5){
+      console.warn('⚠ '+path+' 合併後筆數暴跌（'+cloud.length+'→'+out.length+'），拒絕寫入，採用雲端資料');
+      col.set(cloud);_colSaveBase(path,cloud);
+      showToast('⚠ 偵測到本機資料異常縮水，已改用雲端資料');
+      return;
+    }
+    if(JSON.stringify(out)===JSON.stringify(cloud)){
+      _colSaveBase(path,out);
+      if(JSON.stringify(col.get())===snapJson)col.set(out);
+      return;
+    }
+    const headers={'Content-Type':'application/json'};
+    if(etag)headers['if-match']=etag;
+    const put=await fetch(FB_URL+'/'+path+'.json'+q,{method:'PUT',headers,body:JSON.stringify(out)});
+    if(put.status===412)continue; // 被別台搶先改了 → 重新讀、重新合併
+    if(!put.ok)throw new Error('PUT '+path+' '+put.status);
+    _colSaveBase(path,out);
+    if(JSON.stringify(col.get())===snapJson)col.set(out); // 寫的當下本機若又有新變動就不覆蓋
+    return;
+  }
+  throw new Error('多次版本衝突 '+path);
+}
+let _mainWriting=Promise.resolve();
 function doFirebaseWrite(){
-  const writesSch=_schChanged;
   fbSyncCol('qingjing_ledger');
-  const payload=writesSch
-    ?{s:S, r:R, sch:encSchKeys(SCH), t:T, l:L, lastUpdated:{'.sv':'timestamp'}}
-    :{s:S, r:R, t:T, l:L, lastUpdated:{'.sv':'timestamp'}};
-  db.ref('qingjing')[writesSch?'set':'patch'](payload).then(resolved=>{
-    if(writesSch)_schChanged=false; // 確認寫入成功才清掉，失敗的話下次重試還是會把 sch 一起送
+  const gen=_saveGen;
+  // 串行執行，避免兩次寫入同時讀舊快照
+  _mainWriting=_mainWriting.then(async()=>{
+    const writesSch=_schChanged;
+    for(const k of ['s','r','t','l'])await fbSyncMainKey(k);
+    // lastUpdated 一律用伺服器時間；課表有變動時一併 PATCH（不再用 set 整包，免得清掉 records/students 新結構）
+    const body={lastUpdated:{'.sv':'timestamp'}};
+    if(writesSch)body.sch=encSchKeys(SCH);
+    const resolved=await db.ref('qingjing').patch(body);
+    if(writesSch)_schChanged=false; // 確認寫入成功才清掉
     _applyServerTs(resolved);
-    _setPendingWrite(false);
-    if(_writeRetryTimer){clearTimeout(_writeRetryTimer);_writeRetryTimer=null;}
+    if(gen===_saveGen){ // 寫入期間若又有新的存檔，pending 旗標要留著
+      _setPendingWrite(false);
+      if(_writeRetryTimer){clearTimeout(_writeRetryTimer);_writeRetryTimer=null;}
+    }
     showSyncStatus('synced');
+    // 合併可能帶進別台的新資料，重新畫畫面
+    try{renderTeachers();}catch(e){}
+    try{refreshOpenCard();}catch(e){}
+    try{if(document.getElementById('sc-admin')?.classList.contains('active-admin'))renderDashboard();}catch(e){}
   }).catch(e=>{
     showSyncStatus('error');
     console.warn('Firebase sync error:',e);
     // 寫入失敗：_pendingWrite 保持 true，本機資料在下次成功寫入前都當作「未確認」，
-    // 不能被雲端拉回的資料蓋掉；並排一次重試，配額/網路問題解除後能自動補上，
-    // 不需要使用者手動再操作一次才會發現資料其實沒同步成功
+    // 不能被雲端拉回的資料蓋掉；並排一次重試
     if(_writeRetryTimer)clearTimeout(_writeRetryTimer);
     _writeRetryTimer=setTimeout(doFirebaseWrite,15000);
   });
@@ -2047,6 +2104,7 @@ function doFirebaseWrite(){
 function syncToFirebase(){
   clearTimeout(syncTimer);
   _lastSaveMs=Date.now();
+  _saveGen++;
   _localLastUpdated=Date.now();
   localStorage.setItem('qjf_localTs',String(_localLastUpdated));
   _setPendingWrite(true);
@@ -2137,6 +2195,7 @@ function loadFromFirebase(callback){
         localStorage.setItem('qjf_sch',JSON.stringify(SCH));
         localStorage.setItem('qjf_t',JSON.stringify(T));
         localStorage.setItem('qjf_l',JSON.stringify(L));
+        _mainSaveBases({s:S,r:R,t:T,l:L}); // 記下這次同步的快照，之後存檔才分得出「我刪的」與「別台新增的」
         console.log('✓ 從 Firebase 載入資料（較新），更新時間:',new Date(data.lastUpdated).toLocaleTimeString());
       } else {
         console.log('⚠ 本地資料較新（本地:'+new Date(_localLastUpdated).toLocaleTimeString()+' / Firebase:'+new Date(data.lastUpdated).toLocaleTimeString()+'），略過 Firebase 覆蓋');
@@ -2326,6 +2385,7 @@ function applyRemoteData(data){
     return;
   }
   S=data.s;R=data.r||R;SCH=data.sch?decSchKeys(data.sch):SCH;T=data.t||T;L=data.l||L;
+  _mainSaveBases({s:S,r:R,t:T,l:L});
   if(data.lastUpdated){_localLastUpdated=data.lastUpdated;localStorage.setItem('qjf_localTs',String(_localLastUpdated));}
   localStorage.setItem('qjf_s',JSON.stringify(S));
   localStorage.setItem('qjf_r',JSON.stringify(R));
