@@ -9,6 +9,34 @@
 - [ ] 金鑰寫死在公開 repo／前端（GC_TOKEN_SECRET、CHECKIN/TEACHER/EMAIL_PUSH_SECRET，index.html:633-644、scripts/gc_backfill.py:32、teacher_reminder.py:18-19）。只輪替無效（新值仍在公開頁面）；正解：端點改驗 Firebase ID token＋腳本改讀 GitHub secret，終極是 App Check（2026-10-06）
 - [ ] 老闆：Vercel 帳號開啟 2FA（2026-10-06）
 
+**2026-10-21 子代理排查（系統健檢員／排課日曆助手／簽到系統工程師，皆唯讀，以下為推論或讀程式所得，尚未實測）**
+
+高優先
+- [ ] 同一台裝置多分頁的三向合併誤刪競態：qjf_base_* 快照存在 localStorage 各分頁共用，但記憶體 S/R/T/L 每分頁一份；分頁 A 寫入更新 base 後，背景舊分頁 B 存檔，會把 A 新增的那筆當成「我刪的」從雲端刪掉，「縮水過半拒寫」攔不住單筆。建議先寫雙分頁重現測試再修（base 改分頁隔離，或存檔前偵測別分頁已推進就先重載）。10-19 三向合併也尚未在正式站用兩台裝置實測
+- [ ] 備份範圍漏節點：backup-db.js READ_PATHS 只有 qingjing、qingjing_ledger，未含 line_bindings、line_bindings_teacher、teacher_phones/calmap/emails、rent、expenses、gw，被清空無法還原；備份計數也只算 ledger（改完需 vercel --prod）
+- [ ] 排程失敗無主動告警：daily-backup／gc-backfill／teacher-reminder／daily-digest 四個 workflow 只有腳本內部 except 才推 ntfy，未捕捉例外、secret 未設、cron 被略過都只留紅燈；backup-db.js 消失偵測自己比對失敗只寫進 alerts.error，workflow 沒讀。建議各 job 加 if: failure() 推 ntfy＋「今天沒備份」守門（改 workflow 需老闆自己從網頁改，PAT 無 workflow scope）。另備份還原演練記錄中未見，建議演練一次
+- [ ] 全天事件只有 searchStudentEvents 擋掉，其他路徑沒擋：明日通知 GC.tomorrowEvents 全天事件 getTime 回假的 10:00 會發假提醒；gcMatchDay／gc_backfill.py 全天事件被當已結束可能補「未簽到」；webhook findUpcomingBookings 仍會產出 time:'' 的假課程（需 vercel --prod）
+- [ ] 取消判斷在 LINE 查課卡「未來預約」被繞過：cancelRe 只認標題開頭「取消」，「王小明 0912（取消）」命中姓名就直接 return true；「已取消」「【取消】」「1on1｜名 取消」都判成正常課。需老闆定義有哪些取消寫法，再抽成單一判斷函式
+
+中優先
+- [ ] 未歸屬老師（約 27%）學員 stu.teacher 為空：isSub 變 true 被當代課、subTeacher 填日曆老師、getDefaultFee 用空老師查費率，薪資與老師費統計失真；需老闆定「空老師＝歸屬日曆老師還是待確認」
+- [ ] 重複預約補充（延續 Maggie 項）：補簽只補一筆，但歸屬 Jungle 還是 Joyce 取決於哪個日曆先讀到、無警示；SCH／明日通知／webhook 去重鍵是 iCalUID 兩筆都列。建議偵測「同學員同開始時間不同日曆」列為衝突通知老闆，不自動選
+- [ ] gc_backfill 寫回仍無 if-match（10-07 只做了重讀比對）；gc-backfill-db.js 白名單含根節點 'qingjing'，範圍比註解寫的三個路徑大
+- [ ] 雙寫遷移：dualWrite* 不 await、失敗只 console.warn；10-19 三向合併把別台資料合進本機後未補寫新結構；diff_records_students.py 沒排程，新舊結構會無聲分歧。收尾（階段 2 切讀取）前置：多分頁競態、備份、每日比對穩定；也可評估放棄新結構，需老闆拍板
+- [ ] 每日對帳：檢查每張課卡 used 是否等於該期非 archived 簽到記錄筆數（紙本 100% 相符紅線目前無自動把關），可與 diff 腳本、備份消失偵測合併推 ntfy
+- [ ] 推播／寄信端點防護：send-payroll-email 無頻率限制，其他端點頻率限制是「讀再寫」有競態且 fail-open；CORS 全開（Access-Control-Allow-Origin: *）。建議 CORS 限 https://wendy10270-art.github.io、寄信加全域每小時上限
+- [ ] 明日通知用 S.find 比對學員，沒排除 inactive、同名取第一個；與 gcMatchStudent／line_reminder.py 比對邏輯不一致，建議統一用 gcMatchStudent
+- [ ] cleanParsedName 去掉底線（「Stacy_簡敬宇」→「Stacy簡敬宇」）造成比對不到；gc_backfill.py clean_digits_and_symbols 同樣；改前需用歷史資料驗證不增加誤配
+- [ ] qj-sw.js 同網域非導航資源 cache-first、CACHE 版本寫死；導航每次對整份 index.html 做全文比對
+
+低優先
+- [ ] 部署易忘檢查：push 前 hook／腳本偵測 line-webhook 有變動就提示 vercel --prod，或 webhook 加 /api/version 與 main 比對
+- [ ] confirm-send.js 先寫 sentAt 再逐筆推播，中途失敗不能重送、失敗名單無姓名（line-reminder 已改手動，重新啟用前先修）
+- [ ] 時區：app 端 GC.getTime／dayEvents 用瀏覽器本機時區、gc_backfill.py event_time 用字串切片；backup-db.js 日期 key 用 toLocaleString 再解析；gc_backfill.py「hour<12 視為前一天」手動補今天會被退回昨天
+- [ ] 日曆事件無分頁：webhook maxResults=250、gc_backfill.py 單日 100，超過沒警告
+- [ ] 前一天 LINE 提醒讀 SCH[td]，日曆事件於同步後才被取消時 SCH 舊資料不會清除（推論，待確認明日 SCH 來源）
+- [ ] 架構整理（不急）：index.html 已約 10000 行（CLAUDE.md 寫約 6000 行，可更新）；先抽 CSS 與 colMerge／時間函式／身分比對等純函式，用普通 script 不上打包，新增檔案要加進 qj-sw.js 快取清單並更新 CACHE；補 colMerge 單元測試；webhook.js 1396 行拆 lib（先補快照測試）；console.log 殘留約 9 處
+
 ---
 
 ## 已完成（新的在上面）
@@ -16,6 +44,7 @@
 > 2026-07 ～ 2026-10 由 git 歷史整理（268 個 commit 精選）；之後每筆格式：`日期｜改了什麼｜原因｜commit`
 
 ### 2026-10
+- 10-28｜明日通知：電話查不到 LINE 綁定時，改用名字比對綁定紀錄（只接受唯一符合），命中就顯示「一鍵發送」｜王太太｜儷方姐婆婆、楊文玉、劉小姐三位綁定都在，但系統沒有對應課卡、日曆標題也沒電話，被誤判成未綁定只剩複製按鈕（尚未部署，commit 見下次補）｜待補
 - 10-19｜資料消失偵測：每日備份（台北 02:00）存檔前先與前一份備份比對，前一份有、今天沒有的學員／簽到記錄由 workflow 推播 ntfy「資料疑似消失」（backup-db.js findDisappeared；daily-backup.yml 推播步驟）｜課卡消失事故要能第一天就發現，不是等到老師簽不到才知道｜（commit 見 git log；line-webhook 需 vercel --prod；未對正式資料實跑）
 - 10-19｜學員／簽到記錄／體驗課／請假（s/r/t/l）改「三向合併寫入」（fbSyncMainKey）：存檔前先讀雲端，依每筆 id＋上次同步快照合併，if-match 版本檢查、412 重試；合併結果比雲端少過半一律拒寫改採雲端；載入／SSE 套用雲端後更新快照；課表有變動改 PATCH 不再 set 整個 qingjing 節點（會清掉 records/students 新結構）；寫入期間又有新存檔不清 pending 旗標｜建檔後過一陣子課卡消失（首頁變「未建檔」）：舊分頁／另一台裝置持舊資料存檔，整包蓋掉別台剛建的學員｜`e492a9b`（僅以 colMerge 模擬測過，未在正式站實測，請用兩台裝置驗證）
 - 10-08｜課後通知「接下來的課程」略過 Google 日曆全天事件（searchStudentEvents）｜全天事件不是正課，顯示成沒星期「()」沒時間的假課程（Maggie 10/15、10/19、10/22）｜`bc0d56d`

@@ -9644,6 +9644,22 @@ async function renderTomorrowNotify(){
     }
     el.innerHTML='<div style="padding:20px;text-align:center;color:var(--ink3);font-size:15px">確認 LINE 綁定狀態…</div>';
     await Promise.all(allItems.map(async it=>{it.bound=await tomorrowCheckBound(it.phone);}));
+    // 備援：電話查不到綁定時（家人代綁、系統沒有這張課卡、日曆標題沒寫電話），改用名字比對綁定紀錄
+    // （綁定時存的 name 就是當初對方報的稱呼，如「王太太｜儷方姐婆婆」）。只接受「唯一」符合的一筆，
+    // 有多筆符合寧可不顯示一鍵發送，避免訊息發錯人。命中就把 it.phone 換成綁定的 key（8 碼），發送端沿用同一套查詢。
+    if(allItems.some(it=>!it.bound)){
+      try{
+        const bAll=(await db.ref('qingjing_line_bindings').once('value')).val()||{};
+        const toks=n=>String(n||'').split(/[｜|\s]+/).map(x=>x.trim()).filter(x=>x.length>=3);
+        const bList=Object.entries(bAll).filter(([,b])=>b&&(b.userId||b.groupId||b.roomId)&&b.name).map(([k,b])=>({k,name:b.name,t:toks(b.name)}));
+        allItems.forEach(it=>{
+          if(it.bound)return;
+          const nt=toks(it.name);
+          const hits=bList.filter(b=>b.name===it.name||b.t.some(x=>nt.includes(x)));
+          if(hits.length===1){it.phone=hits[0].k;it.bound=true;}
+        });
+      }catch(e){console.warn('binding name fallback failed:',e);}
+    }
     _tomorrowItems=allItems;
     const boundCount=allItems.filter(it=>it.bound).length;
     let html=`<div style="margin-bottom:14px"><div style="font-family:'Noto Serif TC',serif;font-size:19px;letter-spacing:2px;color:var(--ink);margin-bottom:4px">明日通知</div><div style="font-size:14px;color:var(--ink3)">📅 ${dateLabel}・共 ${allItems.length} 堂${boundCount?'・已綁定 '+boundCount+' 位':''}</div></div><div style="font-size:13px;color:var(--ink3);background:var(--bg);border-radius:8px;padding:8px 12px;margin-bottom:14px;line-height:1.7">已綁定 LINE 的學員可「一鍵發送」直接推播；未綁定的請用「複製 & 開啟 LINE」手動傳送</div>`;
