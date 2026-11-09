@@ -381,7 +381,10 @@ def main():
                     stu['used'] = stu.get('used', 0) + 1
                 is_sub = teacher != (stu.get('teacher') or '')
                 R.append({
-                    'id': 'r' + str(int(now.timestamp() * 1000)) + str(len(backfilled) + len(skipped_exhausted)),
+                    # id 用 R 目前長度當流水號：舊寫法 len(backfilled)+len(skipped_exhausted) 在
+                    # 「課卡用完」那筆先 append 到 skipped_exhausted、下一筆一般補登又還沒 append 到 backfilled 時
+                    # 會算出同一個數字 → 兩筆記錄同 id（2026-11-09 周芸巧／丁昭元：按下面那筆確認消課，結果動到上面那筆）
+                    'id': 'r' + str(int(now.timestamp() * 1000)) + 'g' + str(len(R)),
                     'sid': stu['id'], 'date': td, 'time': event_time(ev),
                     'session': stu.get('used', 0), 'sig': None,
                     'isSub': is_sub, 'subTeacher': teacher if is_sub else '',

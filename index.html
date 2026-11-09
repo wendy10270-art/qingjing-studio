@@ -4587,7 +4587,7 @@ async function saveRescheduleAndNotify(){
   try{
     const res=await fetch(LINE_WEBHOOK_BASE+'/api/send-checkin-message?key='+CHECKIN_PUSH_SECRET,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({phone:s.phone,message:msg})
+      body:JSON.stringify({phone:await stuLinePhone(s),message:msg})
     });
     const data=await res.json().catch(()=>({}));
     s.nextBooking={date:newDate,time:newTime};dualWriteSetStudent(s.id,s);save();renderMgrList();
@@ -4755,7 +4755,24 @@ function saveSch(){
 // ── 出勤紀錄 ──
 function getAdminDate(){const d=new Date();d.setDate(d.getDate()+adminOffset);return d}
 function shiftDay(n){adminOffset+=n;renderDaily()}
+// 修復「兩筆簽到記錄同一個 id」：gc_backfill.py 舊版在課卡用完那筆後面接一般補登時會配出同 id，
+// 結果按下面那筆的確認消課／刪除，R.find 找到的是上面那筆（2026-11-09 周芸巧／丁昭元）。
+// 第一筆保留原 id，之後重複的改成「原 id + _d序號」——命名固定，多台裝置各自修出來的結果一樣，不會互相打架。
+function fixDupRecordIds(){
+  const seen={};let fixed=0;
+  R.forEach(r=>{
+    if(!r||!r.id)return;
+    if(!seen[r.id]){seen[r.id]=1;return;}
+    const n=seen[r.id]++;
+    r.id=r.id+'_d'+n;
+    dualWriteAddRecord(r);
+    fixed++;
+  });
+  if(fixed){console.warn(`[修復] ${fixed} 筆簽到記錄 id 重複，已改成唯一 id`);save();}
+  return fixed;
+}
 function renderDaily(){
+  fixDupRecordIds();
   const d=getAdminDate();const ds=fmt(d);
   document.getElementById('aDayTtl').textContent=`${d.getMonth()+1}月${d.getDate()}日（${WD[d.getDay()]}）`;
   document.getElementById('aDayShort').textContent=`${d.getMonth()+1}/${d.getDate()}`;
@@ -6682,10 +6699,16 @@ function saveEditStu(){
   const s=S.find(x=>x.id===editStuId);if(!s)return;
   const name=document.getElementById('eName').value.trim();
   if(!name){showToast('請填寫姓名','r');return}
+  // 原本有電話、表單卻是空的：多半是誤刪或表單沒帶到值。電話被清空後 LINE 一鍵發送會失效（用電話查綁定），
+  // 所以先確認；按取消就整個中止存檔（表單保持開著、什麼都沒改），比「默默保留舊電話但其他欄位照存」更不容易讓人搞不清楚到底存了什麼。
+  const newPhone=document.getElementById('ePhone').value.trim();
+  if((s.phone||'').trim()&&!newPhone){
+    if(!confirm('這位學員原本有電話，存檔後會被清空，LINE 一鍵發送將失效。確定要清空嗎？')){showToast('已取消存檔，電話未變更');return}
+  }
   const prevPayment=s.actualPayment,prevPayDate=s.payDate,prevPayMethod=s.payMethod;
   const wasUnpaid=s.paymentStatus==='unpaid';
   s.name=name;
-  s.phone=document.getElementById('ePhone').value.trim();
+  s.phone=newPhone;
   s.teacher=document.getElementById('eTeacher').value;
   s.fee=parseInt(document.getElementById('eFee').value)||s.fee;
   s.total=parseInt(document.getElementById('eTotal').value)||s.total;
@@ -6806,10 +6829,11 @@ async function renderLineMsgActions(sid, phone, s, isUpgraded, upgradedTo, upgra
   if(!el||el.dataset.sid!==sid)return;
   let bound=false, lang='zh';
   try{
-    const key=(phone||'').replace(/\D/g,'').slice(-8);
-    if(key.length===8){
-      const data=(await db.ref('qingjing_line_bindings/'+key).once('value')).val();
-      bound=!!(data&&(data.userId||data.groupId||data.roomId));
+    // 電話空白時 lookupStudentBinding 會改用名字備援（唯一命中才算）
+    const b=await lookupStudentBinding(s,phone);
+    if(b){
+      const data=b.data;
+      bound=true;
       lang=((s&&s.lineEn)||(data&&data.lang==='en'))?'en':'zh';
     }
   }catch(e){console.warn('check LINE binding failed:',e);}
@@ -6859,7 +6883,7 @@ async function sendLineCheckinMsg(sid,msgElId,btnId){
   try{
     const res=await fetch(LINE_WEBHOOK_BASE+'/api/send-checkin-message?key='+CHECKIN_PUSH_SECRET,{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({phone:s.phone,message:text})
+      body:JSON.stringify({phone:await stuLinePhone(s),message:text})
     });
     const data=await res.json().catch(()=>({}));
     if(data.ok){
@@ -6924,10 +6948,11 @@ async function renderResendLineMsgActions(sid, phone, s, isUpgraded, upgradedTo,
   if(!el||el.dataset.sid!==sid)return;
   let bound=false, lang='zh';
   try{
-    const key=(phone||'').replace(/\D/g,'').slice(-8);
-    if(key.length===8){
-      const data=(await db.ref('qingjing_line_bindings/'+key).once('value')).val();
-      bound=!!(data&&(data.userId||data.groupId||data.roomId));
+    // 電話空白時 lookupStudentBinding 會改用名字備援（唯一命中才算）
+    const b=await lookupStudentBinding(s,phone);
+    if(b){
+      const data=b.data;
+      bound=true;
       lang=((s&&s.lineEn)||(data&&data.lang==='en'))?'en':'zh';
     }
   }catch(e){console.warn('check LINE binding failed:',e);}
@@ -9529,6 +9554,47 @@ function copyTomorrowMsg(msgId){
   const a=document.createElement('a');a.href='https://manager.line.biz/';a.style.display='none';document.body.appendChild(a);a.click();setTimeout(()=>{document.body.removeChild(a);},500);
 }
 
+// ── LINE 綁定「用名字備援」共用函式（明日通知、課後訊息、App 健檢共用）──
+// 去掉尾綴稱謂後才比對：「李柏穎醫師」→「李柏穎」，必須完全相等。去掉後只剩 1 字（「劉小姐」→「劉」）
+// 就保留原字串整段比（跟 d6a00b2 一樣要 >=3 字），不然 10-28 靠「王太太」這類稱呼救回來的家人代綁者又會失效。
+const LINE_NAME_TITLES=['醫師','醫生','老師','教練','先生','小姐','太太','媽媽','爸爸'];
+function stripNameTitle(n){
+  const t=String(n||'').trim();
+  for(const sfx of LINE_NAME_TITLES){if(t.length>sfx.length&&t.endsWith(sfx))return t.slice(0,-sfx.length);}
+  return t;
+}
+function lineNameTokens(n){
+  return String(n||'').split(/[｜|\s]+/).map(x=>x.trim()).map(x=>{const st=stripNameTitle(x);return st.length>=2?st:(x.length>=3?x:'');}).filter(Boolean);
+}
+// bAll＝qingjing_line_bindings 整包；names＝候選名字（日曆標題名、學員建檔名…，可含「｜」共用課卡）。
+// 只在「唯一一筆綁定」命中時回傳其 key（電話後 8 碼）；0 筆或多筆都回 null。
+function matchBindingKeyByNames(bAll,names){
+  const nt=new Set();
+  (names||[]).forEach(n=>lineNameTokens(n).forEach(x=>nt.add(x)));
+  if(!nt.size)return null;
+  const hits=Object.entries(bAll||{}).filter(([,b])=>b&&(b.userId||b.groupId||b.roomId)&&b.name&&lineNameTokens(b.name).some(x=>nt.has(x)));
+  return hits.length===1?hits[0][0]:null;
+}
+// 學員的 LINE 綁定：先用電話後 8 碼查；電話空白時才用名字備援。回傳 {key,data} 或 null。
+// key 是綁定 key（電話後 8 碼），send-checkin-message 的 phone 欄位傳這個就送得出去（後端只取後 8 碼查綁定）。
+async function lookupStudentBinding(s,phone){
+  const pk=(phone||'').replace(/\D/g,'').slice(-8);
+  if(pk.length===8){
+    const data=(await db.ref('qingjing_line_bindings/'+pk).once('value')).val();
+    return (data&&(data.userId||data.groupId||data.roomId))?{key:pk,data}:null;
+  }
+  if(!s||!s.name)return null;
+  const bAll=(await db.ref('qingjing_line_bindings').once('value')).val()||{};
+  const k=matchBindingKeyByNames(bAll,[s.name]);
+  return k?{key:k,data:bAll[k],viaName:true}:null;
+}
+// 發送用的 phone 欄位：有電話用電話，電話空白時用名字備援命中的綁定 key
+async function stuLinePhone(s){
+  if((s.phone||'').replace(/\D/g,'').length>=8)return s.phone;
+  try{const b=await lookupStudentBinding(s,s.phone);if(b)return b.key;}catch(e){console.warn('binding name fallback failed:',e);}
+  return s.phone;
+}
+
 // 查詢學員是否已綁定 LINE（跟 renderLineMsgActions 用同一個唯讀 Firebase 端點）
 async function tomorrowCheckBound(phone){
   try{
@@ -9634,7 +9700,7 @@ async function renderTomorrowNotify(){
           return x.name.length>=2&&parsed.name.includes(x.name);
         });
         const phone=(stu&&stu.phone)?stu.phone:parsed.phone;
-        allItems.push({name:parsed.name,time:GC.getTime(ev),teacher,courseType:courseLabelFromEvent(ev,stu?.course||parsed.type),phone,lineEn:!!(stu&&stu.lineEn)});
+        allItems.push({name:parsed.name,stuName:stu?.name||'',time:GC.getTime(ev),teacher,courseType:courseLabelFromEvent(ev,stu?.course||parsed.type),phone,lineEn:!!(stu&&stu.lineEn)});
       }
     }
     allItems.sort((a,b)=>a.time.localeCompare(b.time));
@@ -9650,13 +9716,11 @@ async function renderTomorrowNotify(){
     if(allItems.some(it=>!it.bound)){
       try{
         const bAll=(await db.ref('qingjing_line_bindings').once('value')).val()||{};
-        const toks=n=>String(n||'').split(/[｜|\s]+/).map(x=>x.trim()).filter(x=>x.length>=3);
-        const bList=Object.entries(bAll).filter(([,b])=>b&&(b.userId||b.groupId||b.roomId)&&b.name).map(([k,b])=>({k,name:b.name,t:toks(b.name)}));
+        // 比對邏輯在共用函式 matchBindingKeyByNames：日曆標題名與學員建檔名都拿來比，去尾綴稱謂後完全相等、唯一命中才採用
         allItems.forEach(it=>{
           if(it.bound)return;
-          const nt=toks(it.name);
-          const hits=bList.filter(b=>b.name===it.name||b.t.some(x=>nt.includes(x)));
-          if(hits.length===1){it.phone=hits[0].k;it.bound=true;}
+          const k=matchBindingKeyByNames(bAll,[it.name,it.stuName]);
+          if(k){it.phone=k;it.bound=true;}
         });
       }catch(e){console.warn('binding name fallback failed:',e);}
     }
@@ -9940,9 +10004,15 @@ async function runDataCheck(){
   el.innerHTML='<div style="font-size:14px;color:var(--ink3);padding:8px 0">🔍 檢查中…</div>';
   const issues=[];
   const now=new Date();
+  // 電話空白的學員：讀一次綁定清單，能用名字唯一對到綁定的另外標示（讀取失敗就只顯示原本的警告）
+  let _bAllChk=null;
+  if(S.some(s=>!s.inactive&&!s.phone)){try{_bAllChk=(await db.ref('qingjing_line_bindings').once('value')).val()||{};}catch(e){console.warn('health binding read failed:',e);}}
   S.forEach(s=>{if(s.inactive)return;
     if(s.used>s.total)issues.push({lv:'err',msg:`${s.name}：已使用 ${s.used} 堂，超過總堂數 ${s.total} 堂（堂數異常）`});
-    if(!s.phone)issues.push({lv:'warn',msg:`${s.name}：沒有電話號碼（Google 日曆比對與搜尋會不準）`});
+    if(!s.phone){
+      issues.push({lv:'warn',msg:`${s.name}：沒有電話號碼（Google 日曆比對與搜尋會不準）`});
+      if(_bAllChk&&matchBindingKeyByNames(_bAllChk,[s.name]))issues.push({lv:'warn',msg:`${s.name}：有 LINE 綁定但電話空白，請補電話`});
+    }
     if(s.used>=s.total&&s.recurring&&s.recurring.length)issues.push({lv:'warn',msg:`${s.name}：堂數已用完，但每週固定課還排著，請確認是否續購`});
     if(s.expiryDate&&s.used<s.total){const ed=parseDate(s.expiryDate);if(ed<now)issues.push({lv:'warn',msg:`${s.name}：課程已於 ${s.expiryDate} 過期，還剩 ${s.total-s.used} 堂未使用`});}
   });
