@@ -1943,11 +1943,43 @@ function _colEMap(arr){
   return m;
 }
 const _colBaseKey=path=>'qjf_base_'+path;
-function _colLoadBase(path){try{const j=localStorage.getItem(_colBaseKey(path));return j?JSON.parse(j):null}catch(e){return null}}
-function _colSaveBase(path,arr){
-  try{const o={};_colEMap(arr).forEach((e,k)=>{o[k]=JSON.stringify(e)});localStorage.setItem(_colBaseKey(path),JSON.stringify(o));}catch(e){}
+// 快照(base)以「這個分頁記憶體」為準（2026-11-13）：以前直接存 localStorage，同一台裝置多個分頁共用
+// 一份快照，但記憶體裡的 S/R 每個分頁各一份——分頁 A 建了新學員並更新快照後，留在背景的舊分頁 B
+// 一存檔，就把那位新學員當成「B 刪的」從雲端刪掉（課卡過一陣子消失）。
+// 現在每個分頁只在第一次用到時從 localStorage 讀一次（給重新整理後還有未送出變更時用），之後只用自己記憶體裡的。
+const _colBaseMem={};
+function _colBaseObj(arr){const o={};_colEMap(arr).forEach((e,k)=>{o[k]=JSON.stringify(e)});return o;}
+function _colLoadBase(path){
+  if(Object.prototype.hasOwnProperty.call(_colBaseMem,path))return _colBaseMem[path];
+  let b=null;try{const j=localStorage.getItem(_colBaseKey(path));b=j?JSON.parse(j):null}catch(e){}
+  _colBaseMem[path]=b;return b;
 }
-function colMerge(base,local,cloud){
+function _colSaveBase(path,arr){
+  const o=_colBaseObj(arr);_colBaseMem[path]=o;
+  try{localStorage.setItem(_colBaseKey(path),JSON.stringify(o));}catch(e){}
+}
+// 寫入完成後把結果套回本機：寫的當下本機若又有新變動，不能整個跳過（以前這樣做，快照已經含別台新增的資料、
+// 記憶體卻沒有，下一次存檔就會把別台新增的當成「我刪的」刪掉）。改成以「送出時的本機」為 base，
+// 把寫入結果(out)和送出後的新變動再合併一次，記憶體與快照就一致。
+function _colApplyWritten(snapJson,out,getLocal,setLocal,keepMissing){
+  const cur=getLocal();
+  if(JSON.stringify(cur)===snapJson){setLocal(out);return;}
+  setLocal(colMerge(_colBaseObj(JSON.parse(snapJson)),cur,out,keepMissing));
+}
+// 學員(qingjing/s)額外保護：只有這個分頁真的按過「永久刪除」（或匯入備份）的學員，合併時才會從雲端刪掉；
+// 其他「雲端有、本機沒有」的學員一律保留——課卡絕不會因為同步合併而消失。
+let _stuTomb=new Set((()=>{try{return JSON.parse(localStorage.getItem('qjf_stu_tomb')||'[]')}catch(e){return[]}})());
+function _stuTombSave(){try{localStorage.setItem('qjf_stu_tomb',JSON.stringify([..._stuTomb]))}catch(e){}}
+function _stuTombAdd(ids){(ids||[]).forEach(id=>{if(id!=null)_stuTomb.add(id)});_stuTombSave();}
+function _stuTombPrune(arr){ // 已確認雲端沒有的刪除標記就清掉
+  if(!_stuTomb.size)return;
+  const has=new Set((arr||[]).map(x=>x&&x.id));
+  let ch=false;[..._stuTomb].forEach(id=>{if(!has.has(id)){_stuTomb.delete(id);ch=true;}});
+  if(ch)_stuTombSave();
+}
+const _stuKeepMissing=c=>!(c&&_stuTomb.has(c.id));
+// keepMissing(c)：回傳 true 表示「雲端有、本機沒有、快照有」這筆仍要保留（不當成我刪的）
+function colMerge(base,local,cloud,keepMissing){
   const L=_colEMap(local),C=_colEMap(cloud);
   // 雲端是空的但本機有資料：不當成「別台把全部刪了」，以本機為準（避免把雲端被清空的事故擴散）
   if(!C.size)return Array.isArray(local)?local.slice():[];
@@ -1960,6 +1992,8 @@ function colMerge(base,local,cloud){
       out.push(localChanged?l:c);
     }else if(b===undefined){
       out.push(c);                                    // 別台新增
+    }else if(keepMissing&&keepMissing(c)){
+      out.push(c);                                    // 受保護（學員沒有刪除標記）→ 保留
     }// 否則：我這台刪了 → 不放進結果
   });
   L.forEach((l,k)=>{
@@ -1993,7 +2027,7 @@ function fbSyncCollection(path,getLocal,setLocal){
       // 合併後跟雲端一模一樣 → 不必寫
       if(cloud!==undefined&&Array.isArray(cloud)&&JSON.stringify(out)===JSON.stringify(cloud)){
         _colSaveBase(path,out);
-        if(JSON.stringify(getLocal())===snapJson)setLocal(out);
+        _colApplyWritten(snapJson,out,getLocal,setLocal);
         return;
       }
       const headers={'Content-Type':'application/json'};
@@ -2002,8 +2036,8 @@ function fbSyncCollection(path,getLocal,setLocal){
       if(put.status===412)continue;                    // 被別台搶先改了 → 重新讀、重新合併
       if(!put.ok)throw new Error('PUT '+put.status);
       _colSaveBase(path,out);
-      // 寫的當下本機若又有新變動就不覆蓋（那次變動自己會再觸發一次儲存）
-      if(JSON.stringify(getLocal())===snapJson)setLocal(out);
+      // 寫的當下本機若又有新變動：把那些變動跟寫入結果再合併一次（那次變動自己會再觸發一次儲存）
+      _colApplyWritten(snapJson,out,getLocal,setLocal);
       return;
     }
     throw new Error('多次版本衝突');
@@ -2045,7 +2079,8 @@ async function fbSyncMainKey(key){
     const cloudRaw=await res.json();
     const cloud=Array.isArray(cloudRaw)?cloudRaw:(cloudRaw&&typeof cloudRaw==='object'?Object.values(cloudRaw):[]);
     const snapJson=JSON.stringify(col.get());
-    const out=colMerge(_colLoadBase(path),JSON.parse(snapJson),cloud);
+    const keep=key==='s'?_stuKeepMissing:undefined;
+    const out=colMerge(_colLoadBase(path),JSON.parse(snapJson),cloud,keep);
     // 防呆：合併結果比雲端少超過一半（本機是空的／壞掉的舊資料），絕不寫回，改採雲端
     if(cloud.length>=10&&out.length<cloud.length*0.5){
       console.warn('⚠ '+path+' 合併後筆數暴跌（'+cloud.length+'→'+out.length+'），拒絕寫入，採用雲端資料');
@@ -2055,7 +2090,8 @@ async function fbSyncMainKey(key){
     }
     if(JSON.stringify(out)===JSON.stringify(cloud)){
       _colSaveBase(path,out);
-      if(JSON.stringify(col.get())===snapJson)col.set(out);
+      _colApplyWritten(snapJson,out,col.get,col.set,keep);
+      if(key==='s')_stuTombPrune(out);
       return;
     }
     const headers={'Content-Type':'application/json'};
@@ -2064,7 +2100,8 @@ async function fbSyncMainKey(key){
     if(put.status===412)continue; // 被別台搶先改了 → 重新讀、重新合併
     if(!put.ok)throw new Error('PUT '+path+' '+put.status);
     _colSaveBase(path,out);
-    if(JSON.stringify(col.get())===snapJson)col.set(out); // 寫的當下本機若又有新變動就不覆蓋
+    _colApplyWritten(snapJson,out,col.get,col.set,keep); // 寫的當下本機若又有新變動，合併進來而不是跳過
+    if(key==='s')_stuTombPrune(out);
     return;
   }
   throw new Error('多次版本衝突 '+path);
@@ -6493,6 +6530,7 @@ async function deleteStu(sid){
     alert('刪除失敗（無法先備份到回收站），請檢查網路後再試一次。');
     return;
   }
+  _stuTombAdd([sid]); // 標記「這是真的要刪」，同步合併時才會從雲端移除
   S=S.filter(x=>x.id!==sid);
   R=R.filter(x=>x.sid!==sid);
   L=L.filter(x=>x.sid!==sid);
@@ -6607,6 +6645,7 @@ async function restoreFromTrash(key){
     const snap=await db.ref('qingjing_trash/'+key).once('value');
     const item=snap.val();
     if(!item){alert('找不到這筆回收站資料，可能已經被復原過了');loadTrashList();return;}
+    if(item.student&&_stuTomb.delete(item.student.id))_stuTombSave();
     if(item.student&&!S.find(x=>x.id===item.student.id))S.push(item.student);
     (item.records||[]).forEach(r=>{if(!R.find(x=>x.id===r.id))R.push(r);});
     (item.ledger||[]).forEach(l=>{if(!L.find(x=>x.id===l.id))L.push(l);});
@@ -8521,6 +8560,7 @@ function importBackup(file){
       const data=JSON.parse(e.target.result);
       if(!data.students||!data.records){showToast('格式錯誤，請選擇正確備份檔','r');return}
       if(!confirm('確定要匯入備份？\n匯入後目前資料會被覆蓋\n備份時間：'+(data.exportTimeLocal||data.exportTime)))return;
+      {const _keepIds=new Set((data.students||[]).map(x=>x&&x.id));_stuTombAdd(S.map(x=>x.id).filter(id=>!_keepIds.has(id)));} // 備份裡沒有的學員才算刪除
       S=data.students||[];
       R=data.records||[];
       SCH=data.schedules||{};
