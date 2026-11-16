@@ -2069,6 +2069,22 @@ const _MAIN_COLS={
   l:{get:()=>L,set:v=>{L=v;localStorage.setItem('qjf_l',JSON.stringify(v));}}
 };
 function _mainSaveBases(d){['s','r','t','l'].forEach(k=>{if(Array.isArray(d&&d[k]))_colSaveBase('qingjing/'+k,d[k]);});}
+// 2026-11-16 安全網：學員(s)／簽到記錄(r)只要「雲端有、這次寫入後會沒有」，寫入前一律先整筆存進
+// qingjing_trash（回收站，key 以 auto_ 開頭），存不進去就不寫。不管是哪條路徑、哪個 bug 造成的移除
+// （舊分頁、合併漏洞、匯入舊備份…），資料都還能在「學員管理→已刪除學員」按復原找回。
+// 起因：Alex 等多位學員連同簽到記錄從雲端消失、回收站也沒有，只剩 9/21 的手動備份能查。
+const _trashedIds=new Set(); // 本分頁已存進回收站的 'key:id'（deleteStu 已自己存過的也記在這），避免重複存
+async function _trashBeforeRemove(key,cloud,out){
+  if(key!=='s'&&key!=='r')return;
+  const keepIds=new Set(out.map(x=>x&&x.id));
+  const gone=cloud.filter(x=>x&&x.id!=null&&!keepIds.has(x.id)&&!_trashedIds.has(key+':'+x.id));
+  if(!gone.length)return;
+  const entry={deletedAt:new Date().toISOString(),auto:true};
+  entry[key==='s'?'students':'records']=gone;
+  // 失敗會丟例外 → doFirebaseWrite 的 catch 15 秒後重試，這次不寫入，資料不會無聲消失
+  await db.ref('qingjing_trash/auto_'+key+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,6)).set(entry);
+  gone.forEach(x=>_trashedIds.add(key+':'+x.id));
+}
 async function fbSyncMainKey(key){
   const path='qingjing/'+key,col=_MAIN_COLS[key];
   for(let attempt=0;attempt<4;attempt++){
@@ -2094,6 +2110,7 @@ async function fbSyncMainKey(key){
       if(key==='s')_stuTombPrune(out);
       return;
     }
+    await _trashBeforeRemove(key,cloud,out); // 會被移除的學員／簽到記錄先存回收站，存不進去就不寫
     const headers={'Content-Type':'application/json'};
     if(etag)headers['if-match']=etag;
     const put=await fetch(FB_URL+'/'+path+'.json'+q,{method:'PUT',headers,body:JSON.stringify(out)});
@@ -6531,6 +6548,7 @@ async function deleteStu(sid){
     return;
   }
   _stuTombAdd([sid]); // 標記「這是真的要刪」，同步合併時才會從雲端移除
+  _trashedIds.add('s:'+sid);recs.forEach(r=>_trashedIds.add('r:'+r.id)); // 上面已存進回收站，同步安全網不必再存一次
   S=S.filter(x=>x.id!==sid);
   R=R.filter(x=>x.sid!==sid);
   L=L.filter(x=>x.sid!==sid);
@@ -6631,10 +6649,21 @@ function renderTrashList(data){
   el.innerHTML=keys.map(k=>{
     const item=data[k];const st=item.student||{};
     const when=item.deletedAt?item.deletedAt.replace('T',' ').slice(0,16):'';
+    let title=hEsc(st.name||'（無姓名）'),sub=hEsc(st.phone||'')+'　刪除於 '+when;
+    if(item.auto){ // 同步安全網自動存的（_trashBeforeRemove）
+      const studs=item.students||[],recs=item.records||[];
+      if(studs.length){title=hEsc(studs.map(x=>x.name||'（無姓名）').join('、'));}
+      else{
+        const nm=[...new Set(recs.map(r=>(S.find(s=>s.id===r.sid)||{}).name||r.name||'').filter(Boolean))];
+        title='簽到記錄 '+recs.length+' 筆'+(nm.length?'：'+hEsc(nm.join('、')):'');
+        sub=hEsc(recs.map(r=>r.date||'').filter(Boolean).sort().join('、'))+'　移除於 '+when;
+      }
+      title+=' <span style="font-weight:400;font-size:12px;color:var(--ink3)">（同步自動備份）</span>';
+    }
     return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px">
       <div style="font-size:13px;color:var(--ink2)">
-        <div style="font-weight:600;color:var(--ink)">${st.name||'（無姓名）'}</div>
-        <div style="color:var(--ink3)">${st.phone||''}　刪除於 ${when}</div>
+        <div style="font-weight:600;color:var(--ink)">${title}</div>
+        <div style="color:var(--ink3)">${sub}</div>
       </div>
       <button onclick="restoreFromTrash('${k}')" style="padding:6px 12px;background:var(--teal2);border:1px solid var(--teal3);border-radius:8px;font-size:13px;cursor:pointer;color:var(--teal);white-space:nowrap">復原</button>
     </div>`;
@@ -6645,16 +6674,19 @@ async function restoreFromTrash(key){
     const snap=await db.ref('qingjing_trash/'+key).once('value');
     const item=snap.val();
     if(!item){alert('找不到這筆回收站資料，可能已經被復原過了');loadTrashList();return;}
-    if(item.student&&_stuTomb.delete(item.student.id))_stuTombSave();
-    if(item.student&&!S.find(x=>x.id===item.student.id))S.push(item.student);
+    const _studs=(item.student?[item.student]:[]).concat(item.students||[]); // students：同步安全網自動存的
+    _studs.forEach(st=>{
+      if(_stuTomb.delete(st.id))_stuTombSave();
+      if(!S.find(x=>x.id===st.id))S.push(st);
+      dualWriteSetStudent(st.id,st);
+    });
     (item.records||[]).forEach(r=>{if(!R.find(x=>x.id===r.id))R.push(r);});
     (item.ledger||[]).forEach(l=>{if(!L.find(x=>x.id===l.id))L.push(l);});
-    // 新結構雙寫：復原學員節點＋補回這個學員的記錄
-    if(item.student)dualWriteSetStudent(item.student.id,item.student);
+    // 新結構雙寫：補回這個學員的記錄（學員節點已在上面寫）
     (item.records||[]).forEach(r=>dualWriteAddRecord(r));
     await db.ref('qingjing_trash/'+key).set(null);
     markSchChanged();save();renderMgrList();renderTeachers();loadTrashList();
-    showToast('✓ '+(item.student?.name||'學員')+' 已復原');
+    showToast('✓ '+(_studs.map(x=>x.name).join('、')||(item.records?'簽到記錄 '+item.records.length+' 筆':'學員'))+' 已復原');
   }catch(e){
     console.warn('復原失敗：',e);
     alert('復原失敗，請檢查網路後再試一次');
