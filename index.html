@@ -1645,7 +1645,13 @@ function getDefaultFee(t,c){
   const fee=getTeacherFee(t,p[0],p[1]);
   return fee||800;
 }
-function getRecFee(r,s){if(r.manualFee!=null)return r.manualFee;if(r.actualFee)return r.actualFee;const t=r.feeTeacher||(r.isSub?r.subTeacher:(s?.teacher||''));return getDefaultFee(t,s?.course||'')}
+// 紙本簽到（新增學員／續課／購課時填的「紙本已簽到堂數」補建的記錄）：只是讓課卡堂數、LINE 查詢
+// 與紙本對得上，那些課在進系統前就上完、師資費已付過（老闆 2026-11-23 確認），不可再算薪資。
+// 這些記錄的日期是「建卡當天」，以前會在那天的核對課堂冒出 N 筆、每筆照價算進月薪（蘇湘閔 13 筆 × $800）。
+function isPaperRec(r){return !!r&&r.note==='紙本簽到'}
+// 薪資口徑：沒被取消確認（confirmed!==false）且不是紙本補登
+function isWageRec(r){return !!r&&r.confirmed!==false&&!isPaperRec(r)}
+function getRecFee(r,s){if(isPaperRec(r))return 0;if(r.manualFee!=null)return r.manualFee;if(r.actualFee)return r.actualFee;const t=r.feeTeacher||(r.isSub?r.subTeacher:(s?.teacher||''));return getDefaultFee(t,s?.course||'')}
 function isAdj(r){return r.manualFee!=null}
 
 // 升級選項
@@ -4857,15 +4863,22 @@ function cleanupGhostBackfill(ds){
 // 但不能整個 renderDaily() 重來一次（會再觸發一次 renderGcSettle，變成無窮迴圈）
 function renderDailyList(ds){
   cleanupGhostBackfill(ds);
-  const recs=R.filter(r=>r.date===ds);
+  // 紙本補登不是當天上的課、不計薪，不列進核對課堂（只在最下方提示有幾筆）
+  const paperRecs=R.filter(r=>r.date===ds&&isPaperRec(r));
+  const recs=R.filter(r=>r.date===ds&&!isPaperRec(r));
   // 不再要求 t.sig 才顯示：補登過去日期／日曆比對自動建立的體驗課本來就不會有現場簽名，
   // 跟 R（正課簽到）的顯示規則一樣，只看日期，不看有沒有簽名（R.filter 本來就沒有簽名限制）
   const trialRecs=T.filter(t=>t.date===ds);
   const leaveRecs=L.filter(l=>l.date===ds);
   const el=document.getElementById('dailyContent');
+  const paperNote=(()=>{
+    if(!paperRecs.length)return'';
+    const byStu={};paperRecs.forEach(r=>{const st=S.find(x=>x.id===r.sid);const k=st?st.name:'（已刪除學員）';byStu[k]=(byStu[k]||0)+1});
+    return`<div style="font-size:13px;color:var(--ink3);background:var(--gold4);border-radius:8px;padding:8px 12px;margin:10px 0;line-height:1.6">📄 另有紙本補登 ${paperRecs.length} 筆（${Object.entries(byStu).map(([n,c])=>hEsc(n)+' '+c+' 堂').join('、')}）：建卡時填的「紙本已簽到堂數」，是進系統前就上完的課，只計入課卡堂數，不列入核對、不計薪</div>`;
+  })();
   if(!recs.length&&!trialRecs.length&&!leaveRecs.length){
     // 沒有簽到紀錄仍顯示 GC 核銷區（學員未建檔也能從日曆核銷）
-    el.innerHTML='<div class="empty" style="padding:16px 0">今日無簽到紀錄</div><div id="gcSettleArea"></div>';
+    el.innerHTML='<div class="empty" style="padding:16px 0">今日無簽到紀錄</div>'+paperNote+'<div id="gcSettleArea"></div>';
     return;
   }
 
@@ -4959,7 +4972,7 @@ function renderDailyList(ds){
       }
       return'';
     }).join('')}</div>`;
-  }).join('')}<div id="gcSettleArea"></div>`;
+  }).join('')}${paperNote}<div id="gcSettleArea"></div>`;
 }
 
 // ── Google 日曆核銷（學員不需建檔、不需簽到，直接以日曆為準核銷師資費；與前台簽到完全脫鉤）──
@@ -4989,7 +5002,7 @@ function gcGuessFee(teacher,type){
 function gcAlreadyPaidElsewhere(name,phone,ds){
   const pd=(phone||'').replace(/\D/g,'').slice(-8);
   const stu=S.find(s=>(pd&&(s.phone||'').replace(/\D/g,'').slice(-8)===pd)||s.name===name);
-  if(stu&&R.some(r=>r.sid===stu.id&&r.date===ds&&r.confirmed===true))return true;
+  if(stu&&R.some(r=>r.sid===stu.id&&r.date===ds&&r.confirmed===true&&!isPaperRec(r)))return true;
   if(T.some(t=>t.name===name&&t.date===ds&&t.confirmed===true))return true;
   return false;
 }
@@ -5498,7 +5511,7 @@ function confirmAllToday(ds){
   // 批次確認會跳過「已經被 Google 核銷領過師資費」的堂，避免一次全點反而重複計薪，
   // 這些堂留給店長自己到「核對課堂」個別確認（會跳出提醒）
   let skipped=0;
-  R.filter(r=>r.date===ds&&!r.confirmed).forEach(r=>{
+  R.filter(r=>r.date===ds&&!r.confirmed&&!isPaperRec(r)).forEach(r=>{
     const s=S.find(x=>x.id===r.sid);
     const dupG=s&&GW.find(g=>g.name===s.name&&g.date===r.date);
     if(dupG){skipped++;return;}
@@ -5532,7 +5545,7 @@ function wageInRange(dstr,mk){
 // （gcAlreadyPaidElsewhere 只在核銷當下擋新的重複，如果核銷發生在簽到確認「之前」就攔不到，需要這裡事後抓出來）。
 // 只偵測、不自動刪除——兩筆留哪筆需要店長自己判斷，程式不能自己猜
 function findDupWageEntries(mk){
-  const monthR=R.filter(r=>r.date&&wageInRange(r.date,mk)&&r.confirmed!==false);
+  const monthR=R.filter(r=>r.date&&wageInRange(r.date,mk)&&isWageRec(r));
   const monthG=GW.filter(g=>g.date&&wageInRange(g.date,mk));
   const dups=[];
   monthG.forEach(g=>{
@@ -5570,7 +5583,7 @@ function renderWage(){
   const mk=document.getElementById('monthSelect').value;if(!mk)return;
   const[y,mo]=mk.split('/');
   const isRange=_wageMode==='range'&&_wageStart&&_wageEnd;
-  const monthR=R.filter(r=>r.date&&wageInRange(r.date,mk)&&r.confirmed!==false);
+  const monthR=R.filter(r=>r.date&&wageInRange(r.date,mk)&&isWageRec(r));
   const monthT=T.filter(t=>t.date&&wageInRange(t.date,mk)&&t.confirmed===true);
   const monthG=GW.filter(g=>g.date&&wageInRange(g.date,mk));
   const monthRentDeduct=RENT.filter(r=>r.date&&wageInRange(r.date,mk)&&r.mode==='deduct');
@@ -5783,7 +5796,7 @@ function copyTeacher(teacher,mk){
   if(!confirmDupWage(mk,teacher))return;
   const[y,mo]=mk.split('/');
   const sessions=[
-    ...R.filter(r=>r.date&&wageInRange(r.date,mk)&&r.confirmed!==false).filter(r=>{const s=S.find(x=>x.id===r.sid);return s&&(r.isSub?r.subTeacher:s.teacher)===teacher}).map(r=>{const s=S.find(x=>x.id===r.sid);return{type:'regular',s,r,fee:getRecFee(r,s)}}),
+    ...R.filter(r=>r.date&&wageInRange(r.date,mk)&&isWageRec(r)).filter(r=>{const s=S.find(x=>x.id===r.sid);return s&&(r.isSub?r.subTeacher:s.teacher)===teacher}).map(r=>{const s=S.find(x=>x.id===r.sid);return{type:'regular',s,r,fee:getRecFee(r,s)}}),
     ...T.filter(t=>t.date&&wageInRange(t.date,mk)&&t.confirmed===true&&t.teacher===teacher).map(tr=>({type:'trial',tr,fee:tr.manualFee!=null?tr.manualFee:tr.teacherFee})),
     ...GW.filter(g=>wageInRange(g.date,mk)&&g.teacher===teacher).map(g=>({type:'gc',g,fee:g.fee||0}))
   ];
@@ -5830,7 +5843,7 @@ function copyAll(){
   const period=(_wageMode==='range'&&_wageStart&&_wageEnd)?`${_wageStart}～${_wageEnd}（週結）`:`${y}年${parseInt(mo)}月`;
   let text=`輕境運動工作室 ${period} 師資費用總覽\n════════════════\n`;
   const tMap={};
-  R.filter(r=>r.date&&wageInRange(r.date,mk)&&r.confirmed!==false).forEach(r=>{const s=S.find(x=>x.id===r.sid);if(!s)return;const t=r.isSub?r.subTeacher:(s.teacher||'其他');if(!tMap[t])tMap[t]=0;tMap[t]+=getRecFee(r,s)});
+  R.filter(r=>r.date&&wageInRange(r.date,mk)&&isWageRec(r)).forEach(r=>{const s=S.find(x=>x.id===r.sid);if(!s)return;const t=r.isSub?r.subTeacher:(s.teacher||'其他');if(!tMap[t])tMap[t]=0;tMap[t]+=getRecFee(r,s)});
   T.filter(t=>t.date&&wageInRange(t.date,mk)&&t.confirmed===true).forEach(t=>{if(!tMap[t.teacher])tMap[t.teacher]=0;tMap[t.teacher]+=(t.manualFee!=null?t.manualFee:t.teacherFee)});
   GW.filter(g=>g.date&&wageInRange(g.date,mk)).forEach(g=>{const t=g.teacher||'其他';if(!tMap[t])tMap[t]=0;tMap[t]+=(g.fee||0)});
   RENT.filter(r=>r.date&&wageInRange(r.date,mk)&&r.mode==='deduct').forEach(r=>{const t=r.teacher||'其他';if(!tMap[t])tMap[t]=0;tMap[t]-=(r.fee||0)});
@@ -5893,7 +5906,7 @@ function buildHourlyEmailHtml(staff,mk){
 function buildPayrollEmailHtml(teacher,mk){
   const[y,mo]=mk.split('/');
   const sessions=[
-    ...R.filter(r=>r.date&&wageInRange(r.date,mk)&&r.confirmed!==false).filter(r=>{const s=S.find(x=>x.id===r.sid);return s&&(r.isSub?r.subTeacher:s.teacher)===teacher}).map(r=>{const s=S.find(x=>x.id===r.sid);return{type:'regular',s,r,fee:getRecFee(r,s)}}),
+    ...R.filter(r=>r.date&&wageInRange(r.date,mk)&&isWageRec(r)).filter(r=>{const s=S.find(x=>x.id===r.sid);return s&&(r.isSub?r.subTeacher:s.teacher)===teacher}).map(r=>{const s=S.find(x=>x.id===r.sid);return{type:'regular',s,r,fee:getRecFee(r,s)}}),
     ...T.filter(t=>t.date&&wageInRange(t.date,mk)&&t.confirmed===true&&t.teacher===teacher).map(tr=>({type:'trial',tr,fee:tr.manualFee!=null?tr.manualFee:tr.teacherFee})),
     ...GW.filter(g=>wageInRange(g.date,mk)&&g.teacher===teacher).map(g=>({type:'gc',g,fee:g.fee||0}))
   ];
@@ -6010,7 +6023,7 @@ async function emailAll(){
   const mk=document.getElementById('monthSelect').value;
   if(!confirmDupWage(mk))return;
   // 當月完全沒資料的老師不寄（避免寄出「0 堂、合計 $0」的空薪資信）
-  const hasData=t=>R.some(r=>r.date&&wageInRange(r.date,mk)&&r.confirmed!==false&&(()=>{const s=S.find(x=>x.id===r.sid);return s&&(r.isSub?r.subTeacher:s.teacher)===t})())
+  const hasData=t=>R.some(r=>r.date&&wageInRange(r.date,mk)&&isWageRec(r)&&(()=>{const s=S.find(x=>x.id===r.sid);return s&&(r.isSub?r.subTeacher:s.teacher)===t})())
     ||T.some(x=>x.date&&wageInRange(x.date,mk)&&x.confirmed===true&&x.teacher===t)
     ||GW.some(g=>g.date&&wageInRange(g.date,mk)&&g.teacher===t)
     ||RENT.some(r=>r.date&&wageInRange(r.date,mk)&&r.teacher===t)
@@ -6028,7 +6041,7 @@ async function emailAll(){
 function exportCSV(){
   const mk=document.getElementById('monthSelect').value;const[y,mo]=mk.split('/');
   let csv='日期,時間,學員,課程,老師,師資費,類型,備註\n';
-  R.filter(r=>r.date&&wageInRange(r.date,mk)&&r.confirmed!==false).sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{
+  R.filter(r=>r.date&&wageInRange(r.date,mk)&&isWageRec(r)).sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{
     const s=S.find(x=>x.id===r.sid);if(!s)return;const t=r.isSub?r.subTeacher:(s.teacher||'其他');const fee=getRecFee(r,s);
     csv+=`${r.date},${r.time},${s.name},${s.course},${t},$${fee},${r.isSub?'代課':r.isUpgraded?'升級':'正式'},${r.manualNote||''}\n`;
   });
@@ -6526,7 +6539,7 @@ let editStuId='', ePayMethod='';
 async function deleteStu(sid){
   const s=S.find(x=>x.id===sid);if(!s)return;
   // 刪除會連同簽到記錄一起拿掉：已結算月份的老師薪資是用簽到記錄算的，刪了那幾個月的薪資就會憑空變少
-  const _confirmedRecs=R.filter(x=>x.sid===sid&&x.confirmed!==false);
+  const _confirmedRecs=R.filter(x=>x.sid===sid&&isWageRec(x));
   const _byMonth={};
   _confirmedRecs.forEach(r=>{const m=(r.date||'').slice(0,7);if(m)_byMonth[m]=(_byMonth[m]||0)+getRecFee(r,s)});
   const _impact=Object.keys(_byMonth).sort().map(m=>m+' 少 $'+_byMonth[m].toLocaleString()).join('、');
@@ -9513,7 +9526,7 @@ function gcDoManualMatch(idx,td){
 function showMonthReport(){
   const mk=document.getElementById('monthSelect').value;if(!mk)return;
   const[y,mo]=mk.split('/');
-  const monthR=R.filter(r=>monthKey(r.date)===mk&&r.confirmed!==false);
+  const monthR=R.filter(r=>monthKey(r.date)===mk&&isWageRec(r));
   const monthT=T.filter(t=>monthKey(t.date)===mk&&t.confirmed===true);
   // 場租：mode='deduct' 從老師薪資扣，代表這筆師資費其實沒付出去；mode='cash' 老師直接付現金給工作室，算工作室的額外收入
   const monthRentDeduct=RENT.filter(r=>r.date&&monthKey(r.date)===mk&&r.mode==='deduct').reduce((a,r)=>a+(r.fee||0),0);
@@ -9878,7 +9891,7 @@ function addDays(d,n){const dt=new Date(d);dt.setDate(dt.getDate()+n);return dt}
 function helperStatsRange(startStr,endStr){
   const inRange=ds=>ds&&ds>=startStr&&ds<=endStr;
   const monthR=R.filter(r=>inRange(r.date));
-  const confR=monthR.filter(r=>r.confirmed!==false);
+  const confR=monthR.filter(r=>isWageRec(r));
   const monthT=T.filter(t=>inRange(t.date));
   const confT=monthT.filter(t=>t.confirmed===true);
   const monthG=GW.filter(g=>inRange(g.date));
