@@ -9233,7 +9233,7 @@ async function gcMatchDay(ds,opts){
   const _sidDayCount={};
   for(const _e of _allEvs){
     const _p=GC.parseTitle(_e.ev.summary||'');
-    if(!_p||gcIsRent(_p.type))continue;
+    if(!_p||gcIsRent(_p.type)||/體驗/.test(_p.type||''))continue;
     const _s=gcMatchStudent(_p,_e.teacher);
     if(_s)_sidDayCount[_stuKey(_s)]=(_sidDayCount[_stuKey(_s)]||0)+1;
   }
@@ -9247,7 +9247,10 @@ async function gcMatchDay(ds,opts){
         rentEvents.push({key,teacher,time,label:gcRentLabel(parsed.type),note:(parsed.notes||[]).join('・')});
         continue;
       }
-      const stu=gcMatchStudent(parsed,teacher);
+      // 標題有「體驗」一律走下方體驗課流程，不拿去比對正課學員（與 gc_backfill.py 一致）：
+      // 名字「包含」比對或電話後 8 碼可能把體驗生誤配到別的學員課卡，變成扣別人堂數的正課，
+      // 體驗紀錄沒建、老師底下也看不到（2026-11-23 卓彥君 11/20 Bonnie Pilates體驗1on1 沒出現）
+      const stu=/體驗/.test(parsed.type||'')?null:gcMatchStudent(parsed,teacher);
       if(stu){
         matched.push({key,teacher,time,stu,parsed});
         if(writeSch){
