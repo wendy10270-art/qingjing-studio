@@ -326,6 +326,10 @@ def main():
             return True
 
         def same_stu(r, stu):
+            # 紙本補登（建卡時補的過去堂數，日期是建卡當天）不是那天上的課，不能擋掉當天真正的課
+            # （2026-11-23 蘇湘閔 11/19 漏補；與 index.html gcMatchDay 的 _sameStu 一致）
+            if r.get('note') == '紙本簽到':
+                return False
             if r.get('sid') == stu['id']:
                 return True
             rs = sid_by_id.get(r.get('sid'))

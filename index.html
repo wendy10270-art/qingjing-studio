@@ -3144,7 +3144,7 @@ function renderStudentZone(){
     const rc=remain<=0?'#A32D2D':remain<=3?'#8B6914':'#8B5E3C';
     const rb=remain<=0?'#FDEAEA':remain<=3?'#FFF8E0':'#F5EDE0';
     const rBorder=remain<=0?';border:0.5px solid #F0A0A0':remain<=3?';border:0.5px solid #E8C840':'';
-    const signed=R.find(r=>r.sid===s.id&&r.date===td);
+    const signed=R.find(r=>r.sid===s.id&&r.date===td&&!isPaperRec(r));
     const inToday=todaySids.has(s.id);
     const hasNote=s.cellNotes&&Object.values(s.cellNotes).some(v=>v);
     return`<div onclick="stuZoneSelect('${s.id}')" style="background:#fff;border:0.5px solid var(--brown4);border-radius:12px;padding:11px 13px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;cursor:pointer">
@@ -3344,7 +3344,7 @@ function onSearch(val){
   // 同名多張課卡：有可用堂數的排前面，用完的排後面並變灰
   results.sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')||((b.total-b.used>0)-(a.total-a.used>0)));
   list.innerHTML=results.map(s=>{
-    const rem=s.total-s.used;const st=R.find(r=>r.sid===s.id&&r.date===td);
+    const rem=s.total-s.used;const st=R.find(r=>r.sid===s.id&&r.date===td&&!isPaperRec(r));
     const rc=rem<=0?'var(--red)':rem<=3?'#B8860B':rem<=6?'var(--gold2)':'var(--gold)';
     const isOther=s.teacher!==curTeacher;
     return`<div class="stu-btn${st?' signed':''}" style="margin-bottom:8px;border:1.5px solid var(--border);background:var(--white)${rem<=0&&!st?';opacity:.55':''}" onclick="selectStu('${s.id}')">
@@ -3400,7 +3400,7 @@ function renderStuList(){
       ${items.map(item=>{
         if(item.type==='regular'){
           const s=S.find(x=>x.id===item.sl.sid);if(!s)return'';
-          const rem=s.total-s.used;const st=R.find(r=>r.sid===s.id&&r.date===td);
+          const rem=s.total-s.used;const st=R.find(r=>r.sid===s.id&&r.date===td&&!isPaperRec(r));
           const rc=rem<=0?'var(--red)':rem<=3?'#B8860B':rem<=6?'var(--gold2)':'var(--gold)';
           return`<div class="stu-btn${st?' signed':''}" onclick="selectStu('${s.id}')">
             <div><div class="stu-name-md">${s.name}</div><div class="stu-course-sm">${s.course}</div></div>
@@ -3619,7 +3619,7 @@ function renderCard(sid){
   // 接下來的課程日期表（在 signArea 之前渲染，避免 early return 漏掉）
   renderUpcomingArea(sid,'cardUpcomingArea');
 
-  const already=R.find(r=>r.sid===sid&&r.date===todayStr());
+  const already=R.find(r=>r.sid===sid&&r.date===todayStr()&&!isPaperRec(r));
   const sa=document.getElementById('signArea');
   sa.className='sign-section';
   const alreadyLeave=L.find(l=>l.sid===sid&&l.date===todayStr());
@@ -4374,7 +4374,7 @@ function renderCalendar(){
       slots.forEach(sl=>{
         if(sl.skip)return; // 跳過 skip 標記（用於取消固定課單次）
         const s=S.find(x=>x.id===sl.sid);if(!s)return;
-        const rec=R.find(r=>r.sid===s.id&&r.date===ds);
+        const rec=R.find(r=>r.sid===s.id&&r.date===ds&&!isPaperRec(r));
         const lv=L.find(l=>l.sid===s.id&&l.date===ds);
         evs.push({sid:s.id,stuName:s.name,course:s.course,teacher,time:sl.time||'',
           type:rec?'signed':lv?'leave':'confirmed',leaveType:lv?.type});
@@ -9286,8 +9286,10 @@ async function gcMatchDay(ds,opts){
         // 不分時段、也不管掛在哪張課卡上（sid 或同一個人的姓名＋電話都算數）。
         // 只有共用課卡真的一天多堂（同一個人當天 ≥2 個日曆事件）才退回「比對時段」，
         // 避免把第二堂誤判成重複濾掉。
+        // 紙本補登（建卡當天補的過去堂數）不是這天上的課，不能擋掉這天真正的課
+        // （2026-11-23 蘇湘閔：11/19 有上課，但同天有紙本補登 → 被當成已簽到，日曆比對從沒補進來）
         const _sameStu=r=>{
-          if(r.date!==ds)return false;
+          if(r.date!==ds||isPaperRec(r))return false;
           if(r.sid===stu.id)return true;
           const rs=S.find(x=>x.id===r.sid);
           return !!(rs&&_stuKey(rs)!=='|'&&_stuKey(rs)===_stuKey(stu));
@@ -9867,7 +9869,7 @@ function dayScheduleItems(dateObj){
       items.push({sid:s.id,name:s.name,teacher:s.teacher,time:s.nextBooking.time||'',trial:false,evType:'next'});
   });
   items.forEach(it=>{
-    const rec=R.find(r=>r.sid===it.sid&&r.date===td);
+    const rec=R.find(r=>r.sid===it.sid&&r.date===td&&!isPaperRec(r));
     const lv=L.find(l=>l.sid===it.sid&&l.date===td);
     // gcBackfilled 是日曆比對出來的，學員本人並沒有實際簽到，不能算「signed」，
     // 不然首頁會顯示「已簽到 ✓」誤導店長以為有人簽名
