@@ -654,6 +654,19 @@ input:focus,select:focus{border-color:var(--gold2)}
 .qj-now-btn:active{background:var(--gold)}
 .qj-row{background:#fff;border-radius:14px;padding:13px 14px;display:flex;align-items:center;gap:11px;cursor:pointer;min-height:58px}
 .qj-row.past{background:rgba(255,255,255,.6)}
+.course-type-row>span{white-space:nowrap}
+@media (max-width:520px){.course-type-name{display:none}}
+.qj-minor{background:#fff;border-radius:14px;margin-bottom:13px}
+.qj-minor>summary{list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:11px 14px;cursor:pointer;min-height:46px}
+.qj-minor>summary::-webkit-details-marker{display:none}
+.qj-minor>summary span{font-size:13px;color:var(--orange4);background:var(--orange2);border-radius:99px;padding:4px 10px}
+.qj-minor>summary em{font-style:normal;font-size:13px;color:var(--ink3);margin-left:auto}
+.qj-minor[open]>summary em{visibility:hidden}
+.qj-minor-body{padding:0 10px 1px}
+.qj-more>summary{list-style:none;cursor:pointer;font-size:14px;color:var(--ink3);text-align:center;padding:10px;border:1px dashed var(--border);border-radius:12px;min-height:44px}
+.qj-more>summary::-webkit-details-marker{display:none}
+.qj-more[open]>summary{margin-bottom:6px}
+.qj-more-body{display:flex;flex-direction:column;gap:6px}
 @media (min-width:700px){.qj-now-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (min-width:1100px){.qj-now-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 </style>
@@ -3627,18 +3640,23 @@ function renderCard(sid){
   const _ctColor=ct==='p'?'var(--ct-pilates)':ct==='s'?'var(--ct-strength)':'var(--ct-yoga)';
   const _ctBg=ct==='p'?'var(--ct-pilates2)':ct==='s'?'var(--ct-strength2)':'var(--ct-yoga2)';
   const _ctName=ct==='p'?'器械皮拉提斯':ct==='s'?'重訓':'瑜珈';
-  document.getElementById('cardTop').innerHTML=leaveAlertToday+leaveAlertUpcoming+unpaidAlert+undoRenewBanner+queuedBanner+lowSessAlert+installAlert+healthAlert+expiryAlert+noteAlert+adminActions+`<div class="stu-top" style="border-left:6px solid ${_ctColor}">
+  // 2026-11 版面 C：姓名＋剩餘堂數放最上面；要馬上處理的（老師今日請假、待收款、健康注意、分期該收、提早續課）
+  // 照舊完整顯示；其他提醒（老師近期請假、下一期排隊、堂數快用完、即將到期）收成一行，點開才看細節（按鈕都還在）
+  const _minor=[[leaveAlertUpcoming,'📅 老師近期請假'],[queuedBanner,'📦 下一期已排隊'],[lowSessAlert,`⚠️ 剩 ${remain} 堂`],[expiryAlert,'📅 課程即將到期']].filter(([h])=>h);
+  const minorAlerts=_minor.length?`<details class="qj-minor"><summary>${_minor.map(([,t])=>`<span>${t}</span>`).join('')}<em>點開看</em></summary><div class="qj-minor-body">${_minor.map(([h])=>h).join('')}</div></details>`:'';
+  document.getElementById('cardTop').innerHTML=`<div class="stu-top" style="border-left:6px solid ${_ctColor}">
     <div class="${ci.stripe} stripe"></div>
     <div class="stu-top-row">
       <div><div class="stu-name-big">${s.name}</div><div class="stu-meta">${s.phone}<br>指導老師：${s.teacher||'—'}　</div></div>
       <div class="remain-badge ${ci.rem}"><div class="remain-n">${remain}</div><div class="remain-lbl">堂　可　用</div></div>
     </div>
     <div class="course-type-row"><span style="background:${_ctBg};color:${_ctColor};border-radius:6px;padding:2px 9px;font-size:13px;font-weight:700">${_ctName}</span><div class="course-type-name">${parts[0]||''}</div><div class="course-ratio">${parts[1]||''}</div><div style="flex:1"></div><div style="font-size:13px;color:var(--ink3)">${s.used}／${s.total} 堂（${pct}%）</div></div>
-  </div>`;
+  </div>`+leaveAlertToday+unpaidAlert+healthAlert+installAlert+undoRenewBanner+minorAlerts+noteAlert+adminActions;
   // 課程進度：直向清單，一行一堂，像紙本簽到簿由上往下排，「本次」那一行金框放大凸顯
   // （2026-08-05 從格子牆改版：學員視角測試發現格子牆看不出「現在第幾堂」，備注塞在小格子裡也看不清楚）
-  let cells='';
+  let cells='';const _rowsArr=[]; // 每一堂一行；最後再決定哪些收合（2026-11 版面 C）
   for(let i=1;i<=s.total;i++){
+    if(cells){_rowsArr.push(cells);cells='';}
     const rec=recs.find(r=>r.session===i);const isNext=!rec&&i===s.used+1;
     const cn=s.cellNotes?.[i]||'';
     const noteBadge=cn?`<span class="prow-note-badge" title="${hEsc(cn)}">📝</span>`:'';
@@ -3674,6 +3692,15 @@ function renderCard(sid){
       </div>`;
     }
   }
+  if(cells)_rowsArr.push(cells);
+  // 堂數多時只顯示「本次」前 2 堂到後 1 堂，前面已上的、後面還沒上的各收成一行，點開可看全部（點每一行編輯備注照舊）
+  if(_rowsArr.length>6){
+    const nx=Math.min(s.used+1,s.total);const lo=Math.max(1,nx-2),hi=Math.min(s.total,nx+1);
+    const before=_rowsArr.slice(0,lo-1),mid=_rowsArr.slice(lo-1,hi),after=_rowsArr.slice(hi);
+    cells=(before.length?`<details class="qj-more"><summary>前面 ${before.length} 堂（已上）</summary><div class="qj-more-body">${before.join('')}</div></details>`:'')
+      +mid.join('')
+      +(after.length?`<details class="qj-more"><summary>還有 ${after.length} 堂未上</summary><div class="qj-more-body">${after.join('')}</div></details>`:'');
+  }else cells=_rowsArr.join('');
   // 備注一覽：格子太小塞不下完整文字，這裡列出所有有備注的堂數，字看得清楚、點了直接編輯
   const noteEntries=Object.entries(s.cellNotes||{}).map(([k,v])=>[parseInt(k),v]).filter(([k,v])=>v&&k<=s.total).sort((a,b)=>a[0]-b[0]);
   const notesList=noteEntries.length?`<div class="card" style="margin-top:10px"><div class="card-hd">📝 備注一覽（${noteEntries.length}）</div><div style="padding:4px 15px 13px">
