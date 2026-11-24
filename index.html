@@ -1950,14 +1950,32 @@ function genPaperSigninRecords(sid,n,dateStr){
   }
 }
 
+// 2026-11-24 事故：手機／iPad Safari 的 localStorage 約 5MB，簽到記錄含簽名圖、又存了兩份（qjf_r＋合併快照
+// qjf_base_qingjing/r），空間滿了 setItem 會丟 QuotaExceededError。原本 save() 沒接住，例外直接中斷，
+// 後面的 syncToFirebase() 從沒執行——簽到只寫進新結構 records、主資料 r 沒存到，畫面也停在課卡（按確認像沒反應）。
+// 現在：本機寫入失敗時先清掉可重建的合併快照（記憶體裡還有一份，雲端是正本）再試一次；無論本機存不存得進去，
+// 一律繼續同步雲端。
+var _lsQuotaWarned=false;
+function _lsSet(key,val){
+  try{localStorage.setItem(key,val);return true;}
+  catch(e){
+    try{Object.keys(localStorage).filter(k=>k.startsWith('qjf_base_')).forEach(k=>localStorage.removeItem(k));}catch(e2){}
+    try{localStorage.setItem(key,val);return true;}
+    catch(e3){
+      console.warn('localStorage 寫入失敗（空間不足）：',key,e3);
+      if(!_lsQuotaWarned){_lsQuotaWarned=true;try{showToast('⚠ 這台裝置的本機空間已滿，資料仍會存到雲端','r');}catch(e4){}}
+      return false;
+    }
+  }
+}
 function save(){
-  // 本地備份
-  localStorage.setItem('qjf_s',JSON.stringify(S));
-  localStorage.setItem('qjf_ledger',JSON.stringify(LEDGER));
-  localStorage.setItem('qjf_r',JSON.stringify(R));
-  localStorage.setItem('qjf_sch',JSON.stringify(SCH));
-  localStorage.setItem('qjf_t',JSON.stringify(T));
-  localStorage.setItem('qjf_l',JSON.stringify(L));
+  // 本地備份（存不進去也不能擋住雲端同步）
+  _lsSet('qjf_s',JSON.stringify(S));
+  _lsSet('qjf_ledger',JSON.stringify(LEDGER));
+  _lsSet('qjf_r',JSON.stringify(R));
+  _lsSet('qjf_sch',JSON.stringify(SCH));
+  _lsSet('qjf_t',JSON.stringify(T));
+  _lsSet('qjf_l',JSON.stringify(L));
   // Firebase 雲端同步
   syncToFirebase();
   // 只在管理後台開著時才重算 Dashboard（避免每次簽到都執行不必要的計算）
@@ -1984,7 +2002,7 @@ function decSchKeys(sch){const o={};Object.keys(sch||{}).forEach(k=>{o[k.replace
 function _applyServerTs(resolved){
   if(!resolved||!resolved.lastUpdated)return;
   _localLastUpdated=resolved.lastUpdated;
-  localStorage.setItem('qjf_localTs',String(_localLastUpdated));
+  _lsSet('qjf_localTs',String(_localLastUpdated));
 }
 // _pendingWrite：本機是否有「已呼叫 syncToFirebase，但雲端還沒確認寫入成功」的變更。
 // 2026-07-27 事故：Firebase 用量超標期間，簽到寫入雲端全部失敗，但 syncToFirebase()
@@ -1996,7 +2014,7 @@ function _applyServerTs(resolved){
 // 這個 flag 還是 true，就絕對不接受覆蓋，並自動重試寫入，直到真的成功為止。
 let _saveGen=0; // 每次 syncToFirebase +1；寫入完成時用來判斷期間有沒有新變動
 let _pendingWrite=localStorage.getItem('qjf_pendingWrite')==='1';
-function _setPendingWrite(v){_pendingWrite=v;localStorage.setItem('qjf_pendingWrite',v?'1':'0');}
+function _setPendingWrite(v){_pendingWrite=v;try{localStorage.setItem('qjf_pendingWrite',v?'1':'0');}catch(e){_lsSet('qjf_pendingWrite',v?'1':'0');}}
 let _writeRetryTimer=null;
 // 整包陣列型資料（流水帳／場租／GC核銷／場租設定／支出）的「未確認寫入」保護：
 // 以前寫入失敗（離線、配額、規則擋下）只 console.warn，本機有新增、雲端沒有；下次載入時
@@ -2251,7 +2269,7 @@ function syncToFirebase(){
   _lastSaveMs=Date.now();
   _saveGen++;
   _localLastUpdated=Date.now();
-  localStorage.setItem('qjf_localTs',String(_localLastUpdated));
+  _lsSet('qjf_localTs',String(_localLastUpdated));
   _setPendingWrite(true);
   // 若 800ms 內又呼叫（如連續簽到），clearTimeout 取消舊計時器，
   // _schChanged 仍保持 true，新計時器觸發時才讀取並 reset

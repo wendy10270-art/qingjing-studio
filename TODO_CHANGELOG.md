@@ -46,6 +46,7 @@
 - [ ] 時區：app 端 GC.getTime／dayEvents 用瀏覽器本機時區、gc_backfill.py event_time 用字串切片；backup-db.js 日期 key 用 toLocaleString 再解析；gc_backfill.py「hour<12 視為前一天」手動補今天會被退回昨天
 - [ ] 日曆事件無分頁：webhook maxResults=250、gc_backfill.py 單日 100，超過沒警告
 - [ ] 前一天 LINE 提醒讀 SCH[td]，日曆事件於同步後才被取消時 SCH 舊資料不會清除（推論，待確認明日 SCH 來源）
+- [ ] 本機空間長期解：簽名圖（sig）不要存在 localStorage 的兩份資料裡（或改 IndexedDB），否則資料再長大仍會逼近 Safari 上限；11-24 的修正只保證滿了也會同步雲端（2026-11-24）
 - [ ] 架構整理（不急）：index.html 已約 10000 行（CLAUDE.md 寫約 6000 行，可更新）；先抽 CSS 與 colMerge／時間函式／身分比對等純函式，用普通 script 不上打包，新增檔案要加進 qj-sw.js 快取清單並更新 CACHE；補 colMerge 單元測試；webhook.js 1396 行拆 lib（先補快照測試）；console.log 殘留約 9 處
 
 ---
@@ -55,6 +56,7 @@
 > 2026-07 ～ 2026-10 由 git 歷史整理（268 個 commit 精選）；之後每筆格式：`日期｜改了什麼｜原因｜commit`
 
 ### 2026-11
+- 11-24｜🚨 本機空間滿導致簽到沒存到主資料：save() 的 localStorage.setItem 改走 _lsSet（失敗先清掉 qjf_base_* 合併快照再試；仍失敗就跳一次提示），syncToFirebase／_setPendingWrite／_applyServerTs 的本機寫入也包起來；無論本機存不存得進去都一定繼續同步雲端｜手機／iPad Safari localStorage 約 5MB，簽到記錄含簽名圖（r 約 0.91M 字元）又存兩份（qjf_r＋qjf_base_qingjing/r），滿了 setItem 丟 QuotaExceededError；原本 save() 沒接住，confirmSig 在 dualWriteAddRecord 之後中斷：新結構 records 有寫、主資料 r／s.used 沒存、畫面停在課卡像按不動，小幫手連按 → 11/24 11:22～11:30 田宇秀 3 筆、陳柏伶 11 筆只進 records，主資料 r 今天 0 筆。快照清掉後 colMerge 退為聯集（不會誤刪雲端資料）｜`9adc1e7`（離線預覽模擬空間滿：舊版丟 QuotaExceededError、停在課卡、未排雲端同步；新版進成功畫面、排定同步、跳提示；未在正式站實測。今天遺失的簽到待老闆確認後補回主資料，新結構 records 的重複筆數待清）
 - 11-24｜版面 C 收尾：①簽到成功畫面上方收緊、「完成，返回首頁」（含 60 秒撤銷）固定在畫面底部（#successActions sticky）②學員專區頂端（stuZoneHeader、setStuFilter）由深咖啡改淺色，搜尋框與篩選鈕放大，跟首頁一致③後台分頁 aTab 改用 data-tab 名稱對應 active（原本用排列順序 ns[i]，中間插分頁就整排對錯）｜原本「完成」在 LINE 訊息下面要捲到底才找得到；學員專區跟改版後首頁風格不一致；aTab 順序對應是潛在地雷｜`f3f30c0`（離線預覽＋假資料：簽到後完成鈕固定在底部、按下回首頁；學員專區篩選切換顏色正確；8 個後台分頁 active 與頁面都對；未在正式站實測）
 - 11-24｜後台備份警告改看雲端每日自動備份：renderBackupBar／getBackupStatus 改查公開 repo 的 GitHub Actions「每日全庫自動備份」最近一次成功時間（api.github.com，未登入、快取 30 分鐘、失敗 5 分鐘內不重查），36 小時內綠色「雲端備份正常 ✓」、36～60 小時橘色「延遲」、超過 60 小時紅色「雲端備份停了！」、查不到顯示「無法確認」；原本的手動下載改成次要按鈕「下載備份檔」並註明這台裝置上次下載時間｜老闆看到「已超過 601 小時未備份」以為系統 25 天沒備份；實際上那只是這台裝置 qjf_lastBackup（手動下載檔案）時間，雲端每天都有成功備份（11/23：77 位、623 筆、帳 200 筆），紅燈常亮會讓人麻痺、真停了反而沒人發現。不讀 Firebase qingjing_backups（10-07 規則刻意拒絕前端讀）、不改 webhook（免 vercel --prod）｜`f8f5989`（離線預覽：斷網顯示無法確認且只發 1 次請求；以真實最近成功時間 11/23 07:16 顯示正常，模擬 45／80 小時分別顯示延遲／停了；未在正式站實測）
 - 11-24｜薪資總覽版面 C：月份＋月報表一排；週結區改白底卡片；CSV／複製全部薪資歸「匯出（只在這台裝置）」，全部寄送 Email 獨立成「寄給老師（會真的寄出）」區、橘框區隔；emailAll 在重複計薪檢查之後、實際寄出前加 confirm，列出期間（月或週結區間）與所有收件老師／工讀生，按取消不寄｜原本 8 顆按鈕同一排同樣大小，「全部寄送 Email」緊鄰 CSV，一按就整批寄出且無法收回｜`db96905`（離線預覽＋假資料：手機與桌機版面；confirm 取消 → 寄 0 封、確定 → 依序呼叫 sendPayrollEmail（以 stub 代替，未真的寄）；未在正式站實測）
