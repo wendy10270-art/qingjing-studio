@@ -665,6 +665,14 @@ input:focus,select:focus{border-color:var(--gold2)}
 .qj-mgr-more>summary::after{content:' ▾'}
 .qj-mgr-more[open]>summary::after{content:' ▴'}
 .qj-mgr-more .smc-pay{margin-top:4px}
+.qj-wage-btn{min-height:42px}
+.month-select{min-height:42px}
+.month-bar .month-select{flex:1 1 180px;width:auto;max-width:360px}
+.qj-wage-week{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;background:#fff;border-radius:12px;padding:10px 12px}
+.qj-wage-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch;margin-bottom:12px}
+.qj-wage-group{background:#fff;border-radius:12px;padding:10px 12px;flex:1 1 220px}
+.qj-wage-send{flex:0 1 auto;border:1px dashed var(--orange3)}
+.qj-wage-lbl{font-size:13px;color:var(--ink3);margin-bottom:7px}
 .qj-minor{background:#fff;border-radius:14px;margin-bottom:13px}
 .qj-minor>summary{list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:11px 14px;cursor:pointer;min-height:46px}
 .qj-minor>summary::-webkit-details-marker{display:none}
@@ -985,21 +993,34 @@ const db={
       </div>
       <div id="wageSubWage" style="display:none">
       <div class="stat-row" id="statRow"></div>
+      <!-- 2026-11 版面 C：「看／匯出」跟「對外寄信」分開，寄信按鈕獨立一區並先確認，避免跟 CSV 混在一起誤按 -->
       <div class="month-bar">
         <select class="month-select" id="monthSelect" onchange="wageBackToMonth()"></select>
-        <button class="export-btn btn-csv" onclick="exportCSV()">↓ CSV</button>
-        <button class="export-btn btn-copy-all" onclick="copyAll()">複製全部薪資</button>
-        <button class="export-btn" onclick="emailAll()" style="background:var(--gold4);color:var(--gold);border:1px solid var(--gold2)">✉️ 全部寄送Email</button>
-        <button class="export-btn" onclick="showMonthReport()" style="background:var(--teal2);color:var(--teal);border:1px solid var(--teal3)">📊 月報表</button>
+        <button class="export-btn qj-wage-btn" onclick="showMonthReport()" style="background:var(--teal2);color:var(--teal);border:1px solid var(--teal3)">📊 月報表</button>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 4px;background:var(--white);border:1.5px dashed var(--gold2);border-radius:11px;padding:10px 12px">
-        <span style="font-size:13px;color:var(--ink3);letter-spacing:1px">📆 週結</span>
-        <button class="export-btn" onclick="setWageWeek(-1)" style="background:var(--gold);color:#fff;border:none">上週（一～日）</button>
-        <button class="export-btn" onclick="setWageWeek(0)">本週</button>
-        <input type="date" id="wageStart" class="native-date-inp" style="width:auto;margin:0;padding:7px 8px;font-size:14px">
-        <span style="color:var(--ink3);font-size:13px">～</span>
-        <input type="date" id="wageEnd" class="native-date-inp" style="width:auto;margin:0;padding:7px 8px;font-size:14px">
-        <button class="export-btn" onclick="applyWageRange()">套用區間</button>
+      <div class="qj-wage-week">
+        <span style="font-size:13px;color:var(--ink3)">📆 週結</span>
+        <button class="export-btn qj-wage-btn" onclick="setWageWeek(-1)" style="background:var(--gold);color:#fff;border:none">上週（一～日）</button>
+        <button class="export-btn qj-wage-btn" onclick="setWageWeek(0)">本週</button>
+        <span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <input type="date" id="wageStart" class="native-date-inp" style="width:auto;margin:0;padding:7px 8px;font-size:14px">
+          <span style="color:var(--ink3);font-size:13px">～</span>
+          <input type="date" id="wageEnd" class="native-date-inp" style="width:auto;margin:0;padding:7px 8px;font-size:14px">
+          <button class="export-btn qj-wage-btn" onclick="applyWageRange()">套用區間</button>
+        </span>
+      </div>
+      <div class="qj-wage-actions">
+        <div class="qj-wage-group">
+          <div class="qj-wage-lbl">匯出（只在這台裝置）</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="export-btn btn-csv qj-wage-btn" onclick="exportCSV()">↓ CSV</button>
+            <button class="export-btn btn-copy-all qj-wage-btn" onclick="copyAll()">複製全部薪資</button>
+          </div>
+        </div>
+        <div class="qj-wage-group qj-wage-send">
+          <div class="qj-wage-lbl">寄給老師（會真的寄出）</div>
+          <button class="export-btn qj-wage-btn" onclick="emailAll()" style="background:#fff;color:var(--orange);border:1.5px solid var(--orange3)">✉️ 全部寄送 Email</button>
+        </div>
       </div>
       <div id="wageDupWarning"></div>
       <div class="section-label" id="wageSectionLabel"></div>
@@ -6135,6 +6156,9 @@ async function emailAll(){
   const hourlyTargets=Object.keys(HOURLY_STAFF).filter(n=>(HOURLY_STAFF[n].email||'').trim());
   const total=teacherTargets.length+hourlyTargets.length;
   if(!total){showToast('尚未有任何老師／工讀生設定 Email','r');return;}
+  // 2026-11 加：一按就整批寄出且無法收回，先列出對象與期間讓店長確認
+  const _period=(_wageMode==='range'&&_wageStart&&_wageEnd)?`${_wageStart}～${_wageEnd}（週結）`:(()=>{const[y,mo]=String(mk).split('/');return mo?`${y}年${parseInt(mo)}月`:mk})();
+  if(!confirm(`確定要寄出薪資 Email 嗎？寄出後無法收回。\n\n期間：${_period}\n對象（${total} 位）：${[...teacherTargets,...hourlyTargets].join('、')}`))return;
   showToast(`寄送中…（共 ${total} 位）`);
   let ok=0;
   for(const t of teacherTargets){if(await sendPayrollEmail(t,mk,{silent:true}))ok++;}
