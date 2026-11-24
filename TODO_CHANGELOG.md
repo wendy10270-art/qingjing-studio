@@ -25,7 +25,7 @@
 
 高優先
 - [ ] 備份範圍漏節點：backup-db.js READ_PATHS 只有 qingjing、qingjing_ledger，未含 line_bindings、line_bindings_teacher、teacher_phones/calmap/emails、rent、expenses、gw，被清空無法還原；備份計數也只算 ledger（改完需 vercel --prod）
-- [ ] 排程失敗無主動告警：daily-backup／gc-backfill／teacher-reminder／daily-digest 四個 workflow 只有腳本內部 except 才推 ntfy，未捕捉例外、secret 未設、cron 被略過都只留紅燈；backup-db.js 消失偵測自己比對失敗只寫進 alerts.error，workflow 沒讀。建議各 job 加 if: failure() 推 ntfy＋「今天沒備份」守門（改 workflow 需老闆自己從網頁改，PAT 無 workflow scope）。另備份還原演練記錄中未見，建議演練一次
+- [ ] 排程失敗無主動告警（11-24 已讓後台備份列在雲端備份超過 60 小時沒成功時變紅，其他三個排程仍無）：daily-backup／gc-backfill／teacher-reminder／daily-digest 四個 workflow 只有腳本內部 except 才推 ntfy，未捕捉例外、secret 未設、cron 被略過都只留紅燈；backup-db.js 消失偵測自己比對失敗只寫進 alerts.error，workflow 沒讀。建議各 job 加 if: failure() 推 ntfy＋「今天沒備份」守門（改 workflow 需老闆自己從網頁改，PAT 無 workflow scope）。另備份還原演練記錄中未見，建議演練一次
 - [ ] 全天事件只有 searchStudentEvents 擋掉，其他路徑沒擋：明日通知 GC.tomorrowEvents 全天事件 getTime 回假的 10:00 會發假提醒；gcMatchDay／gc_backfill.py 全天事件被當已結束可能補「未簽到」；webhook findUpcomingBookings 仍會產出 time:'' 的假課程（需 vercel --prod）
 - [ ] 取消判斷在 LINE 查課卡「未來預約」被繞過：cancelRe 只認標題開頭「取消」，「王小明 0912（取消）」命中姓名就直接 return true；「已取消」「【取消】」「1on1｜名 取消」都判成正常課。需老闆定義有哪些取消寫法，再抽成單一判斷函式
 
@@ -56,6 +56,7 @@
 > 2026-07 ～ 2026-10 由 git 歷史整理（268 個 commit 精選）；之後每筆格式：`日期｜改了什麼｜原因｜commit`
 
 ### 2026-11
+- 11-24｜後台備份警告改看雲端每日自動備份：renderBackupBar／getBackupStatus 改查公開 repo 的 GitHub Actions「每日全庫自動備份」最近一次成功時間（api.github.com，未登入、快取 30 分鐘、失敗 5 分鐘內不重查），36 小時內綠色「雲端備份正常 ✓」、36～60 小時橘色「延遲」、超過 60 小時紅色「雲端備份停了！」、查不到顯示「無法確認」；原本的手動下載改成次要按鈕「下載備份檔」並註明這台裝置上次下載時間｜老闆看到「已超過 601 小時未備份」以為系統 25 天沒備份；實際上那只是這台裝置 qjf_lastBackup（手動下載檔案）時間，雲端每天都有成功備份（11/23：77 位、623 筆、帳 200 筆），紅燈常亮會讓人麻痺、真停了反而沒人發現。不讀 Firebase qingjing_backups（10-07 規則刻意拒絕前端讀）、不改 webhook（免 vercel --prod）｜（待填 commit）（離線預覽：斷網顯示無法確認且只發 1 次請求；以真實最近成功時間 11/23 07:16 顯示正常，模擬 45／80 小時分別顯示延遲／停了；未在正式站實測）
 - 11-24｜薪資總覽版面 C：月份＋月報表一排；週結區改白底卡片；CSV／複製全部薪資歸「匯出（只在這台裝置）」，全部寄送 Email 獨立成「寄給老師（會真的寄出）」區、橘框區隔；emailAll 在重複計薪檢查之後、實際寄出前加 confirm，列出期間（月或週結區間）與所有收件老師／工讀生，按取消不寄｜原本 8 顆按鈕同一排同樣大小，「全部寄送 Email」緊鄰 CSV，一按就整批寄出且無法收回｜`db96905`（離線預覽＋假資料：手機與桌機版面；confirm 取消 → 寄 0 封、確定 → 依序呼叫 sendPayrollEmail（以 stub 代替，未真的寄）；未在正式站實測）
 - 11-24｜學員管理卡片版面 C：上方只留姓名、課程・老師、剩餘堂數、課卡／續課／收款完成／編輯（按鈕放大到 40px 高）、健康注意與提醒按鈕；付款明細、師資費、續課獎金、歷史購課、固定排課、「＋ 另開新方案（新課卡）」與「停用這位學員」收進可展開的「付款明細・排課・更多」，停用放最下面且跟其他按鈕分開；展開狀態用 _mgrOpenSet() 記住，重畫不會收回｜手機上 6 顆按鈕被擠成直排單字、每位學員佔半個螢幕；停用按鈕和課卡／續課並排容易誤按。停用與永久刪除分開的設計（b34bf2b）不變，deactivateStu 沒改｜`eeb597d`（離線預覽＋假資料：手機與桌機兩欄、展開後重畫仍保持展開、console 無錯誤；未在正式站實測）
 - 11-24｜課卡版面 C：姓名＋剩餘堂數移到最上面；要馬上處理的橫幅（老師今日請假、待收款、健康注意、分期該收、提早續課）照舊完整顯示，其他（老師近期請假、下一期排隊、堂數快用完、即將到期）收成一行標籤、點開看細節（按鈕都在）；課程進度超過 6 堂時只顯示「本次」前 2 到後 1 堂，前後各收成「前面 N 堂（已上）」「還有 N 堂未上」可展開；手機隱藏與課程標籤重複的課程名｜老闆反映介面醜、小幫手操作為主：原本最多 10 條橫幅疊在姓名前面、20 堂課卡要捲很久才到簽名區｜`7214bdc`（只改 renderCard 的 cardTop／gridCard HTML 組合順序與收合，簽名區 signArea、ghostRec、扣堂、editCellNote 都沒動；離線預覽＋假資料實測：20 堂卡 20 行都在、16 行收合、兩個展開都正常、iPad 橫放雙欄正常；未在正式站實測）

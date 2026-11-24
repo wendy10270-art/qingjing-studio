@@ -8696,20 +8696,54 @@ function confirmCalAddCourse(){
 function getLastBackupTime(){return parseInt(localStorage.getItem('qjf_lastBackup')||'0')}
 function setLastBackupTime(){localStorage.setItem('qjf_lastBackup',Date.now().toString())}
 
-function getBackupStatus(){
-  const last=getLastBackupTime();
-  if(!last)return{level:'danger',label:'從未備份',sub:'建議立即備份，避免資料遺失'};
-  const hrs=Math.round((Date.now()-last)/3600000);
-  if(hrs<12)return{level:'ok',label:'備份正常',sub:'上次備份：'+hrs+'小時前'};
-  if(hrs<24)return{level:'warn',label:'建議備份',sub:'已超過 '+hrs+' 小時未備份'};
-  return{level:'danger',label:'請立即備份！',sub:'已超過 '+hrs+' 小時未備份，資料有風險'};
+// 2026-11-24：備份警告改看「雲端每日自動備份」。原本只看這台裝置上次按「立即備份」下載檔案的時間
+// （qjf_lastBackup，每台裝置各記各的），雲端每天都有備份卻常年亮紅燈「已超過 601 小時未備份」，
+// 大家看久了就不理，等雲端備份真的停了反而沒人發現。
+// 雲端備份狀態來源：公開 repo 的 GitHub Actions「每日全庫自動備份」最近一次成功時間——workflow 只有在
+// backup-db API 回 200（資料確實寫進 qingjing_backups）才算成功，cron 被略過或 API 壞了都會讓這個時間停住。
+// 不走 Firebase：qingjing_backups 規則刻意拒絕前端讀取（10-07 白名單），也不用另開 webhook 端點。
+// GitHub 未登入 API 每小時 60 次（同一個 IP），結果快取 30 分鐘。
+const CLOUD_BACKUP_RUNS_URL='https://api.github.com/repos/wendy10270-art/qingjing-studio/actions/workflows/daily-backup.yml/runs?status=success&per_page=1';
+var _cloudBackup=(()=>{try{return JSON.parse(localStorage.getItem('qj_cloudBackupCache')||'null')}catch(e){return null}})();
+var _cloudBackupFetching=false;
+async function fetchCloudBackupStatus(force){
+  if(_cloudBackupFetching)return;
+  // 成功結果快取 30 分鐘；查詢失敗 5 分鐘內不重查（否則 render→查詢→失敗→render 會一直打 GitHub）
+  if(!force&&_cloudBackup&&Date.now()-(_cloudBackup.checkedAt||0)<(_cloudBackup.error?5:30)*60*1000)return;
+  _cloudBackupFetching=true;
+  try{
+    const r=await fetch(CLOUD_BACKUP_RUNS_URL,{headers:{Accept:'application/vnd.github+json'}});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const j=await r.json();const run=(j.workflow_runs||[])[0];
+    _cloudBackup={at:run?Date.parse(run.updated_at||run.created_at)||0:0,checkedAt:Date.now()};
+    try{localStorage.setItem('qj_cloudBackupCache',JSON.stringify(_cloudBackup));}catch(e){}
+  }catch(e){
+    console.warn('cloud backup status:',e);
+    // 查不到時保留上一次查到的時間（標記 error），畫面顯示「無法確認」而不是誤報正常
+    _cloudBackup={...(_cloudBackup||{}),error:true,checkedAt:Date.now()};
+  }finally{_cloudBackupFetching=false;}
+  renderBackupBar();
 }
-
+function _fmtBackupAt(ms){const d=new Date(ms);return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}
+function getBackupStatus(){
+  const cb=_cloudBackup;
+  if(!cb||(!cb.at&&!cb.error))return{level:'warn',label:'正在確認雲端備份…',sub:'每天凌晨 2 點自動備份到雲端'};
+  if(!cb.at)return{level:'warn',label:'無法確認雲端備份',sub:'連不上 GitHub，稍後再看一次；資料仍在雲端，不影響使用'};
+  const hrs=(Date.now()-cb.at)/3600000;
+  const when='最近一次：'+_fmtBackupAt(cb.at)+(cb.error?'（剛剛沒查到最新狀態）':'');
+  // 排程台北 02:00，GitHub 常延遲 4～8 小時，正常兩次成功最多相隔約 32 小時
+  if(hrs<36)return{level:'ok',label:'雲端備份正常 ✓',sub:when+'・每天凌晨自動備份'};
+  if(hrs<60)return{level:'warn',label:'雲端備份延遲',sub:when+'・GitHub 排程偶爾會晚，明天早上再看一次'};
+  return{level:'danger',label:'雲端備份停了！',sub:when+'（'+Math.floor(hrs/24)+' 天前）・請通知工程師檢查每日備份排程'};
+}
 function renderBackupBar(){
   const el=document.getElementById('backupBar');if(!el)return;
   const st=getBackupStatus();
+  const last=getLastBackupTime();
+  const localTxt=last?'這台裝置上次下載備份檔：'+_fmtBackupAt(last):'這台裝置沒有下載過備份檔';
   el.className='backup-bar '+st.level;
-  el.innerHTML=`<div class="backup-bar-left"><div class="backup-bar-ttl">${st.label}</div><div class="backup-bar-sub">${st.sub}</div></div><button class="backup-btn" onclick="doBackup()">立即備份</button>`;
+  el.innerHTML=`<div class="backup-bar-left"><div class="backup-bar-ttl">${st.label}</div><div class="backup-bar-sub">${st.sub}</div><div class="backup-bar-sub" style="opacity:.65;margin-top:3px">${localTxt}（選用，另存一份到這台裝置）</div></div><button class="backup-btn" onclick="doBackup()" style="background:#fff;color:var(--ink2);border:1px solid var(--border)">下載備份檔</button>`;
+  fetchCloudBackupStatus(false);
 }
 
 function doBackup(){
