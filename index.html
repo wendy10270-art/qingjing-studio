@@ -656,6 +656,15 @@ input:focus,select:focus{border-color:var(--gold2)}
 .qj-row.past{background:rgba(255,255,255,.6)}
 .course-type-row>span{white-space:nowrap}
 @media (max-width:520px){.course-type-name{display:none}}
+.smc{border-color:#EEE6DA;border-radius:14px}
+.qj-mgr-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.qj-mgr-btn{min-height:40px;padding:6px 16px;border:1px solid;border-radius:10px;font-size:14px;cursor:pointer;font-family:'Noto Sans TC',sans-serif}
+.qj-mgr-more{margin-top:10px;border-top:1px solid var(--bg2)}
+.qj-mgr-more>summary{list-style:none;cursor:pointer;font-size:13px;color:var(--ink3);padding:10px 2px 2px;min-height:36px}
+.qj-mgr-more>summary::-webkit-details-marker{display:none}
+.qj-mgr-more>summary::after{content:' ▾'}
+.qj-mgr-more[open]>summary::after{content:' ▴'}
+.qj-mgr-more .smc-pay{margin-top:4px}
 .qj-minor{background:#fff;border-radius:14px;margin-bottom:13px}
 .qj-minor>summary{list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:11px 14px;cursor:pointer;min-height:46px}
 .qj-minor>summary::-webkit-details-marker{display:none}
@@ -6161,6 +6170,9 @@ function exportCSV(){
 }
 
 // ── 學員管理 ──
+// 學員管理卡「付款明細・排課・更多」展開狀態：renderMgrList 常被重畫（搜尋、存檔），用 Set 記住才不會一直收回去
+function _mgrOpenSet(){return window.__qjMgrOpen||(window.__qjMgrOpen=new Set());}
+function mgrToggleMore(id,open){if(open)_mgrOpenSet().add(id);else _mgrOpenSet().delete(id);}
 function renderMgrList(){
   sweepQueuedCards();
   sweepExpiredNextBookings();
@@ -6186,39 +6198,53 @@ function renderMgrList(){
     if(s.expiryDate){const ed2=parseDate(s.expiryDate);const diff2=Math.ceil((ed2-new Date())/(864e5));if(diff2>=0&&diff2<=14)mgrReminders.push('<button onclick="copyText(generateExpiryMsg(\''+jsQ(s.name)+'\',\''+jsQ(s.expiryDate)+'\','+rem+'),\'✓ 已複製到期提醒訊息\')" style="padding:5px 11px;background:#FFF4EE;border:1px solid #F5C4A1;border-radius:7px;font-size:13px;cursor:pointer;color:#C05A20">💬 到期提醒</button>');}
     if(s.installment&&s.installEvery&&s.used>0&&s.used%s.installEvery===0&&s.used<s.total)mgrReminders.push('<button onclick="copyText(generateInstallMsg(\''+jsQ(s.name)+'\','+s.used+'),\'✓ 已複製分期繳費提醒訊息\')" style="padding:5px 11px;background:var(--teal2);border:1px solid var(--teal3);border-radius:7px;font-size:13px;cursor:pointer;color:var(--teal)">💬 分期提醒</button>');
     const mgrReminderRow=mgrReminders.length?'<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--bg2);display:flex;gap:6px;flex-wrap:wrap">'+mgrReminders.join('')+'</div>':'';
+    // 2026-11 版面 C：卡片上方只留「每天會用到的」（姓名、課程、剩餘堂數、課卡／續課／收款／編輯、健康注意、提醒）；
+    // 付款明細、歷史購課、排課、＋方案、停用收進「付款明細・排課・更多」，停用放最下面跟其他按鈕分開，避免誤按
+    const _b=(fn,label,bg,bd,col,extra)=>'<button onclick="'+fn+'(\''+s.id+'\')" class="qj-mgr-btn" style="background:'+bg+';border-color:'+bd+';color:'+col+(extra||'')+'">'+label+'</button>';
+    const _open=_mgrOpenSet().has(s.id);
     return '<div class="smc" style="border-left:5px solid '+remColor+'">'+
       '<div class="smc-top">'+
-        '<div>'+
-          '<div style="display:flex;align-items:center;gap:8px">'+
-            '<div class="smc-name">'+_ctChip+s.name+pill+(s.queued&&s.queued.length?'<span style="display:inline-block;background:#EEF0FF;color:#3D47C4;border:1px solid #B8BEF0;border-radius:4px;padding:1px 8px;font-size:13px;margin-left:6px;vertical-align:middle">📦 下一期 x'+s.queued.length+'</span>':'')+(s.paymentStatus==="unpaid"?'<span style="display:inline-block;background:var(--orange2);color:var(--orange);border:1px solid var(--orange3);border-radius:4px;padding:1px 8px;font-size:13px;margin-left:6px;vertical-align:middle">待收款 ⚠</span>':'')+'</div>'+
-            ('<button onclick="selectStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--gold4);border:1px solid var(--gold2);border-radius:6px;font-size:13px;cursor:pointer;color:var(--gold)">課卡</button>')+('<button onclick="openEditStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:13px;cursor:pointer;color:var(--ink2);margin-left:5px">編輯</button>')+('<button onclick="openRenewStu(\'' + s.id + '\')" style="padding:3px 10px;background:var(--teal2);border:1px solid var(--teal3);border-radius:6px;font-size:13px;cursor:pointer;color:var(--teal);margin-left:5px">續課</button>')+(s.paymentStatus==='unpaid'?('<button onclick="openCollectPay(\'' + s.id + '\')" style="padding:3px 10px;background:var(--orange2);border:1px solid var(--orange3);border-radius:6px;font-size:13px;cursor:pointer;color:var(--orange);margin-left:5px;font-weight:600">收款完成</button>'):'')+('<button onclick="openAddPlanForStu(\'' + s.id + '\')" style="padding:3px 10px;background:#EEF0FF;border:1px solid #B8BEF0;border-radius:6px;font-size:13px;cursor:pointer;color:#3D47C4;margin-left:5px">＋方案</button>')+('<button onclick="deactivateStu(\'' + s.id + '\')" title="停用：名單、課表、搜尋不再顯示，歷史簽到、薪資、帳本完整保留，可隨時復原" style="padding:3px 10px;background:var(--orange2);border:1px solid var(--orange);border-radius:6px;font-size:13px;cursor:pointer;color:var(--orange);margin-left:5px">停用</button>')+
-          '</div>'+
-          '<div class="smc-sub">'+s.course+'・'+s.teacher+'老師<br>師資費 $'+getDefaultFee(s.teacher,s.course)+'/堂'+(s.installment?' ・ <span style="color:var(--orange)">分期每'+s.installEvery+'堂</span>':'')+'</div>'+
+        '<div style="min-width:0">'+
+          '<div class="smc-name">'+_ctChip+s.name+pill+(s.queued&&s.queued.length?'<span style="display:inline-block;background:#EEF0FF;color:#3D47C4;border:1px solid #B8BEF0;border-radius:4px;padding:1px 8px;font-size:13px;margin-left:6px;vertical-align:middle">📦 下一期 x'+s.queued.length+'</span>':'')+(s.paymentStatus==="unpaid"?'<span style="display:inline-block;background:var(--orange2);color:var(--orange);border:1px solid var(--orange3);border-radius:4px;padding:1px 8px;font-size:13px;margin-left:6px;vertical-align:middle">待收款 ⚠</span>':'')+'</div>'+
+          '<div class="smc-sub">'+s.course+'・'+s.teacher+'老師'+(s.installment?' ・ <span style="color:var(--orange)">分期每'+s.installEvery+'堂</span>':'')+'</div>'+
         '</div>'+
-        '<div><div class="smc-rem" style="color:'+remColor+'">'+rem+'</div><div class="smc-lbl">堂可用</div></div>'+
+        '<div style="flex-shrink:0;margin-left:10px"><div class="smc-rem" style="color:'+remColor+'">'+rem+'</div><div class="smc-lbl">堂可用</div></div>'+
       '</div>'+
+      '<div class="qj-mgr-actions">'+
+        _b('selectStu','課卡','var(--gold4)','var(--gold2)','var(--gold)')+
+        _b('openRenewStu','續課','var(--teal2)','var(--teal3)','var(--teal)')+
+        (s.paymentStatus==='unpaid'?_b('openCollectPay','收款完成','var(--orange2)','var(--orange3)','var(--orange)',';font-weight:600'):'')+
+        _b('openEditStu','編輯','var(--bg2)','var(--border)','var(--ink2)')+
+      '</div>'+
+      (s.healthNotes?'<div style="font-size:13px;color:var(--red);margin-top:8px;padding:5px 9px;background:#FFF0F0;border:1px solid var(--red3);border-radius:7px">🏥 '+s.healthNotes+'</div>':'')+
+      mgrReminderRow+
+      '<details class="qj-mgr-more"'+(_open?' open':'')+' ontoggle="mgrToggleMore(\''+s.id+'\',this.open)"><summary>付款明細・排課・更多</summary>'+
       '<div class="smc-pay">'+
         '<div class="smc-pay-row"><span>購買方案</span><span>'+s.course+'・'+s.total+'堂</span></div>'+
         '<div class="smc-pay-row"><span>課程定價</span><span>$'+(s.price||0).toLocaleString()+'</span></div>'+
         '<div class="smc-pay-row"><span>實際入帳</span><span style="font-weight:500;color:var(--green)">'+pay+'</span></div>'+
         (s.paymentStatus==='unpaid'?'<div class="smc-pay-row"><span style="color:var(--orange)">待收金額</span><span style="font-weight:600;color:var(--orange)">$'+((s.pendingAmount||s.price||0).toLocaleString())+'</span></div>':'')+
         (s.payDate?'<div class="smc-pay-row"><span>入帳日期</span><span>'+s.payDate+'</span></div>':'')+
+        '<div class="smc-pay-row"><span>師資費</span><span>$'+getDefaultFee(s.teacher,s.course)+'/堂</span></div>'+
         '<div class="smc-pay-row" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--bg2)"><span style="color:var(--teal);font-weight:500">續課獎金</span><span style="font-weight:600;color:var(--teal)">$'+(s.bonus!=null?s.bonus:calcBonus(s.price,s.payMethod,s.actualPayment)).toLocaleString()+'</span></div>'+
         (s.bonusNote?'<div style="font-size:13px;color:var(--ink3);margin-top:2px">'+s.bonusNote+'</div>':'')+
         '<span class="smc-pay-method '+pmCls+'">'+pmLabel+'</span>'+
         (s.note?'<div style="font-size:13px;color:var(--ink3);margin-top:4px">'+s.note+'</div>':'')+
-        (s.healthNotes?'<div style="font-size:13px;color:var(--red);margin-top:5px;padding:5px 9px;background:#FFF0F0;border:1px solid var(--red3);border-radius:7px">🏥 '+s.healthNotes+'</div>':'')+
         (s.expiryDate?'<div style="font-size:13px;color:#C05A20;margin-top:4px">📅 到期日：'+s.expiryDate+'</div>':'')+
       '</div>'+
-      mgrReminderRow+
       (s.prevCourses&&s.prevCourses.length?'<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--bg2)"><div style="font-size:13px;color:var(--ink3);margin-bottom:5px">歷史購課記錄</div>'+s.prevCourses.map(p=>'<div style="font-size:13px;color:var(--ink3);padding:2px 0">第'+((p.period||1))+'期・'+p.course+'・'+p.total+'堂・$'+(p.actualPayment||p.price||0).toLocaleString()+'</div>').join('')+'</div>':'')+
-      '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bg2);display:flex;align-items:center;justify-content:space-between">'+
+      '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bg2);display:flex;align-items:center;justify-content:space-between;gap:8px">'+
         '<div style="font-size:13px;color:var(--ink3)">'+
           (s.recurring&&s.recurring.length?'固定排課：'+s.recurring.map(r=>'每週'+WD_NAMES[r.day]+' '+r.time).join('・'):'尚未設定固定排課')+
           (s.nextBooking?'<br>預排下堂：'+s.nextBooking.date+' '+s.nextBooking.time+' <span onclick="openRescheduleNotify(\''+s.id+'\')" style="cursor:pointer;color:var(--teal);text-decoration:underline">改期並通知</span>':'')+
         '</div>'+
-        ('<button onclick="openRecurringModal(\'' + s.id + '\')" style="padding:6px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;font-size:13px;cursor:pointer;color:var(--ink2);flex-shrink:0">設定排課</button>')+
+        _b('openRecurringModal','設定排課','var(--bg2)','var(--border)','var(--ink2)',';flex-shrink:0')+
       '</div>'+
+      '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bg2);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">'+
+        _b('openAddPlanForStu','＋ 另開新方案（新課卡）','#EEF0FF','#B8BEF0','#3D47C4')+
+        '<button onclick="deactivateStu(\''+s.id+'\')" class="qj-mgr-btn" title="停用：名單、課表、搜尋不再顯示，歷史簽到、薪資、帳本完整保留，可隨時復原" style="background:transparent;border-color:transparent;color:var(--ink3);text-decoration:underline;font-size:13px">停用這位學員</button>'+
+      '</div>'+
+      '</details>'+
     '</div>';
     }).join(''):'<div class="empty">找不到符合的學員</div>';
 }
