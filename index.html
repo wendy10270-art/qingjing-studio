@@ -673,6 +673,12 @@ input:focus,select:focus{border-color:var(--gold2)}
 .qj-wage-group{background:#fff;border-radius:12px;padding:10px 12px;flex:1 1 220px}
 .qj-wage-send{flex:0 1 auto;border:1px dashed var(--orange3)}
 .qj-wage-lbl{font-size:13px;color:var(--ink3);margin-bottom:7px}
+#sc-success .success-wrap{padding:22px 18px 0}
+#sc-success .success-icon{width:64px;height:64px;font-size:30px;margin-bottom:14px}
+#sc-success .success-sub{margin-bottom:16px}
+/* 「完成，返回首頁」固定在畫面底部：原本在 LINE 訊息下面，小幫手要捲到底才找得到 */
+#sc-success #successActions{position:sticky;bottom:0;z-index:5;background:var(--bg);padding:12px 0 14px;margin-top:14px!important;max-width:420px!important}
+#successActions .btn{min-height:56px;font-size:18px!important;border-radius:14px}
 .qj-minor{background:#fff;border-radius:14px;margin-bottom:13px}
 .qj-minor>summary{list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:11px 14px;cursor:pointer;min-height:46px}
 .qj-minor>summary::-webkit-details-marker{display:none}
@@ -902,20 +908,20 @@ const db={
 
   <!-- 學員專區 -->
   <div class="screen" id="sc-students-all"><div style="display:flex;flex-direction:column;height:100%">
-    <div id="stuZoneHeader" style="background:var(--brown);padding:14px 18px 16px;flex-shrink:0">
+    <div id="stuZoneHeader" style="padding:14px 18px 6px;flex-shrink:0">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div style="font-size:17px;font-weight:500;color:var(--cream)">學員專區</div>
-        <div id="stuZoneCount" style="font-size:13px;color:rgba(245,237,224,.45)"></div>
+        <div style="font-size:19px;font-weight:500;color:var(--brown)">學員專區</div>
+        <div id="stuZoneCount" style="font-size:13px;color:var(--ink3)"></div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);border-radius:11px;padding:10px 14px;border:1px solid rgba(255,255,255,.2);margin-bottom:10px">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F5C882" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input id="stuZoneSearch" type="text" placeholder="搜尋姓名或電話…" oninput="renderStudentZone()" style="background:transparent;border:none;outline:none;color:rgba(245,237,224,.9);font-size:14px;flex:1;font-family:'Noto Sans TC',sans-serif">
+      <div style="display:flex;align-items:center;gap:8px;background:#fff;border-radius:14px;padding:12px 16px;min-height:50px;margin-bottom:10px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A07855" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input id="stuZoneSearch" type="text" placeholder="搜尋姓名或電話…" oninput="renderStudentZone()" style="background:transparent;border:none;outline:none;color:var(--ink);font-size:16px;flex:1;font-family:'Noto Sans TC',sans-serif">
       </div>
       <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:2px" id="stuZoneFilters">
-        <div class="sz-filter active" data-filter="all" onclick="setStuFilter('all')" style="background:var(--gold2);border-color:var(--gold2);color:#fff;font-weight:500;border-radius:99px;padding:4px 12px;font-size:13px;cursor:pointer;white-space:nowrap;border:0.5px solid transparent">全部</div>
-        <div class="sz-filter" data-filter="today" onclick="setStuFilter('today')" style="background:rgba(255,255,255,.1);border:0.5px solid rgba(255,255,255,.2);border-radius:99px;padding:4px 12px;font-size:13px;color:rgba(245,237,224,.7);cursor:pointer;white-space:nowrap">今日排課</div>
-        <div class="sz-filter" data-filter="warn" onclick="setStuFilter('warn')" style="background:rgba(255,255,255,.1);border:0.5px solid rgba(255,255,255,.2);border-radius:99px;padding:4px 12px;font-size:13px;color:rgba(245,237,224,.7);cursor:pointer;white-space:nowrap">堂數警告</div>
-        <div class="sz-filter" data-filter="notes" onclick="setStuFilter('notes')" style="background:rgba(255,255,255,.1);border:0.5px solid rgba(255,255,255,.2);border-radius:99px;padding:4px 12px;font-size:13px;color:rgba(245,237,224,.7);cursor:pointer;white-space:nowrap">有備註</div>
+        <div class="sz-filter active" data-filter="all" onclick="setStuFilter('all')" style="background:var(--gold2);border-color:var(--gold2);color:#fff;font-weight:500;border-radius:99px;padding:7px 14px;font-size:14px;cursor:pointer;white-space:nowrap;border:0.5px solid transparent">全部</div>
+        <div class="sz-filter" data-filter="today" onclick="setStuFilter('today')" style="background:#fff;border:0.5px solid var(--border);border-radius:99px;padding:7px 14px;font-size:14px;color:var(--ink2);cursor:pointer;white-space:nowrap">今日排課</div>
+        <div class="sz-filter" data-filter="warn" onclick="setStuFilter('warn')" style="background:#fff;border:0.5px solid var(--border);border-radius:99px;padding:7px 14px;font-size:14px;color:var(--ink2);cursor:pointer;white-space:nowrap">堂數警告</div>
+        <div class="sz-filter" data-filter="notes" onclick="setStuFilter('notes')" style="background:#fff;border:0.5px solid var(--border);border-radius:99px;padding:7px 14px;font-size:14px;color:var(--ink2);cursor:pointer;white-space:nowrap">有備註</div>
       </div>
     </div>
     <div id="stuZoneList" style="overflow-y:auto;flex:1;padding:12px"></div>
@@ -952,20 +958,20 @@ const db={
   </div>
   <div class="admin-tabs">
     <div class="a-tab-grp" data-glabel="日常">
-      <div class="a-tab active" data-glabel="日常" onclick="aTab(&#39;helper&#39;)">✨小幫手</div>
-      <div class="a-tab" onclick="aTab(&#39;notify&#39;)">明日通知</div>
+      <div class="a-tab active" data-glabel="日常" data-tab="helper" onclick="aTab(&#39;helper&#39;)">✨小幫手</div>
+      <div class="a-tab" data-tab="notify" onclick="aTab(&#39;notify&#39;)">明日通知</div>
     </div>
     <div class="a-tab-grp" data-glabel="學員與師資">
-      <div class="a-tab" data-glabel="學員與師資" onclick="aTab(&#39;mgr&#39;)">學員管理</div>
-      <div class="a-tab" onclick="aTab(&#39;tch&#39;)">師資管理</div>
+      <div class="a-tab" data-glabel="學員與師資" data-tab="mgr" onclick="aTab(&#39;mgr&#39;)">學員管理</div>
+      <div class="a-tab" data-tab="tch" onclick="aTab(&#39;tch&#39;)">師資管理</div>
     </div>
     <div class="a-tab-grp" data-glabel="財務">
-      <div class="a-tab" data-glabel="財務" onclick="aTab(&#39;ledger&#39;)">流水帳</div>
-      <div class="a-tab" onclick="aTab(&#39;wage&#39;)">薪資結算</div>
+      <div class="a-tab" data-glabel="財務" data-tab="ledger" onclick="aTab(&#39;ledger&#39;)">流水帳</div>
+      <div class="a-tab" data-tab="wage" onclick="aTab(&#39;wage&#39;)">薪資結算</div>
     </div>
     <div class="a-tab-grp" data-glabel="排課設定">
-      <div class="a-tab" data-glabel="排課設定" onclick="aTab(&#39;gcal&#39;)">Google日曆</div>
-      <div class="a-tab" onclick="aTab(&#39;hourly&#39;)">工讀管理</div>
+      <div class="a-tab" data-glabel="排課設定" data-tab="gcal" onclick="aTab(&#39;gcal&#39;)">Google日曆</div>
+      <div class="a-tab" data-tab="hourly" onclick="aTab(&#39;hourly&#39;)">工讀管理</div>
     </div>
     <div class="a-tab" onclick="leaveAdmin()" style="color:#8A5A50">← 離開</div>
   </div>
@@ -3217,9 +3223,9 @@ function setStuFilter(f){
   _stuFilter=f;
   document.querySelectorAll('.sz-filter').forEach(el=>{
     const isActive=el.dataset.filter===f;
-    el.style.background=isActive?'var(--gold2)':'rgba(255,255,255,.1)';
-    el.style.borderColor=isActive?'var(--gold2)':'rgba(255,255,255,.2)';
-    el.style.color=isActive?'#fff':'rgba(245,237,224,.7)';
+    el.style.background=isActive?'var(--gold2)':'#fff';
+    el.style.borderColor=isActive?'var(--gold2)':'var(--border)';
+    el.style.color=isActive?'#fff':'var(--ink2)';
     el.style.fontWeight=isActive?'500':'400';
     el.classList.toggle('active',isActive);
   });
@@ -4460,7 +4466,8 @@ function aTab(t){
   if((t==='wage'||t==='ledger')&&!_financeUnlocked){openPin(t);return;}
   renderDashboard();
   const ns=['helper','notify','mgr','tch','ledger','wage','gcal','hourly'];
-  document.querySelectorAll('.a-tab').forEach((el,i)=>el.classList.toggle('active',ns[i]===t));
+  // 2026-11：改用 data-tab 名稱對應（原本用排列順序 ns[i]，中間插一個分頁就會整排對錯頁）
+  document.querySelectorAll('.a-tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===t));
   ns.forEach(n=>document.getElementById('ap-'+n).classList.toggle('active',n===t));
   if(t==='helper')renderHelper();
   if(t==='ledger')ledgerSub(_ledgerSub);
