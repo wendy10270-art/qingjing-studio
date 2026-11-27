@@ -56,7 +56,7 @@
 > 2026-07 ～ 2026-10 由 git 歷史整理（268 個 commit 精選）；之後每筆格式：`日期｜改了什麼｜原因｜commit`
 
 ### 2026-11
-- 11-27｜價目頁 LINE 分享縮圖改用專用圖 `price/img/og-cover.jpg`（1200×630，插圖＋「輕境 課程與費用」標題＋兩個特色標籤），og:image 加寬高｜原本用主視覺原圖（3:2），LINE 預覽會裁切、沒有標題｜`待補`
+- 11-27｜價目頁 LINE 分享縮圖改用專用圖 `price/img/og-cover.jpg`（1200×630，插圖＋「輕境 課程與費用」標題＋兩個特色標籤），og:image 加寬高｜原本用主視覺原圖（3:2），LINE 預覽會裁切、沒有標題｜`f0700e4`
 - 11-27｜新增學員價目頁 `price/`（https://wendy10270-art.github.io/qingjing-studio/price/）：器械皮拉提斯、重訓、瑜伽、樂齡運動、按摩的課程介紹＋方案卡價格，插圖為 ChatGPT 米棕水彩風；加 noindex 不讓搜尋引擎收錄、og 標籤給 LINE 預覽｜老闆要一個可以直接傳給學員的連結；價格口徑：皮拉一對二用遞減價（3600/3300/2900）、按摩只放 Bonnie 30/60 分、不放墊上一對一與外派／場租／期班、課卡無期限＋家人朋友可共用｜`2acae95`（之後換教室照片時，因 qj-sw.js 對圖片 cache-first，裝過 app 的裝置會看到舊圖，換圖請改新檔名）
 - 11-24｜🚨 本機空間滿導致簽到沒存到主資料：save() 的 localStorage.setItem 改走 _lsSet（失敗先清掉 qjf_base_* 合併快照再試；仍失敗就跳一次提示），syncToFirebase／_setPendingWrite／_applyServerTs 的本機寫入也包起來；無論本機存不存得進去都一定繼續同步雲端｜手機／iPad Safari localStorage 約 5MB，簽到記錄含簽名圖（r 約 0.91M 字元）又存兩份（qjf_r＋qjf_base_qingjing/r），滿了 setItem 丟 QuotaExceededError；原本 save() 沒接住，confirmSig 在 dualWriteAddRecord 之後中斷：新結構 records 有寫、主資料 r／s.used 沒存、畫面停在課卡像按不動，小幫手連按 → 11/24 11:22～11:30 田宇秀 3 筆、陳柏伶 11 筆只進 records，主資料 r 今天 0 筆。快照清掉後 colMerge 退為聯集（不會誤刪雲端資料）｜`9adc1e7`（離線預覽模擬空間滿：舊版丟 QuotaExceededError、停在課卡、未排雲端同步；新版進成功畫面、排定同步、跳提示；未在正式站實測。今天遺失的簽到待老闆確認後補回主資料，新結構 records 的重複筆數待清）
 - 11-24｜版面 C 收尾：①簽到成功畫面上方收緊、「完成，返回首頁」（含 60 秒撤銷）固定在畫面底部（#successActions sticky）②學員專區頂端（stuZoneHeader、setStuFilter）由深咖啡改淺色，搜尋框與篩選鈕放大，跟首頁一致③後台分頁 aTab 改用 data-tab 名稱對應 active（原本用排列順序 ns[i]，中間插分頁就整排對錯）｜原本「完成」在 LINE 訊息下面要捲到底才找得到；學員專區跟改版後首頁風格不一致；aTab 順序對應是潛在地雷｜`f3f30c0`（離線預覽＋假資料：簽到後完成鈕固定在底部、按下回首頁；學員專區篩選切換顏色正確；8 個後台分頁 active 與頁面都對；未在正式站實測）
