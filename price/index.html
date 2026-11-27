@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="description" content="輕境健康平衡工作室：器械皮拉提斯、重訓、瑜伽、樂齡運動、按摩課程介紹與價目。課卡沒有期限，家人朋友可共用。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="輕境課程與費用">
+<meta property="og:description" content="器械皮拉提斯、重訓、瑜伽、樂齡運動、按摩｜課卡沒有期限，家人朋友可共用">
+<meta property="og:image" content="https://wendy10270-art.github.io/qingjing-studio/price/img/hero.jpg">
+<meta property="og:url" content="https://wendy10270-art.github.io/qingjing-studio/price/">
+<meta name="theme-color" content="#4f4039">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>輕境課程與費用</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=LXGW+WenKai+TC&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700&display=swap">
+<style>
+/* Layout: 水彩紙質感的價目小冊。每類課程 = 大字英文浮水印 + 插圖 + 說明 + 價目卡。單一淺色調（插圖是米色紙底，刻意不做深色版）。 */
+:root{
+  color-scheme:light;
+  --paper:#f6efe6;      /* 水彩紙米 */
+  --card:#fffaf4;
+  --ink:#3d312b;        /* 深摩卡（文字） */
+  --muted:#85746a;
+  --line:#e4d6c7;
+  --mocha:#4f4039;      /* 海報外框色 */
+  --clay:#a47e63;       /* 淺棕（重點） */
+  --blush:#efe2d4;
+  --on-mocha:#f7efe6;
+  --display:"Noto Serif TC","Songti TC",serif;
+  --latin:"Cormorant Garamond","Times New Roman",serif;
+  --hand:"LXGW WenKai TC","Kaiti TC","STKaiti",serif;
+  --body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.8;-webkit-text-size-adjust:100%}
+.wrap{max-width:720px;margin:0 auto;padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px))}
+img{display:block;max-width:100%}
+
+/* ---------- hero ---------- */
+.hero{position:relative}
+.hero-art{width:100%;aspect-ratio:3/2;object-fit:cover;object-position:30% 50%;max-height:560px}
+.hero-text{position:absolute;top:8%;right:max(18px,env(safe-area-inset-right,0px));width:min(46%,330px);display:flex;flex-direction:column;align-items:flex-end;text-align:right;gap:.35rem}
+.logo{display:flex;align-items:center;gap:.6rem;color:var(--mocha)}
+.logo b{font-family:var(--display);font-size:1.5rem;letter-spacing:.14em}
+.logo span{font-size:.62rem;letter-spacing:.22em;border-left:1px solid currentColor;padding-left:.6rem;line-height:1.3}
+.hero h1{margin:.3rem 0 0;font-family:var(--display);font-weight:700;font-size:clamp(2rem,6.4vw,3.2rem);line-height:1.15;color:var(--mocha);letter-spacing:.06em;text-wrap:balance}
+.hero .hand{font-family:var(--hand);font-size:clamp(.95rem,2.6vw,1.15rem);color:var(--clay);margin:0}
+@media (max-width:560px){
+  .hero-art{aspect-ratio:4/3.2;object-position:22% 60%}
+  .hero-text{top:6%;width:52%}
+  .logo span{display:none}
+}
+
+/* ---------- intro & promises ---------- */
+.intro{padding-block:2rem 1rem;text-align:center}
+.intro p{margin:0 auto;max-width:34em;font-size:1.02rem}
+.intro b{color:var(--mocha)}
+.promises{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding-block:1rem 2.2rem}
+.promise{background:var(--card);border-radius:20px;padding:22px 16px 18px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 1px 0 var(--line),0 10px 30px -18px rgba(79,64,57,.35)}
+.promise svg{width:42px;height:42px;stroke:var(--clay);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.promise h3{margin:4px 0 0;font-family:var(--display);font-size:1.12rem;letter-spacing:.04em}
+.promise p{margin:0;font-size:.86rem;color:var(--muted);line-height:1.6}
+.promise.star{background:var(--mocha);color:var(--on-mocha)}
+.promise.star svg{stroke:#e2c6ab}
+.promise.star p{color:#d9c7b6}
+@media (max-width:560px){
+  .promises{grid-template-columns:1fr}
+  .promise{flex-direction:row;text-align:left;align-items:center;gap:14px;padding:16px 18px}
+  .promise svg{flex:none}
+  .promise div{display:flex;flex-direction:column}
+  .promise h3{margin:0}
+}
+
+/* ---------- nav ---------- */
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
+.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:rgba(246,239,230,.94);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-block:1px solid var(--line)}
+.nav .wrap{display:flex;gap:6px;overflow-x:auto;padding-block:10px;scrollbar-width:none;justify-content:safe center}
+.nav .wrap::-webkit-scrollbar{display:none}
+.nav a{flex:none;text-decoration:none;color:var(--ink);font-size:.9rem;padding:6px 15px;border-radius:999px;transition:background .2s}
+.nav a:hover,.nav a:focus-visible{background:var(--blush);outline:none}
+
+/* ---------- course sections ---------- */
+section.cat{padding-block:3.2rem .6rem;scroll-margin-top:64px}
+.cat-title{position:relative;text-align:center;margin-bottom:1.2rem}
+.ghost{display:block;font-family:var(--latin);font-weight:600;font-size:clamp(3rem,13vw,5.4rem);line-height:1;letter-spacing:.06em;color:var(--blush);user-select:none}
+.cat-title h2{margin:-1.9rem 0 0;position:relative;font-family:var(--display);font-size:clamp(1.6rem,5vw,2rem);letter-spacing:.12em;color:var(--mocha)}
+.cat-title .hand{display:block;font-family:var(--hand);color:var(--clay);font-size:1rem;margin-top:.2rem}
+.art{border-radius:24px;overflow:hidden;margin:0 0 1.4rem;box-shadow:0 18px 40px -28px rgba(79,64,57,.55)}
+.art img{width:100%;aspect-ratio:16/9;object-fit:cover}
+.what{margin:0 0 1rem;font-size:1rem}
+.fit{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 1.6rem;padding:0;list-style:none}
+.fit li{font-size:.84rem;color:var(--mocha);border:1px solid var(--line);background:var(--card);padding:3px 12px;border-radius:999px}
+.fit li::before{content:"✓ ";color:var(--clay)}
+
+/* price card */
+.plan{background:var(--card);border-radius:22px;padding:22px 22px 16px;margin-bottom:16px;break-inside:avoid;box-shadow:0 1px 0 var(--line),0 14px 34px -24px rgba(79,64,57,.45)}
+.plan-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:2px 12px}
+.plan h3{font-family:var(--display);font-size:1.18rem;margin:0;letter-spacing:.03em}
+.meta{font-size:.8rem;color:var(--muted);letter-spacing:.04em}
+.desc{margin:.35rem 0 .9rem;font-size:.92rem;color:var(--muted);line-height:1.7}
+/* 方案卡並排：2 張＝2 欄、3 張＝3 欄、4 張＝桌機 4 欄／手機 2×2 */
+.rows{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;font-variant-numeric:lining-nums tabular-nums;padding-top:12px}
+.trial b{font-variant-numeric:lining-nums}
+.rows:has(> .row:nth-child(3)){grid-template-columns:repeat(3,minmax(0,1fr))}
+.rows:has(> .row:nth-child(4)){grid-template-columns:repeat(4,minmax(0,1fr))}
+.row{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px;padding:16px 6px 13px;border:1px solid var(--line);border-radius:16px;background:var(--paper)}
+.row .n{font-size:.85rem;font-weight:500;color:var(--muted);letter-spacing:.06em}
+.row .u{font-family:var(--latin);font-weight:600;font-size:1.75rem;line-height:1.1;color:var(--ink);display:flex;flex-direction:column;align-items:center}
+.row .u small{font-family:var(--body);font-size:.7rem;color:var(--muted);font-weight:400;line-height:1.2}
+.row .t{font-size:.78rem;color:var(--muted);line-height:1.45;margin-top:4px}
+.row .t:empty{display:none}
+.row .t em{display:block;font-style:normal;color:var(--clay);font-weight:500}
+.row.best{background:var(--mocha);border-color:var(--mocha)}
+.row.best .n,.row.best .u small,.row.best .t{color:#d9c7b6}
+.row.best .u{color:var(--on-mocha)}
+.row.best .t em{color:#ecd2b8}
+.badge{position:absolute;top:-10px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:.68rem;letter-spacing:.1em;background:var(--clay);color:#fff;border-radius:999px;padding:1px 10px;font-family:var(--body);font-weight:500}
+@media (max-width:560px){
+  .rows:has(> .row:nth-child(4)){grid-template-columns:repeat(2,minmax(0,1fr));row-gap:14px}
+  .rows:has(> .row:nth-child(3)):not(:has(> .row:nth-child(4))){gap:7px}
+  .rows:has(> .row:nth-child(3)):not(:has(> .row:nth-child(4))) .u{font-size:1.4rem}
+  .rows:has(> .row:nth-child(3)):not(:has(> .row:nth-child(4))) .t{font-size:.72rem}
+}
+.trial{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;padding:10px 14px;border-radius:14px;border:1px solid var(--clay);color:var(--mocha);font-size:.9rem}
+.trial b{font-family:var(--latin);font-size:1.3rem;font-weight:600}
+.note{font-size:.84rem;color:var(--muted);margin:.6rem 0 0}
+
+/* 樂齡運動 */
+.ghost.sm{font-size:clamp(2.2rem,9vw,4.4rem)}
+.cat-title .ghost.sm + h2{margin-top:-1.5rem}
+.focus{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 1.4rem}
+.focus div{background:var(--card);border-radius:16px;padding:14px 12px;display:flex;flex-direction:column;gap:2px;text-align:center}
+.focus b{font-family:var(--display);color:var(--mocha);font-size:1.02rem}
+.focus span{font-size:.8rem;color:var(--muted);line-height:1.55}
+.picks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+.pick{display:flex;flex-direction:column;gap:4px;padding:14px 16px;border:1px solid var(--line);border-radius:16px;background:var(--paper);text-decoration:none;color:var(--ink);transition:border-color .2s}
+.pick:hover,.pick:focus-visible{border-color:var(--clay);outline:none}
+.pk-t{font-weight:700;font-size:.98rem;color:var(--mocha)}
+.pk-t em{font-style:normal;font-size:.68rem;font-weight:500;letter-spacing:.08em;background:var(--clay);color:#fff;border-radius:999px;padding:1px 8px;margin-left:6px;vertical-align:2px}
+.pk-d{font-size:.86rem;color:var(--muted);line-height:1.6}
+.pk-p{margin-top:auto;padding-top:4px;font-size:.86rem;font-weight:500;color:var(--clay)}
+.tip{display:flex;flex-direction:column;gap:2px;background:var(--mocha);color:var(--on-mocha);border-radius:18px;padding:16px 20px;margin:4px 0 .6rem}
+.tip b{font-family:var(--display);font-size:1.08rem;letter-spacing:.04em}
+.tip span{font-size:.9rem;color:#d9c7b6}
+@media (max-width:560px){.focus{grid-template-columns:repeat(2,minmax(0,1fr))}.picks{grid-template-columns:1fr}}
+
+/* studio gallery（之後換成教室照片：替換 img/ 內的檔案即可） */
+.gallery{padding-block:3.2rem .6rem}
+.shots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.shots figure{margin:0;border-radius:20px;overflow:hidden;position:relative}
+.shots img{width:100%;aspect-ratio:4/5;object-fit:cover}
+.shots figcaption{position:absolute;left:12px;bottom:12px;background:rgba(255,250,244,.9);color:var(--mocha);font-size:.8rem;padding:3px 12px;border-radius:999px}
+.shots figure.wide{grid-column:1/-1}
+.shots figure.wide img{aspect-ratio:16/8}
+
+/* notes */
+.rules{padding-block:3.2rem 1rem}
+.rules ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px;counter-reset:r}
+.rules li{counter-increment:r;display:grid;grid-template-columns:2.2em 1fr;gap:6px;background:var(--card);border-radius:16px;padding:14px 16px;font-size:.95rem}
+.rules li::before{content:counter(r);font-family:var(--latin);font-size:1.5rem;font-weight:600;color:var(--clay);line-height:1.1}
+.rules li b{color:var(--mocha)}
+
+.foot{margin-top:3rem;background:var(--mocha);color:var(--on-mocha);text-align:center;padding-block:2.6rem calc(2.4rem + env(safe-area-inset-bottom,0px))}
+.foot .wrap{display:flex;flex-direction:column;align-items:center;gap:.5rem}
+.foot .hand{font-family:var(--hand);font-size:1.25rem;color:#e2c6ab;margin:0}
+.foot .big{font-family:var(--display);font-size:1.4rem;font-weight:700;letter-spacing:.06em}
+.foot p{margin:0;opacity:.85;font-size:.95rem}
+.foot small{opacity:.6;margin-top:.8rem;font-size:.75rem;letter-spacing:.08em}
+
+@media (max-width:420px){.plan{padding:18px 14px 14px}}
+
+@media print{
+  .nav,body::before{display:none}
+  body{font-size:12.5px}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .hero-art{max-height:none;aspect-ratio:3/1.75}
+  section.cat{padding-block:.6rem .2rem;break-before:page}
+  .cat-title{break-after:avoid}
+  .cat-title,.plan,.art,.rules li,.shots figure{break-inside:avoid}
+  .art img{aspect-ratio:16/6.5}
+  .gallery,.rules{padding-block:1.6rem .4rem}
+  .plan,.promise,.art{box-shadow:none;border:1px solid var(--line)}
+}
+@page{size:A4;margin:10mm 9mm}
+</style>
+</head>
+<body>
+<header class="hero">
+  <img class="hero-art" src="img/hero.jpg" alt="水彩插畫：一位女性在木質核心床上做皮拉提斯伸展">
+  <div class="hero-text">
+    <div class="logo"><b>輕境</b><span>MOTIVATION<br>STUDIO</span></div>
+    <h1>課程與費用</h1>
+    <p class="hand">你能夠做到的，比你想像的更多</p>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="intro">
+    <p>輕境以<b>器械皮拉提斯</b>為主，也有<b>重訓</b>、<b>墊上（瑜伽、瑜伽輪）</b>課程，也有適合長輩的<b>樂齡運動</b>，另有<b>按摩</b>放鬆。每堂課都是一對一或小班，教練會依照你的身體狀況和目標安排內容，不是照表操課。</p>
+  </div>
+
+  <div class="promises">
+    <div class="promise star">
+      <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M14 17c-5 0-9 3.2-9 7s4 7 9 7c7 0 13-14 20-14 5 0 9 3.2 9 7s-4 7-9 7c-7 0-13-14-20-14Z"/></svg>
+      <div><h3>課卡沒有期限</h3><p>買了不會過期，照自己的步調慢慢上。</p></div>
+    </div>
+    <div class="promise star">
+      <svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="17" cy="16" r="6"/><circle cx="33" cy="18" r="5"/><path d="M6 38c0-6.6 5-11 11-11s11 4.4 11 11"/><path d="M27 29.5c1.7-1.3 3.8-2 6-2 5 0 9 3.7 9 9.5"/></svg>
+      <div><h3>家人朋友可共用</h3><p>同一張課卡，家人、朋友都能一起用。</p></div>
+    </div>
+    <div class="promise">
+      <svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="17"/><path d="M24 14v10l7 5"/></svg>
+      <div><h3>每堂 60 分鐘</h3><p>一對一或小班，教練全程在旁調整。</p></div>
+    </div>
+  </div>
+</div>
+
+<nav class="nav" aria-label="課程分類">
+  <div class="wrap">
+    <a href="#pilates">器械皮拉提斯</a>
+    <a href="#fitness">重訓</a>
+    <a href="#mat">墊上・瑜伽</a>
+    <a href="#senior">樂齡運動</a>
+    <a href="#massage">按摩</a>
+    <a href="#studio">教室</a>
+    <a href="#notes">購課須知</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <!-- ===== 器械皮拉提斯 ===== -->
+  <section class="cat" id="pilates">
+    <div class="cat-title"><span class="ghost" aria-hidden="true">PILATES</span><h2>器械皮拉提斯</h2><span class="hand">輕境的主力課程</span></div>
+    <figure class="art"><img src="img/pilates.jpg" alt="水彩插畫：教練輕扶學員的背，學員在凱迪拉克塔架上拉彈簧" loading="lazy"></figure>
+    <p class="what">在核心床（Reformer）、凱迪拉克（Cadillac）等器械上練習。器械上的彈簧會依需要「幫你一把」或「增加阻力」，讓你在安全的支撐下，學會用深層核心穩住身體。常見的收穫是：姿勢變挺、腰背比較不痠、身體更好控制，運動和日常動作都更輕鬆。</p>
+    <ul class="fit"><li>第一次運動也可以</li><li>久坐、肩頸腰背緊</li><li>想改善體態</li><li>舊傷後想安全地動</li><li>運動族想補核心</li></ul>
+
+    <div class="plan">
+      <div class="plan-head"><h3>一對一客製化課程</h3><span class="meta">60 分鐘・教練 1 對 1</span></div>
+      <p class="desc">教練只看你一個人，從評估身體開始，每堂依你的狀況調整。最推薦第一次接觸器械的人。</p>
+      <div class="rows">
+        <div class="row"><span class="n">1 堂</span><span class="u">$2,600<small>/堂</small></span><span class="t">總價 $2,600</span></div>
+        <div class="row"><span class="n">5 堂</span><span class="u">$2,400<small>/堂</small></span><span class="t">總價 $12,000<em>省 $1,000</em></span></div>
+        <div class="row"><span class="n">10 堂</span><span class="u">$2,200<small>/堂</small></span><span class="t">總價 $22,000<em>省 $4,000</em></span></div>
+        <div class="row best"><span class="badge">最划算</span><span class="n">20 堂</span><span class="u">$2,000<small>/堂</small></span><span class="t">總價 $40,000<em>省 $12,000</em></span></div>
+      </div>
+      <div class="trial"><span>新學員首次體驗</span><b>$1,200</b></div>
+    </div>
+
+    <div class="plan">
+      <div class="plan-head"><h3>一對二客製化課程</h3><span class="meta">60 分鐘・2 人同堂</span></div>
+      <p class="desc">和家人、伴侶或朋友一起上，一樣是客製化內容。價格為兩人合計。</p>
+      <div class="rows">
+        <div class="row"><span class="n">1 堂</span><span class="u">$3,600<small>/堂</small></span><span class="t">總價 $3,600</span></div>
+        <div class="row"><span class="n">5 堂</span><span class="u">$3,300<small>/堂</small></span><span class="t">總價 $16,500<em>省 $1,500</em></span></div>
+        <div class="row best"><span class="badge">最划算</span><span class="n">10 堂</span><span class="u">$2,900<small>/堂</small></span><span class="t">總價 $29,000<em>省 $7,000</em></span></div>
+      </div>
+    </div>
+
+    <div class="plan">
+      <div class="plan-head"><h3>自主一對三精緻團班</h3><span class="meta">60 分鐘・3 人同堂</span></div>
+      <p class="desc">自己找好 3 位朋友就能開班，上課時間由你們跟教練約。價格為每人費用。</p>
+      <div class="rows">
+        <div class="row"><span class="n">1 堂</span><span class="u">$1,350<small>/人</small></span><span class="t">每人 $1,350</span></div>
+        <div class="row"><span class="n">4 堂</span><span class="u">$1,200<small>/人</small></span><span class="t">每人 $4,800<em>省 $600</em></span></div>
+        <div class="row best"><span class="badge">最划算</span><span class="n">8 堂</span><span class="u">$1,100<small>/人</small></span><span class="t">每人 $8,800<em>省 $2,000</em></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 重訓 ===== -->
+  <section class="cat" id="fitness">
+    <div class="cat-title"><span class="ghost" aria-hidden="true">FITNESS</span><h2>重訓</h2><span class="hand">練出好用的力量</span></div>
+    <figure class="art"><img src="img/fitness.jpg" alt="水彩插畫：一位女性手持壺鈴做深蹲" loading="lazy"></figure>
+    <p class="what">使用深蹲架、槓鈴、啞鈴、壺鈴等器材。教練先教你正確的動作和發力方式，再依進度慢慢加重量。重訓能增加肌肉量、提升代謝、保護骨骼和關節，也讓搬東西、爬樓梯這些日常小事變輕鬆。</p>
+    <ul class="fit"><li>想增肌或減脂</li><li>沒重訓過、怕受傷</li><li>想提升體力</li><li>熟齡想保養骨骼肌力</li></ul>
+
+    <div class="plan">
+      <div class="plan-head"><h3>一對一教練課程</h3><span class="meta">60 分鐘・教練 1 對 1</span></div>
+      <div class="rows">
+        <div class="row"><span class="n">1 堂</span><span class="u">$2,000<small>/堂</small></span><span class="t">總價 $2,000</span></div>
+        <div class="row"><span class="n">5 堂</span><span class="u">$1,850<small>/堂</small></span><span class="t">總價 $9,250<em>省 $750</em></span></div>
+        <div class="row best"><span class="badge">最划算</span><span class="n">10 堂</span><span class="u">$1,700<small>/堂</small></span><span class="t">總價 $17,000<em>省 $3,000</em></span></div>
+      </div>
+      <div class="trial"><span>新學員首次體驗</span><b>$1,000</b></div>
+    </div>
+
+    <div class="plan">
+      <div class="plan-head"><h3>精緻小班一對二課程</h3><span class="meta">60 分鐘・2 人同堂</span></div>
+      <p class="desc">兩人一起練，互相督促更容易持續。價格為兩人合計。</p>
+      <div class="rows">
+        <div class="row"><span class="n">1 堂</span><span class="u">$2,400<small>/堂</small></span><span class="t">總價 $2,400</span></div>
+        <div class="row best"><span class="badge">最划算</span><span class="n">8 堂</span><span class="u">$2,100<small>/堂</small></span><span class="t">總價 $16,800<em>省 $2,400</em></span></div>
+      </div>
+      <div class="trial"><span>新學員首次體驗（兩人）</span><b>$800</b></div>
+    </div>
+  </section>
+
+  <!-- ===== 墊上・瑜伽 ===== -->
+  <section class="cat" id="mat">
+    <div class="cat-title"><span class="ghost" aria-hidden="true">MAT &amp; YOGA</span><h2>墊上・瑜伽</h2><span class="hand">把緊繃慢慢拉開</span></div>
+    <figure class="art"><img src="img/mat.jpg" alt="水彩插畫：一位女性躺在瑜伽輪上做後彎伸展，旁邊有瑜伽磚與伸展帶" loading="lazy"></figure>
+    <p class="what">在瑜伽墊上，用自己的體重搭配瑜伽輪、伸展帶、瑜伽磚等小道具，做伸展、核心和柔軟度訓練。沒有器械的壓迫感，很適合想放鬆緊繃、改善柔軟度，或想在家也能自己練的人。</p>
+    <ul class="fit"><li>身體很緊、想拉開</li><li>想改善柔軟度</li><li>喜歡安靜專注的運動</li><li>想學回家能自己練的動作</li></ul>
+
+
+    <div class="plan">
+      <div class="plan-head"><h3>瑜伽一對一課程</h3><span class="meta">60 分鐘・教練 1 對 1</span></div>
+      <p class="desc">配合呼吸練習瑜伽體位，依你的程度安排，同時練到肌力、柔軟度和專注力。</p>
+      <div class="rows">
+        <div class="row"><span class="n">1 堂</span><span class="u">$2,000<small>/堂</small></span><span class="t">總價 $2,000</span></div>
+        <div class="row"><span class="n">5 堂</span><span class="u">$1,850<small>/堂</small></span><span class="t">總價 $9,250<em>省 $750</em></span></div>
+        <div class="row best"><span class="badge">最划算</span><span class="n">10 堂</span><span class="u">$1,700<small>/堂</small></span><span class="t">總價 $17,000<em>省 $3,000</em></span></div>
+      </div>
+      <div class="trial"><span>新學員首次體驗</span><b>$1,000</b></div>
+    </div>
+
+    <div class="plan">
+      <div class="plan-head"><h3>瑜伽三人小團課</h3><span class="meta">60 分鐘・3 人同堂</span></div>
+      <p class="desc">精緻小班，三個人一起上。價格為每人費用。</p>
+      <div class="rows">
+        <div class="row"><span class="n">1 堂</span><span class="u">$800<small>/人</small></span><span class="t">每人 $800</span></div>
+        <div class="row best"><span class="badge">最划算</span><span class="n">4 堂</span><span class="u">$650<small>/人</small></span><span class="t">每人 $2,600<em>省 $600</em></span></div>
+      </div>
+      <p class="note">只有 2 人開班時，4 堂每人每堂 $750（每人 $3,000）。</p>
+      <div class="trial"><span>新學員首次體驗</span><b>$550</b></div>
+    </div>
+  </section>
+
+  <!-- ===== 樂齡運動（沿用現有課程價格） ===== -->
+  <section class="cat" id="senior">
+    <div class="cat-title"><span class="ghost sm" aria-hidden="true">ACTIVE AGING</span><h2>樂齡運動</h2><span class="hand">陪爸媽動得穩、走得遠</span></div>
+    <figure class="art"><img src="img/senior.jpg" alt="水彩插畫：教練扶著長輩的手臂，在核心床旁練習單腳站立平衡" loading="lazy"></figure>
+    <p class="what">年紀漸長，最需要的不是激烈運動，而是讓身體「穩」與「有力」。輕境的樂齡運動由教練一對一或小班陪伴，從長輩目前的身體狀況出發，慢慢練回日常生活需要的能力。</p>
+
+    <div class="focus">
+      <div><b>平衡</b><span>站得穩、走得穩，降低跌倒的機會</span></div>
+      <div><b>腿部肌力</b><span>從椅子起身、上下樓梯更輕鬆</span></div>
+      <div><b>關節活動</b><span>肩膀、髖部、脊椎動得開，不僵硬</span></div>
+      <div><b>姿勢與呼吸</b><span>改善駝背，呼吸更順</span></div>
+    </div>
+
+    <div class="plan">
+      <div class="plan-head"><h3>建議這樣選</h3><span class="meta">價格與各課程相同</span></div>
+      <div class="picks">
+        <a class="pick" href="#pilates"><span class="pk-t">器械皮拉提斯一對一<em>最推薦</em></span><span class="pk-d">彈簧在旁輔助，可以躺著、坐著練，關節負擔小，第一次運動的長輩也能安心開始。</span><span class="pk-p">每堂 $2,000～$2,600</span></a>
+        <a class="pick" href="#fitness"><span class="pk-t">重訓一對一</span><span class="pk-d">用輕重量練腿力和握力，幫助維持肌肉量。</span><span class="pk-p">每堂 $1,700～$2,000</span></a>
+        <a class="pick" href="#pilates"><span class="pk-t">一對二，和家人一起上</span><span class="pk-d">子女陪爸媽一起練，彼此照應也更有動力。皮拉提斯、重訓都可以。</span><span class="pk-p">兩人每堂 $2,100 起</span></a>
+      </div>
+    </div>
+
+    <div class="tip">
+      <b>子女買的課卡，爸媽也能用</b>
+      <span>輕境的課卡沒有期限、家人可以共用，很適合買給爸媽，或一家人一起上。</span>
+    </div>
+    <p class="note">上課前請先告訴教練長輩的身體狀況，例如慢性病、開刀史、用藥或醫師的運動建議，教練會依當天狀況調整強度。</p>
+  </section>
+
+  <!-- ===== 按摩 ===== -->
+  <section class="cat" id="massage">
+    <div class="cat-title"><span class="ghost" aria-hidden="true">MASSAGE</span><h2>按摩</h2><span class="hand">把疲憊留在這裡</span></div>
+    <figure class="art"><img src="img/massage.jpg" alt="水彩插畫：按摩師輕按趴在按摩床上的女性肩背" loading="lazy"></figure>
+    <p class="what">針對肩頸、腰背等容易緊繃疲勞的部位，用合適的手法和力道推拿放鬆，幫肌肉慢慢卸下壓力。可以單獨預約，也很適合安排在運動之後。</p>
+    <ul class="fit"><li>肩頸緊繃</li><li>腰背痠痛</li><li>運動後恢復</li><li>單純想好好放鬆</li></ul>
+
+    <div class="plan">
+      <div class="plan-head"><h3>客製化減壓放鬆</h3><span class="meta">依你的緊繃部位調整</span></div>
+      <div class="rows">
+        <div class="row"><span class="n">30 分鐘</span><span class="u">$1,000</span><span class="t"></span></div>
+        <div class="row"><span class="n">60 分鐘</span><span class="u">$1,900</span><span class="t"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 教室（之後補教室照片：把照片放進 img/，再多複製一個 figure 即可） ===== -->
+  <section class="gallery" id="studio">
+    <div class="cat-title"><span class="ghost" aria-hidden="true">STUDIO</span><h2>教室一隅</h2><span class="hand">安靜、明亮、不擁擠</span></div>
+    <div class="shots">
+      <figure><img src="img/studio_pilates.jpg" alt="器械皮拉提斯區" loading="lazy"><figcaption>器械皮拉提斯區</figcaption></figure>
+      <figure><img src="img/studio_gym.jpg" alt="重訓區" loading="lazy" style="object-position:30% 50%"><figcaption>重訓區</figcaption></figure>
+    </div>
+  </section>
+
+  <!-- ===== 須知 ===== -->
+  <section class="rules" id="notes">
+    <div class="cat-title"><span class="ghost" aria-hidden="true">NOTES</span><h2>購課須知</h2></div>
+    <ol>
+      <li><span><b>課卡沒有使用期限。</b>買好的堂數不會過期，可以依自己的時間慢慢上完。</span></li>
+      <li><span><b>家人朋友可以共用同一張課卡。</b>買一張卡，家人、朋友都能用這張卡的堂數來上課。</span></li>
+      <li><span><b>先體驗，再決定。</b>不確定哪種課程適合自己，可以先預約一堂體驗課，上完再和教練聊聊你的目標，一起找出適合的上課方式和頻率。</span></li>
+      <li><span><b>首次體驗價限新學員使用一次。</b></span></li>
+      <li><span>以上價格為新台幣，每堂 60 分鐘（按摩依所選時間）。如有調整，以輕境官方 LINE 公告為準。</span></li>
+    </ol>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p class="hand">你能夠做到的，比你想像的更多</p>
+    <span class="big">預約與詢問，請私訊輕境官方 LINE</span>
+    <p>告訴我們你想上的課和方便的時間，我們幫你安排教練。</p>
+    <small>輕境健康平衡工作室 MOTIVATION STUDIO・價目更新於 2026 年 11 月</small>
+  </div>
+</footer>
+
+</body>
+</html>
